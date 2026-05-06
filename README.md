@@ -12,6 +12,16 @@ This project keeps the familiar `Microsoft.Xna.Framework.Net` and `GamerServices
 - Keep message contracts shared across all back-ends.
 - Make it easy to test host/find/join/message flows end-to-end.
 
+### AI-assisted development
+
+Full transparency: AI tools are used in this project to speed up development, research and refactoring.
+
+All architecture, implementation direction and final review decisions are made by an experienced human engineer with 35+ years in the software industry working across banking, insurance, multinational enterprises, indie game studios and other startups.
+
+The goal is simple: ship reliable, maintainable, human-quality code faster.
+
+If you prefer projects built entirely without AI assistance, that is completely fair, then realistically using this libaray is probably not for you.
+
 ## Repository layout
 
 - `Net/`: Core networking types, messages, abstractions, adapters, factories, services.
