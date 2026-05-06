@@ -152,7 +152,7 @@ jobs:
         run: dotnet pack Steam/MonoGame.Xna.Framework.Net.Steam.csproj -c Release -o artifacts/steam --no-build -p:PackageVersion=${{ steps.version.outputs.steam_version }}
 
       - name: Upload core package artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: nuget-core-${{ steps.version.outputs.core_version }}
           path: |
@@ -160,7 +160,7 @@ jobs:
             artifacts/core/*.snupkg
 
       - name: Upload steam package artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: nuget-steam-${{ steps.version.outputs.steam_version }}
           path: |
@@ -180,7 +180,7 @@ jobs:
           dotnet-version: 9.0.x
 
       - name: Download core package artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: nuget-core-${{ needs.pack.outputs.core_version }}
           path: artifacts/core
@@ -216,7 +216,7 @@ jobs:
           dotnet-version: 9.0.x
 
       - name: Download steam package artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: nuget-steam-${{ needs.pack.outputs.steam_version }}
           path: artifacts/steam
