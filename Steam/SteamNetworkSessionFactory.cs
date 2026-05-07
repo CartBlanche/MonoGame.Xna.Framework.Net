@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Net;
-using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Xna.Framework.Net.Steam;
@@ -18,15 +17,13 @@ namespace Microsoft.Xna.Framework.Net
     /// <see cref="NetworkSession.JoinAsync"/> automatically delegate to Steam when this factory
     /// is registered with <see cref="NetworkServiceProvider"/>.
     ///
-    /// Session discovery uses Steam lobbies. The actual game data transport remains UDP so that
-    /// existing packet-routing code continues to work unchanged (Phase 2a). Steam P2P transport
-    /// can be layered in as a separate phase.
+    /// Session discovery uses Steam lobbies and gameplay data uses Steam P2P transport while
+    /// preserving the existing NetworkSession API used by game code.
     /// </summary>
     public sealed class SteamNetworkSessionFactory : INetworkSessionFactory, INetworkSessionProvider
     {
         private const string LobbyGameKey = "mgnet_game";
-        private const string LobbyHostIpKey = "host_ip";
-        private const string LobbyHostPortKey = "host_port";
+        private const string LobbyHostSteamIdKey = "host_steamid";
         private readonly string lobbyGameValue;
 
         public SteamNetworkSessionFactory(string gameTag = null)
@@ -68,10 +65,18 @@ namespace Microsoft.Xna.Framework.Net
             IDictionary<string, object> sessionProperties,
             CancellationToken cancellationToken = default)
         {
-            // Build the standard UDP session (handles gamer tracking + packet routing).
+            // Build the standard session shell used by existing game code.
             var session = await NetworkSession.CreateSystemLinkSessionAsync(sessionType, maxGamers, privateGamerSlots, cancellationToken);
 
-            // Advertise concurrently via Steam lobby so remote players can find us.
+            // Phase 3: route gameplay packets over Steam P2P.
+            if (SteamRuntime.IsInitialized)
+            {
+                var previousTransport = session.NetworkTransport;
+                session.NetworkTransport = new SteamP2PTransport();
+                previousTransport?.Dispose();
+            }
+
+            // Advertise concurrently via Steam lobby so remote players can discover us.
             if (SteamRuntime.IsInitialized)
                 _ = AdvertiseSteamLobbyAsync(session, maxGamers);
 
@@ -134,7 +139,7 @@ namespace Microsoft.Xna.Framework.Net
                 }
             }
 
-            // Connect via UDP (uses HostEndpoint populated from lobby metadata).
+            // Connect via the active transport (Steam P2P for Steam backend).
             return await NetworkSession.JoinSystemLinkSessionAsync(availableSession, cancellationToken).ConfigureAwait(false);
         }
 
@@ -156,19 +161,7 @@ namespace Microsoft.Xna.Framework.Net
 
                 var lobbyId = new CSteamID(result.m_ulSteamIDLobby);
                 SteamMatchmaking.SetLobbyData(lobbyId, LobbyGameKey, lobbyGameValue);
-
-                // Store the UDP endpoint so joiners can connect directly.
-                var localEndpoint = session.NetworkTransport?.LocalEndPoint;
-                if (localEndpoint != null)
-                {
-                    var hostIp = ResolveAdvertisedHostIp(localEndpoint);
-                    if (hostIp != null)
-                    {
-                        SteamMatchmaking.SetLobbyData(lobbyId, LobbyHostIpKey, hostIp.ToString());
-                        SteamMatchmaking.SetLobbyData(lobbyId, LobbyHostPortKey, localEndpoint.Port.ToString());
-                        Debug.WriteLine($"[Steam] Advertising UDP endpoint: {hostIp}:{localEndpoint.Port}");
-                    }
-                }
+                SteamMatchmaking.SetLobbyData(lobbyId, LobbyHostSteamIdKey, SteamUser.GetSteamID().m_SteamID.ToString());
 
                 Debug.WriteLine($"[Steam] Lobby created: {lobbyId}");
             }
@@ -189,10 +182,13 @@ namespace Microsoft.Xna.Framework.Net
                 if (!string.Equals(lobbyGame, lobbyGameValue, StringComparison.OrdinalIgnoreCase))
                     return null;
 
-                var ip = SteamMatchmaking.GetLobbyData(lobbyId, LobbyHostIpKey);
-                var portStr = SteamMatchmaking.GetLobbyData(lobbyId, LobbyHostPortKey);
-                if (!string.IsNullOrEmpty(ip) && int.TryParse(portStr, out var port))
-                    return new IPEndPoint(IPAddress.Parse(ip), port);
+                var hostSteamId = SteamMatchmaking.GetLobbyOwner(lobbyId);
+                if (hostSteamId.IsValid())
+                    return SteamP2PTransport.ToEndpoint(hostSteamId);
+
+                var hostSteamIdText = SteamMatchmaking.GetLobbyData(lobbyId, LobbyHostSteamIdKey);
+                if (ulong.TryParse(hostSteamIdText, out var hostSteamIdRaw))
+                    return SteamP2PTransport.ToEndpoint(new CSteamID(hostSteamIdRaw));
             }
             catch { }
             return null;
@@ -245,30 +241,6 @@ namespace Microsoft.Xna.Framework.Net
             {
                 // Keep vertical-slice behavior available if Steam lobby query fails.
                 return SteamSessionDirectory.FindSessions(sessionType).ToList();
-            }
-        }
-
-        private static IPAddress ResolveAdvertisedHostIp(IPEndPoint localEndpoint)
-        {
-            if (localEndpoint == null)
-                return null;
-
-            var ip = localEndpoint.Address;
-            if (ip != null && !IPAddress.Any.Equals(ip) && !IPAddress.IPv6Any.Equals(ip) && !IPAddress.IsLoopback(ip))
-                return ip;
-
-            try
-            {
-                var addresses = Dns.GetHostAddresses(Dns.GetHostName());
-                var candidate = addresses.FirstOrDefault(a =>
-                    a.AddressFamily == AddressFamily.InterNetwork &&
-                    !IPAddress.IsLoopback(a));
-
-                return candidate;
-            }
-            catch
-            {
-                return null;
             }
         }
 
