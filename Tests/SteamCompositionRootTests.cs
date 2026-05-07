@@ -18,6 +18,10 @@ namespace Microsoft.Xna.Framework.Net.Tests
         private IGuideSignInProvider originalSignInProvider;
         private ILeaderboardProvider originalLiveProvider;
         private ILeaderboardProvider originalLocalProvider;
+        private IAchievementProvider originalAchievementLiveProvider;
+        private IAchievementProvider originalAchievementLocalProvider;
+        private IAchievementMediaProvider originalAchievementMediaLiveProvider;
+        private IAchievementMediaProvider originalAchievementMediaLocalProvider;
         private INetworkSessionFactory originalSessionFactory;
         private bool hadSessionFactory;
 
@@ -71,6 +75,38 @@ namespace Microsoft.Xna.Framework.Net.Tests
             }
         }
 
+        private sealed class RecordingAchievementProvider : IAchievementProvider
+        {
+            public bool UnlockCalled { get; private set; }
+
+            public Task<AchievementCollection> GetAchievementsAsync(SignedInGamer gamer, CancellationToken cancellationToken = default)
+            {
+                return Task.FromResult(new AchievementCollection(Array.Empty<Achievement>()));
+            }
+
+            public Task SetProgressAsync(SignedInGamer gamer, string achievementKey, float percentComplete, CancellationToken cancellationToken = default)
+            {
+                return Task.CompletedTask;
+            }
+
+            public Task UnlockAsync(SignedInGamer gamer, string achievementKey, CancellationToken cancellationToken = default)
+            {
+                UnlockCalled = true;
+                return Task.CompletedTask;
+            }
+        }
+
+        private sealed class RecordingAchievementMediaProvider : IAchievementMediaProvider
+        {
+            public bool GetIconCalled { get; private set; }
+
+            public Task<AchievementIcon> GetIconAsync(SignedInGamer gamer, string achievementKey, CancellationToken cancellationToken = default)
+            {
+                GetIconCalled = true;
+                return Task.FromResult<AchievementIcon>(null);
+            }
+        }
+
         [SetUp]
         public void SetUp()
         {
@@ -79,6 +115,10 @@ namespace Microsoft.Xna.Framework.Net.Tests
             originalSignInProvider = Guide.SignInProvider;
             originalLiveProvider = LeaderboardService.LiveProvider;
             originalLocalProvider = LeaderboardService.LocalProvider;
+            originalAchievementLiveProvider = AchievementService.LiveProvider;
+            originalAchievementLocalProvider = AchievementService.LocalProvider;
+            originalAchievementMediaLiveProvider = AchievementMediaService.LiveProvider;
+            originalAchievementMediaLocalProvider = AchievementMediaService.LocalProvider;
             hadSessionFactory = NetworkServiceProvider.IsConfigured;
             if (hadSessionFactory)
             {
@@ -87,6 +127,9 @@ namespace Microsoft.Xna.Framework.Net.Tests
 
             SignedInGamer.Current.SetSignedInToLive(false);
             LeaderboardService.LiveProvider = null;
+            AchievementService.LiveProvider = null;
+            AchievementMediaService.LiveProvider = null;
+            AchievementCatalog.Clear();
         }
 
         [TearDown]
@@ -95,6 +138,10 @@ namespace Microsoft.Xna.Framework.Net.Tests
             Guide.SignInProvider = originalSignInProvider;
             LeaderboardService.LiveProvider = originalLiveProvider;
             LeaderboardService.LocalProvider = originalLocalProvider;
+            AchievementService.LiveProvider = originalAchievementLiveProvider;
+            AchievementService.LocalProvider = originalAchievementLocalProvider;
+            AchievementMediaService.LiveProvider = originalAchievementMediaLiveProvider;
+            AchievementMediaService.LocalProvider = originalAchievementMediaLocalProvider;
 
             if (hadSessionFactory && originalSessionFactory != null)
             {
@@ -106,6 +153,7 @@ namespace Microsoft.Xna.Framework.Net.Tests
             }
 
             SignedInGamer.Current.SetSignedInToLive(false);
+            AchievementCatalog.Clear();
         }
 
         [Test]
@@ -113,12 +161,21 @@ namespace Microsoft.Xna.Framework.Net.Tests
         {
             var stubSignIn = new StubSignInProvider(result: true);
             var recordingLive = new RecordingLeaderboardProvider();
+            var recordingAchievementLive = new RecordingAchievementProvider();
+            var recordingAchievementMediaLive = new RecordingAchievementMediaProvider();
+            var definitions = new[]
+            {
+                new AchievementDefinition("composition-e2e-achievement", "Composition Achievement")
+            };
 
             SteamPlatformBootstrap.Configure(
                 gameName: "CompositionRootTests",
                 signInProvider: stubSignIn,
                 sessionFactory: new SteamNetworkSessionFactory(),
-                liveProviderFactoryOverride: () => recordingLive);
+                liveProviderFactoryOverride: () => recordingLive,
+                achievementLiveProviderFactoryOverride: () => recordingAchievementLive,
+                achievementMediaLiveProviderFactoryOverride: () => recordingAchievementMediaLive,
+                achievementDefinitions: definitions);
 
             var signedIn = await SteamPlatformBootstrap.TrySignInAndEnableLiveAsync();
 
@@ -126,7 +183,10 @@ namespace Microsoft.Xna.Framework.Net.Tests
             Assert.That(SignedInGamer.Current.IsSignedInToLive, Is.True);
             Assert.That(Guide.SignInProvider, Is.SameAs(stubSignIn));
             Assert.That(LeaderboardService.LiveProvider, Is.SameAs(recordingLive));
+            Assert.That(AchievementService.LiveProvider, Is.SameAs(recordingAchievementLive));
+            Assert.That(AchievementMediaService.LiveProvider, Is.SameAs(recordingAchievementMediaLive));
             Assert.That(NetworkServiceProvider.SessionFactory, Is.TypeOf<SteamNetworkSessionFactory>());
+            Assert.That(AchievementCatalog.Get("composition-e2e-achievement"), Is.Not.Null);
 
             var leaderboard = new LeaderboardIdentity("composition-e2e");
             var writer = new LeaderboardWriter(leaderboard, SignedInGamer.Current)
@@ -135,6 +195,12 @@ namespace Microsoft.Xna.Framework.Net.Tests
             };
             await SignedInGamer.Current.WriteLeaderboardAsync(writer);
             Assert.That(recordingLive.SubmitCalled, Is.True);
+
+            await SignedInGamer.Current.UnlockAchievementAsync("composition-e2e-achievement");
+            Assert.That(recordingAchievementLive.UnlockCalled, Is.True);
+
+            await SignedInGamer.Current.GetAchievementIconAsync("composition-e2e-achievement");
+            Assert.That(recordingAchievementMediaLive.GetIconCalled, Is.True);
 
             var host = NetworkServiceProvider.SessionFactory.CreateSession();
             var client = NetworkServiceProvider.SessionFactory.CreateSession();

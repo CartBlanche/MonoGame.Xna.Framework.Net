@@ -362,5 +362,78 @@ namespace Microsoft.Xna.Framework.GamerServices
         {
             return GetLeaderboardAsync(leaderboard, pageSize).GetAwaiter().GetResult();
         }
+
+        /// <summary>
+        /// Asynchronously gets achievements for this signed-in gamer.
+        /// </summary>
+        public Task<AchievementCollection> GetAchievementsAsync(CancellationToken cancellationToken = default)
+        {
+            var provider = AchievementService.ResolveProvider(this);
+            return provider.GetAchievementsAsync(this, cancellationToken);
+        }
+
+        /// <summary>
+        /// Synchronous wrapper for GetAchievementsAsync.
+        /// </summary>
+        public AchievementCollection GetAchievements()
+        {
+            return GetAchievementsAsync().GetAwaiter().GetResult();
+        }
+
+        /// <summary>
+        /// Asynchronously updates progress for an achievement.
+        /// </summary>
+        public Task SetAchievementProgressAsync(
+            string achievementKey,
+            float percentComplete,
+            CancellationToken cancellationToken = default)
+        {
+            var provider = AchievementService.ResolveProvider(this);
+            return provider.SetProgressAsync(this, achievementKey, percentComplete, cancellationToken);
+        }
+
+        /// <summary>
+        /// Synchronous wrapper for SetAchievementProgressAsync.
+        /// </summary>
+        public void SetAchievementProgress(string achievementKey, float percentComplete)
+        {
+            SetAchievementProgressAsync(achievementKey, percentComplete).GetAwaiter().GetResult();
+        }
+
+        /// <summary>
+        /// Asynchronously unlocks an achievement.
+        /// </summary>
+        public Task UnlockAchievementAsync(string achievementKey, CancellationToken cancellationToken = default)
+        {
+            var provider = AchievementService.ResolveProvider(this);
+            return provider.UnlockAsync(this, achievementKey, cancellationToken);
+        }
+
+        /// <summary>
+        /// Synchronous wrapper for UnlockAchievementAsync.
+        /// </summary>
+        public void UnlockAchievement(string achievementKey)
+        {
+            UnlockAchievementAsync(achievementKey).GetAwaiter().GetResult();
+        }
+
+        /// <summary>
+        /// Asynchronously gets icon media for a specific achievement.
+        /// </summary>
+        public Task<AchievementIcon> GetAchievementIconAsync(
+            string achievementKey,
+            CancellationToken cancellationToken = default)
+        {
+            var provider = AchievementMediaService.ResolveProvider(this);
+            return provider.GetIconAsync(this, achievementKey, cancellationToken);
+        }
+
+        /// <summary>
+        /// Synchronous wrapper for GetAchievementIconAsync.
+        /// </summary>
+        public AchievementIcon GetAchievementIcon(string achievementKey)
+        {
+            return GetAchievementIconAsync(achievementKey).GetAwaiter().GetResult();
+        }
 	}
 }

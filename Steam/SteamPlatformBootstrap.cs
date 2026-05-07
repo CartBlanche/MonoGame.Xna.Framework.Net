@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Xna.Framework.GamerServices;
@@ -12,6 +13,8 @@ namespace Microsoft.Xna.Framework.Net.Steam
     {
         private static readonly object Gate = new();
         private static Func<ILeaderboardProvider> liveProviderFactory = () => new SteamLeaderboardProvider();
+        private static Func<IAchievementProvider> achievementLiveProviderFactory = () => new SteamAchievementProvider();
+        private static Func<IAchievementMediaProvider> achievementMediaLiveProviderFactory = () => new SteamAchievementMediaProvider();
 
         /// <summary>
         /// Configures Steam-backed services for networking and guide sign-in.
@@ -21,11 +24,20 @@ namespace Microsoft.Xna.Framework.Net.Steam
             string gameName,
             IGuideSignInProvider signInProvider = null,
             INetworkSessionFactory sessionFactory = null,
-            Func<ILeaderboardProvider> liveProviderFactoryOverride = null)
+            Func<ILeaderboardProvider> liveProviderFactoryOverride = null,
+            Func<IAchievementProvider> achievementLiveProviderFactoryOverride = null,
+            Func<IAchievementMediaProvider> achievementMediaLiveProviderFactoryOverride = null,
+            IEnumerable<AchievementDefinition> achievementDefinitions = null)
         {
             if (!string.IsNullOrWhiteSpace(gameName))
             {
                 LeaderboardService.UsePersistentLocalStorage(gameName.Trim());
+                AchievementService.UsePersistentLocalStorage(gameName.Trim());
+            }
+
+            if (achievementDefinitions != null)
+            {
+                AchievementCatalog.RegisterRange(achievementDefinitions);
             }
 
             Guide.SignInProvider = signInProvider ?? new SteamSignInProvider();
@@ -34,6 +46,8 @@ namespace Microsoft.Xna.Framework.Net.Steam
             lock (Gate)
             {
                 liveProviderFactory = liveProviderFactoryOverride ?? (() => new SteamLeaderboardProvider());
+                achievementLiveProviderFactory = achievementLiveProviderFactoryOverride ?? (() => new SteamAchievementProvider());
+                achievementMediaLiveProviderFactory = achievementMediaLiveProviderFactoryOverride ?? (() => new SteamAchievementMediaProvider());
             }
         }
 
@@ -50,16 +64,24 @@ namespace Microsoft.Xna.Framework.Net.Steam
             if (!SignedInGamer.Current.IsSignedInToLive)
             {
                 LeaderboardService.LiveProvider = null;
+                AchievementService.LiveProvider = null;
+                AchievementMediaService.LiveProvider = null;
                 return false;
             }
 
             Func<ILeaderboardProvider> providerFactory;
+            Func<IAchievementProvider> achievementProviderFactory;
+            Func<IAchievementMediaProvider> achievementMediaProviderFactory;
             lock (Gate)
             {
                 providerFactory = liveProviderFactory;
+                achievementProviderFactory = achievementLiveProviderFactory;
+                achievementMediaProviderFactory = achievementMediaLiveProviderFactory;
             }
 
             LeaderboardService.LiveProvider = providerFactory();
+            AchievementService.LiveProvider = achievementProviderFactory();
+            AchievementMediaService.LiveProvider = achievementMediaProviderFactory();
             return true;
         }
     }
