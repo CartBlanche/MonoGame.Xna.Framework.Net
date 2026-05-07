@@ -208,7 +208,12 @@ namespace Microsoft.Xna.Framework.Net
             return sessionsDict.Values;
         }
 
-        public static async Task<NetworkSession> JoinSessionAsync(AvailableNetworkSession availableSession, CancellationToken cancellationToken)
+        public static Task<NetworkSession> JoinSessionAsync(AvailableNetworkSession availableSession, CancellationToken cancellationToken)
+        {
+            return JoinSessionAsync(availableSession, transport: null, cancellationToken);
+        }
+
+        public static async Task<NetworkSession> JoinSessionAsync(AvailableNetworkSession availableSession, INetworkTransport transport, CancellationToken cancellationToken)
         {
             // Phase 1: Reliable join with timeout and retry
             const int MAX_RETRIES = 3;
@@ -221,7 +226,8 @@ namespace Microsoft.Xna.Framework.Net
                 availableSession.OpenPublicGamerSlots + availableSession.CurrentGamerCount,
                 availableSession.OpenPrivateGamerSlots,
                 false,
-                availableSession.SessionId);
+                availableSession.SessionId,
+                transport);
             session.sessionState = NetworkSessionState.Joining; // Phase 1: Use new Joining state
 
             // Copy session properties from AvailableNetworkSession to NetworkSession

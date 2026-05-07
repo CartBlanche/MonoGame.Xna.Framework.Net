@@ -54,8 +54,8 @@ namespace Microsoft.Xna.Framework.Net
         // -----------------------------------------------------------------------
 
         /// <summary>
-        /// Creates a UDP-backed <see cref="NetworkSession"/> that is also advertised as a
-        /// Steam lobby so that remote players can discover it via Steam matchmaking.
+        /// Creates a Steam-backed <see cref="NetworkSession"/> and advertises it as a
+        /// Steam lobby so remote players can discover it via Steam matchmaking.
         /// </summary>
         public async Task<NetworkSession> CreateSessionAsync(
             NetworkSessionType sessionType,
@@ -65,18 +65,10 @@ namespace Microsoft.Xna.Framework.Net
             IDictionary<string, object> sessionProperties,
             CancellationToken cancellationToken = default)
         {
-            // Build the standard session shell used by existing game code.
-            var session = await NetworkSession.CreateSystemLinkSessionAsync(sessionType, maxGamers, privateGamerSlots, cancellationToken);
+            var session = SteamRuntime.IsInitialized
+                ? await NetworkSession.CreateSystemLinkSessionAsync(sessionType, maxGamers, privateGamerSlots, new SteamP2PTransport(), advertiseOnLan: false, cancellationToken).ConfigureAwait(false)
+                : await NetworkSession.CreateSystemLinkSessionAsync(sessionType, maxGamers, privateGamerSlots, cancellationToken).ConfigureAwait(false);
 
-            // Phase 3: route gameplay packets over Steam P2P.
-            if (SteamRuntime.IsInitialized)
-            {
-                var previousTransport = session.NetworkTransport;
-                session.NetworkTransport = new SteamP2PTransport();
-                previousTransport?.Dispose();
-            }
-
-            // Advertise concurrently via Steam lobby so remote players can discover us.
             if (SteamRuntime.IsInitialized)
                 _ = AdvertiseSteamLobbyAsync(session, maxGamers);
 
@@ -85,8 +77,7 @@ namespace Microsoft.Xna.Framework.Net
 
         /// <summary>
         /// Discovers sessions via Steam lobbies and converts them to
-        /// <see cref="AvailableNetworkSession"/> objects that carry the host's UDP endpoint
-        /// (stored as Steam lobby metadata), so the existing UDP join path works transparently.
+        /// <see cref="AvailableNetworkSession"/> objects that carry the host's Steam endpoint.
         /// </summary>
         public async Task<AvailableNetworkSessionCollection> FindSessionsAsync(
             NetworkSessionType sessionType,
@@ -116,7 +107,7 @@ namespace Microsoft.Xna.Framework.Net
         }
 
         /// <summary>
-        /// Joins a Steam lobby for presence tracking, then connects via UDP using the host
+        /// Joins a Steam lobby for presence tracking, then connects via Steam P2P using the host
         /// endpoint stored in the lobby metadata.
         /// </summary>
         public async Task<NetworkSession> JoinSessionAsync(
@@ -139,8 +130,9 @@ namespace Microsoft.Xna.Framework.Net
                 }
             }
 
-            // Connect via the active transport (Steam P2P for Steam backend).
-            return await NetworkSession.JoinSystemLinkSessionAsync(availableSession, cancellationToken).ConfigureAwait(false);
+            return SteamRuntime.IsInitialized
+                ? await NetworkSession.JoinSystemLinkSessionAsync(availableSession, new SteamP2PTransport(), cancellationToken).ConfigureAwait(false)
+                : await NetworkSession.JoinSystemLinkSessionAsync(availableSession, cancellationToken).ConfigureAwait(false);
         }
 
         // -----------------------------------------------------------------------

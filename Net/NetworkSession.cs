@@ -100,7 +100,7 @@ namespace Microsoft.Xna.Framework.Net
         /// <summary>
         /// Initializes a new NetworkSession.
         /// </summary>
-        private NetworkSession(NetworkSessionType sessionType, int maxGamers, int privateGamerSlots, bool isHost)
+        private NetworkSession(NetworkSessionType sessionType, int maxGamers, int privateGamerSlots, bool isHost, INetworkTransport transport = null)
         {
             // Register message types (can be moved to static constructor)
             NetworkMessageRegistry.Register<PlayerMoveMessage>(1);
@@ -116,7 +116,7 @@ namespace Microsoft.Xna.Framework.Net
             gamerCollection = new GamerCollection(gamers);
             gamerEndpoints = new Dictionary<string, IPEndPoint>();
 
-            networkTransport = new UdpTransport();
+            networkTransport = transport ?? new UdpTransport();
             cancellationTokenSource = new CancellationTokenSource();
 
             // Phase 1: Initialize diagnostics and logging
@@ -138,8 +138,11 @@ namespace Microsoft.Xna.Framework.Net
                 {
                     try
                     {
-                        // Try binding to the well-known game port; fall back to ephemeral if taken
-                        (networkTransport as UdpTransport)?.Bind(31338);
+                        // Try binding to the well-known game port; fall back to transport default if not UDP.
+                        if (networkTransport is UdpTransport udpTransport)
+                            udpTransport.Bind(31338);
+                        else
+                            networkTransport.Bind();
                     }
                     catch
                     {
@@ -151,8 +154,8 @@ namespace Microsoft.Xna.Framework.Net
         }
 
         // Internal constructor for SystemLink join
-        internal NetworkSession(NetworkSessionType sessionType, int maxGamers, int privateGamerSlots, bool isHost, string sessionId)
-            : this(sessionType, maxGamers, privateGamerSlots, isHost)
+        internal NetworkSession(NetworkSessionType sessionType, int maxGamers, int privateGamerSlots, bool isHost, string sessionId, INetworkTransport transport = null)
+            : this(sessionType, maxGamers, privateGamerSlots, isHost, transport)
         {
             this.sessionId = sessionId;
             // Don't set state here - let JoinSessionAsync set it to Joining, then acceptance sets it to Lobby
@@ -324,10 +327,22 @@ namespace Microsoft.Xna.Framework.Net
             int privateGamerSlots,
             CancellationToken cancellationToken = default)
         {
-            var session = new NetworkSession(sessionType, maxGamers, privateGamerSlots, isHost: true);
+            return CreateSystemLinkSessionAsync(sessionType, maxGamers, privateGamerSlots, transport: null, advertiseOnLan: true, cancellationToken);
+        }
+
+        internal static Task<NetworkSession> CreateSystemLinkSessionAsync(
+            NetworkSessionType sessionType,
+            int maxGamers,
+            int privateGamerSlots,
+            INetworkTransport transport,
+            bool advertiseOnLan,
+            CancellationToken cancellationToken = default)
+        {
+            var session = new NetworkSession(sessionType, maxGamers, privateGamerSlots, isHost: true, transport);
             session.sessionState = NetworkSessionState.Lobby;
             session.StartConnectionMonitoring();
-            _ = SystemLinkSessionManager.AdvertiseSessionAsync(session, session.cancellationTokenSource.Token);
+            if (advertiseOnLan)
+                _ = SystemLinkSessionManager.AdvertiseSessionAsync(session, session.cancellationTokenSource.Token);
             return Task.FromResult(session);
         }
 
@@ -339,7 +354,15 @@ namespace Microsoft.Xna.Framework.Net
             AvailableNetworkSession availableSession,
             CancellationToken cancellationToken = default)
         {
-            var joinedSession = await SystemLinkSessionManager.JoinSessionAsync(availableSession, cancellationToken);
+            return await JoinSystemLinkSessionAsync(availableSession, transport: null, cancellationToken);
+        }
+
+        internal static async Task<NetworkSession> JoinSystemLinkSessionAsync(
+            AvailableNetworkSession availableSession,
+            INetworkTransport transport,
+            CancellationToken cancellationToken = default)
+        {
+            var joinedSession = await SystemLinkSessionManager.JoinSessionAsync(availableSession, transport, cancellationToken);
             if (joinedSession == null)
                 throw new NetworkSessionJoinException(NetworkSessionJoinError.SessionNotFound);
             return joinedSession;
