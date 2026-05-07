@@ -25,6 +25,11 @@ namespace Microsoft.Xna.Framework.Net
 
         public bool IsHost { get; protected set; }
 
+        internal void SetHost(bool isHost)
+        {
+            IsHost = isHost;
+        }
+
         public bool IsReady
         {
             get => isReady;

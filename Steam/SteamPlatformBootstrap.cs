@@ -29,7 +29,7 @@ namespace Microsoft.Xna.Framework.Net.Steam
             }
 
             Guide.SignInProvider = signInProvider ?? new SteamSignInProvider();
-            NetworkServiceProvider.SetSessionFactory(sessionFactory ?? new SteamNetworkSessionFactory());
+            NetworkServiceProvider.SetSessionFactory(sessionFactory ?? new SteamNetworkSessionFactory(gameName));
 
             lock (Gate)
             {

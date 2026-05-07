@@ -1,15 +1,39 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
+using System.Linq;
+using System.Net;
+using System.Net.Sockets;
+using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Xna.Framework.Net.Steam;
+using Steamworks;
 
 namespace Microsoft.Xna.Framework.Net
 {
     /// <summary>
-    /// Factory for Steam vertical-slice sessions.
-    /// Uses an in-memory Steam-like backend so host/find/join/message flow is testable end-to-end.
+    /// Factory for Steam-backed sessions.
+    /// Implements <see cref="INetworkSessionProvider"/> so that
+    /// <see cref="NetworkSession.CreateAsync"/>, <see cref="NetworkSession.FindAsync"/>, and
+    /// <see cref="NetworkSession.JoinAsync"/> automatically delegate to Steam when this factory
+    /// is registered with <see cref="NetworkServiceProvider"/>.
+    ///
+    /// Session discovery uses Steam lobbies. The actual game data transport remains UDP so that
+    /// existing packet-routing code continues to work unchanged (Phase 2a). Steam P2P transport
+    /// can be layered in as a separate phase.
     /// </summary>
-    public sealed class SteamNetworkSessionFactory : INetworkSessionFactory
+    public sealed class SteamNetworkSessionFactory : INetworkSessionFactory, INetworkSessionProvider
     {
+        private const string LobbyGameKey = "mgnet_game";
+        private const string LobbyHostIpKey = "host_ip";
+        private const string LobbyHostPortKey = "host_port";
+        private readonly string lobbyGameValue;
+
+        public SteamNetworkSessionFactory(string gameTag = null)
+        {
+            lobbyGameValue = NormalizeGameTag(gameTag);
+        }
+
         public string BackendName => "Steam";
 
         public INetworkSession CreateSession()
@@ -19,7 +43,260 @@ namespace Microsoft.Xna.Framework.Net
 
         public Task<IEnumerable<SessionInfo>> FindSessionsAsync(NetworkSessionType sessionType)
         {
-            return Task.FromResult(SteamSessionDirectory.FindSessions(sessionType));
+            if (!SteamRuntime.IsInitialized)
+            {
+                return Task.FromResult(SteamSessionDirectory.FindSessions(sessionType));
+            }
+
+            return FindSteamLobbiesAsync(sessionType);
+        }
+
+        // -----------------------------------------------------------------------
+        // INetworkSessionProvider — NetworkSession.CreateAsync/FindAsync/JoinAsync
+        // delegate here when this factory is registered with NetworkServiceProvider.
+        // -----------------------------------------------------------------------
+
+        /// <summary>
+        /// Creates a UDP-backed <see cref="NetworkSession"/> that is also advertised as a
+        /// Steam lobby so that remote players can discover it via Steam matchmaking.
+        /// </summary>
+        public async Task<NetworkSession> CreateSessionAsync(
+            NetworkSessionType sessionType,
+            int maxLocalGamers,
+            int maxGamers,
+            int privateGamerSlots,
+            IDictionary<string, object> sessionProperties,
+            CancellationToken cancellationToken = default)
+        {
+            // Build the standard UDP session (handles gamer tracking + packet routing).
+            var session = await NetworkSession.CreateSystemLinkSessionAsync(sessionType, maxGamers, privateGamerSlots, cancellationToken);
+
+            // Advertise concurrently via Steam lobby so remote players can find us.
+            if (SteamRuntime.IsInitialized)
+                _ = AdvertiseSteamLobbyAsync(session, maxGamers);
+
+            return session;
+        }
+
+        /// <summary>
+        /// Discovers sessions via Steam lobbies and converts them to
+        /// <see cref="AvailableNetworkSession"/> objects that carry the host's UDP endpoint
+        /// (stored as Steam lobby metadata), so the existing UDP join path works transparently.
+        /// </summary>
+        public async Task<AvailableNetworkSessionCollection> FindSessionsAsync(
+            NetworkSessionType sessionType,
+            int maxLocalGamers,
+            IDictionary<string, object> sessionProperties,
+            CancellationToken cancellationToken = default)
+        {
+            IEnumerable<SessionInfo> infos;
+            if (SteamRuntime.IsInitialized)
+                infos = await FindSteamLobbiesAsync(sessionType).ConfigureAwait(false);
+            else
+                infos = SteamSessionDirectory.FindSessions(sessionType);
+
+            var available = infos.Select(info => new AvailableNetworkSession(
+                sessionName: info.HostName ?? "Steam Session",
+                hostGamertag: info.HostName ?? "Host",
+                currentGamerCount: info.CurrentPlayerCount,
+                openPublicGamerSlots: Math.Max(0, info.MaxPlayerCount - info.CurrentPlayerCount),
+                openPrivateGamerSlots: 0,
+                sessionType: sessionType,
+                sessionProperties: new Dictionary<string, object>(),
+                sessionId: info.SessionId,
+                hostEndpoint: TryGetHostEndpointFromLobby(info.SessionId)
+            )).ToList();
+
+            return new AvailableNetworkSessionCollection(available);
+        }
+
+        /// <summary>
+        /// Joins a Steam lobby for presence tracking, then connects via UDP using the host
+        /// endpoint stored in the lobby metadata.
+        /// </summary>
+        public async Task<NetworkSession> JoinSessionAsync(
+            AvailableNetworkSession availableSession,
+            CancellationToken cancellationToken = default)
+        {
+            // Join the Steam lobby (for presence / invite tracking).
+            if (SteamRuntime.IsInitialized &&
+                ulong.TryParse(availableSession.SessionId, out var lobbyIdRaw))
+            {
+                try
+                {
+                    var lobbyId = new CSteamID(lobbyIdRaw);
+                    var call = SteamMatchmaking.JoinLobby(lobbyId);
+                    await AwaitCallResultAsync<LobbyEnter_t>(call).ConfigureAwait(false);
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"[Steam] JoinLobby failed (non-fatal): {ex.Message}");
+                }
+            }
+
+            // Connect via UDP (uses HostEndpoint populated from lobby metadata).
+            return await NetworkSession.JoinSystemLinkSessionAsync(availableSession, cancellationToken).ConfigureAwait(false);
+        }
+
+        // -----------------------------------------------------------------------
+        // Steam lobby helpers
+        // -----------------------------------------------------------------------
+
+        private async Task AdvertiseSteamLobbyAsync(NetworkSession session, int maxGamers)
+        {
+            try
+            {
+                var call = SteamMatchmaking.CreateLobby(ELobbyType.k_ELobbyTypePublic, maxGamers);
+                var result = await AwaitCallResultAsync<LobbyCreated_t>(call).ConfigureAwait(false);
+                if (result.m_eResult != EResult.k_EResultOK)
+                {
+                    Debug.WriteLine($"[Steam] CreateLobby returned {result.m_eResult}");
+                    return;
+                }
+
+                var lobbyId = new CSteamID(result.m_ulSteamIDLobby);
+                SteamMatchmaking.SetLobbyData(lobbyId, LobbyGameKey, lobbyGameValue);
+
+                // Store the UDP endpoint so joiners can connect directly.
+                var localEndpoint = session.NetworkTransport?.LocalEndPoint;
+                if (localEndpoint != null)
+                {
+                    var hostIp = ResolveAdvertisedHostIp(localEndpoint);
+                    if (hostIp != null)
+                    {
+                        SteamMatchmaking.SetLobbyData(lobbyId, LobbyHostIpKey, hostIp.ToString());
+                        SteamMatchmaking.SetLobbyData(lobbyId, LobbyHostPortKey, localEndpoint.Port.ToString());
+                        Debug.WriteLine($"[Steam] Advertising UDP endpoint: {hostIp}:{localEndpoint.Port}");
+                    }
+                }
+
+                Debug.WriteLine($"[Steam] Lobby created: {lobbyId}");
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[Steam] AdvertiseSteamLobbyAsync failed: {ex.Message}");
+            }
+        }
+
+        private IPEndPoint TryGetHostEndpointFromLobby(string sessionId)
+        {
+            if (!SteamRuntime.IsInitialized) return null;
+            if (!ulong.TryParse(sessionId, out var lobbyIdRaw)) return null;
+            try
+            {
+                var lobbyId = new CSteamID(lobbyIdRaw);
+                var lobbyGame = SteamMatchmaking.GetLobbyData(lobbyId, LobbyGameKey);
+                if (!string.Equals(lobbyGame, lobbyGameValue, StringComparison.OrdinalIgnoreCase))
+                    return null;
+
+                var ip = SteamMatchmaking.GetLobbyData(lobbyId, LobbyHostIpKey);
+                var portStr = SteamMatchmaking.GetLobbyData(lobbyId, LobbyHostPortKey);
+                if (!string.IsNullOrEmpty(ip) && int.TryParse(portStr, out var port))
+                    return new IPEndPoint(IPAddress.Parse(ip), port);
+            }
+            catch { }
+            return null;
+        }
+
+
+        private async Task<IEnumerable<SessionInfo>> FindSteamLobbiesAsync(NetworkSessionType sessionType)
+        {
+            try
+            {
+                SteamMatchmaking.AddRequestLobbyListResultCountFilter(50);
+                SteamMatchmaking.AddRequestLobbyListStringFilter(LobbyGameKey, lobbyGameValue, ELobbyComparison.k_ELobbyComparisonEqual);
+                var call = SteamMatchmaking.RequestLobbyList();
+                var result = await AwaitCallResultAsync<LobbyMatchList_t>(call).ConfigureAwait(false);
+
+                var lobbyCount = (int)result.m_nLobbiesMatching;
+                var sessions = new List<SessionInfo>(lobbyCount);
+                for (var i = 0; i < lobbyCount; i++)
+                {
+                    var lobbyId = SteamMatchmaking.GetLobbyByIndex(i);
+                    var lobbyGame = SteamMatchmaking.GetLobbyData(lobbyId, LobbyGameKey);
+                    if (!string.Equals(lobbyGame, lobbyGameValue, StringComparison.OrdinalIgnoreCase))
+                    {
+                        continue;
+                    }
+
+                    var ownerId = SteamMatchmaking.GetLobbyOwner(lobbyId);
+                    var ownerName = SteamFriends.GetFriendPersonaName(ownerId);
+
+                    if (string.IsNullOrWhiteSpace(ownerName))
+                    {
+                        ownerName = ownerId.ToString();
+                    }
+
+                    sessions.Add(new SessionInfo
+                    {
+                        SessionId = lobbyId.ToString(),
+                        JoinAddress = lobbyId.ToString(),
+                        HostName = ownerName,
+                        CurrentPlayerCount = SteamMatchmaking.GetNumLobbyMembers(lobbyId),
+                        MaxPlayerCount = SteamMatchmaking.GetLobbyMemberLimit(lobbyId),
+                        IsPasswordProtected = false,
+                        SessionType = sessionType
+                    });
+                }
+
+                return sessions;
+            }
+            catch
+            {
+                // Keep vertical-slice behavior available if Steam lobby query fails.
+                return SteamSessionDirectory.FindSessions(sessionType).ToList();
+            }
+        }
+
+        private static IPAddress ResolveAdvertisedHostIp(IPEndPoint localEndpoint)
+        {
+            if (localEndpoint == null)
+                return null;
+
+            var ip = localEndpoint.Address;
+            if (ip != null && !IPAddress.Any.Equals(ip) && !IPAddress.IPv6Any.Equals(ip) && !IPAddress.IsLoopback(ip))
+                return ip;
+
+            try
+            {
+                var addresses = Dns.GetHostAddresses(Dns.GetHostName());
+                var candidate = addresses.FirstOrDefault(a =>
+                    a.AddressFamily == AddressFamily.InterNetwork &&
+                    !IPAddress.IsLoopback(a));
+
+                return candidate;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        private static string NormalizeGameTag(string gameTag)
+        {
+            if (string.IsNullOrWhiteSpace(gameTag))
+                return "default";
+
+            return gameTag.Trim().ToLowerInvariant();
+        }
+
+        private static Task<T> AwaitCallResultAsync<T>(SteamAPICall_t apiCall) where T : struct
+        {
+            var tcs = new TaskCompletionSource<T>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+            var callResult = CallResult<T>.Create((result, ioFailure) =>
+            {
+                if (ioFailure)
+                {
+                    tcs.TrySetException(new InvalidOperationException($"Steam API call failed for {typeof(T).Name}."));
+                    return;
+                }
+
+                tcs.TrySetResult(result);
+            });
+
+            callResult.Set(apiCall);
+            return tcs.Task;
         }
     }
 

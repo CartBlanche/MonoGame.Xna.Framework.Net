@@ -20,6 +20,7 @@ namespace Microsoft.Xna.Framework.Net.Tests
             public List<(byte[] data, int length, IPEndPoint endpoint)> SentPackets { get; } = new List<(byte[] data, int length, IPEndPoint endpoint)>();
 
             public bool IsBound { get; private set; }
+            public IPEndPoint LocalEndPoint => null; // Not needed for tests
 
             public void Bind()
             {

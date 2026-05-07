@@ -313,12 +313,48 @@ namespace Microsoft.Xna.Framework.Net
         /// <summary>
         /// Asynchronously creates a new network session.
         /// </summary>
+        /// <summary>
+        /// Creates a SystemLink (UDP) session directly, bypassing factory delegation.
+        /// Intended for use by <see cref="INetworkSessionProvider"/> implementations that
+        /// want to layer additional discovery (e.g. Steam lobbies) on top of UDP transport.
+        /// </summary>
+        public static Task<NetworkSession> CreateSystemLinkSessionAsync(
+            NetworkSessionType sessionType,
+            int maxGamers,
+            int privateGamerSlots,
+            CancellationToken cancellationToken = default)
+        {
+            var session = new NetworkSession(sessionType, maxGamers, privateGamerSlots, isHost: true);
+            session.sessionState = NetworkSessionState.Lobby;
+            session.StartConnectionMonitoring();
+            _ = SystemLinkSessionManager.AdvertiseSessionAsync(session, session.cancellationTokenSource.Token);
+            return Task.FromResult(session);
+        }
+
+        /// <summary>
+        /// Joins a SystemLink (UDP) session directly, bypassing factory delegation.
+        /// Intended for use by <see cref="INetworkSessionProvider"/> implementations.
+        /// </summary>
+        public static async Task<NetworkSession> JoinSystemLinkSessionAsync(
+            AvailableNetworkSession availableSession,
+            CancellationToken cancellationToken = default)
+        {
+            var joinedSession = await SystemLinkSessionManager.JoinSessionAsync(availableSession, cancellationToken);
+            if (joinedSession == null)
+                throw new NetworkSessionJoinException(NetworkSessionJoinError.SessionNotFound);
+            return joinedSession;
+        }
+
         public static async Task<NetworkSession> CreateAsync(NetworkSessionType sessionType, int maxLocalGamers, int maxGamers, int privateGamerSlots, IDictionary<string, object> sessionProperties, CancellationToken cancellationToken = default)
         {
             if (maxLocalGamers < 1 || maxLocalGamers > 4)
                 throw new ArgumentOutOfRangeException(nameof(maxLocalGamers));
             if (privateGamerSlots < 0 || privateGamerSlots > maxGamers)
                 throw new ArgumentOutOfRangeException(nameof(privateGamerSlots));
+
+            // Delegate to the configured back-end when one is set.
+            if (NetworkServiceProvider.IsConfigured && NetworkServiceProvider.SessionFactory is INetworkSessionProvider provider)
+                return await provider.CreateSessionAsync(sessionType, maxLocalGamers, maxGamers, privateGamerSlots, sessionProperties, cancellationToken);
 
             NetworkSession session = null;
             switch (sessionType)
@@ -361,6 +397,10 @@ namespace Microsoft.Xna.Framework.Net
         /// </summary>
         public static async Task<AvailableNetworkSessionCollection> FindAsync(NetworkSessionType sessionType, int maxLocalGamers, IDictionary<string, object> sessionProperties, CancellationToken cancellationToken = default)
         {
+            // Delegate to the configured back-end when one is set.
+            if (NetworkServiceProvider.IsConfigured && NetworkServiceProvider.SessionFactory is INetworkSessionProvider provider)
+                return await provider.FindSessionsAsync(sessionType, maxLocalGamers, sessionProperties, cancellationToken);
+
             switch (sessionType)
             {
                 case NetworkSessionType.Local:
@@ -390,6 +430,10 @@ namespace Microsoft.Xna.Framework.Net
         /// </summary>
         public static async Task<NetworkSession> JoinAsync(AvailableNetworkSession availableSession, CancellationToken cancellationToken = default)
         {
+            // Delegate to the configured back-end when one is set.
+            if (NetworkServiceProvider.IsConfigured && NetworkServiceProvider.SessionFactory is INetworkSessionProvider provider)
+                return await provider.JoinSessionAsync(availableSession, cancellationToken);
+
             switch (availableSession.SessionType)
             {
                 case NetworkSessionType.Local:

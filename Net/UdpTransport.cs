@@ -141,5 +141,10 @@ namespace Microsoft.Xna.Framework.Net
         /// Gets a value indicating whether the transport is bound to a local endpoint.
         /// </summary>
         public bool IsBound => isBound;
+
+        /// <summary>
+        /// Gets the local endpoint this transport is bound to, or <c>null</c> if not yet bound.
+        /// </summary>
+        public IPEndPoint LocalEndPoint => isBound ? udpClient.Client.LocalEndPoint as IPEndPoint : null;
     }
 }

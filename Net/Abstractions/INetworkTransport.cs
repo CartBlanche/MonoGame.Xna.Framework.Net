@@ -16,6 +16,11 @@ namespace Microsoft.Xna.Framework.Net
         bool IsBound { get; }
 
         /// <summary>
+        /// Gets the local endpoint this transport is bound to, or <c>null</c> if not yet bound.
+        /// </summary>
+        IPEndPoint LocalEndPoint { get; }
+
+        /// <summary>
         /// Initializes and binds the transport to a local endpoint.
         /// </summary>
         void Bind();

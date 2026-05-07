@@ -4,6 +4,8 @@ using System.Linq;
 using System.Net;
 using System.Threading.Tasks;
 using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Net.Steam;
+using Steamworks;
 
 namespace Microsoft.Xna.Framework.Net
 {
@@ -54,7 +56,7 @@ namespace Microsoft.Xna.Framework.Net
         public event EventHandler<GameEndedEventArgs> GameEnded;
         public event EventHandler<NetworkSessionEndedEventArgs> SessionEnded;
 
-        public Task CreateAsync(NetworkSessionType sessionType, int maxGamers, int privateGamerSlots)
+        public async Task CreateAsync(NetworkSessionType sessionType, int maxGamers, int privateGamerSlots)
         {
             ThrowIfDisposed();
 
@@ -66,7 +68,7 @@ namespace Microsoft.Xna.Framework.Net
             this.sessionType = sessionType;
             SessionId = Guid.NewGuid().ToString("N");
 
-            var local = new SteamLocalNetworkGamer(NewGamerId(), BuildDefaultGamertag("steam_host"), isHost: true);
+            var local = CreateLocalGamer("steam_host", isHost: true);
 
             lock (gate)
             {
@@ -74,12 +76,28 @@ namespace Microsoft.Xna.Framework.Net
                 gamers[local.Id] = local;
             }
 
+            if (SteamRuntime.IsInitialized)
+            {
+                try
+                {
+                    var createCall = SteamMatchmaking.CreateLobby(ToSteamLobbyType(sessionType), maxGamers);
+                    var created = await AwaitCallResultAsync<LobbyCreated_t>(createCall).ConfigureAwait(false);
+                    if (created.m_eResult == EResult.k_EResultOK)
+                    {
+                        SessionId = created.m_ulSteamIDLobby.ToString();
+                    }
+                }
+                catch
+                {
+                    // Keep vertical-slice behavior available if Steam lobby creation fails.
+                }
+            }
+
             state = NetworkSessionState.Lobby;
             SteamSessionDirectory.RegisterHost(this, SessionId, sessionType, maxGamers);
-            return Task.CompletedTask;
         }
 
-        public Task JoinAsync(string hostAddress)
+        public async Task JoinAsync(string hostAddress)
         {
             ThrowIfDisposed();
 
@@ -89,7 +107,7 @@ namespace Microsoft.Xna.Framework.Net
             }
 
             SessionId = hostAddress.Trim();
-            var local = new SteamLocalNetworkGamer(NewGamerId(), BuildDefaultGamertag("steam_client"), isHost: false);
+            var local = CreateLocalGamer("steam_client", isHost: false);
 
             lock (gate)
             {
@@ -98,8 +116,32 @@ namespace Microsoft.Xna.Framework.Net
                 state = NetworkSessionState.Joining;
             }
 
-            SteamSessionDirectory.JoinLobby(SessionId, this);
-            return Task.CompletedTask;
+            if (SteamRuntime.IsInitialized && ulong.TryParse(SessionId, out var lobbyIdRaw))
+            {
+                try
+                {
+                    var joinCall = SteamMatchmaking.JoinLobby(new CSteamID(lobbyIdRaw));
+                    var entered = await AwaitCallResultAsync<LobbyEnter_t>(joinCall).ConfigureAwait(false);
+                    if (entered.m_EChatRoomEnterResponse != (uint)EChatRoomEnterResponse.k_EChatRoomEnterResponseSuccess)
+                    {
+                        throw new InvalidOperationException("Failed to join Steam lobby.");
+                    }
+                }
+                catch
+                {
+                    // Keep vertical-slice behavior available if Steam lobby join fails.
+                }
+            }
+
+            try
+            {
+                SteamSessionDirectory.JoinLobby(SessionId, this);
+            }
+            catch
+            {
+                // If host is not in local directory (different process), keep joined lobby state.
+                state = NetworkSessionState.Lobby;
+            }
         }
 
         public void SendMessage(INetworkMessage message, INetworkGamer recipient)
@@ -121,6 +163,12 @@ namespace Microsoft.Xna.Framework.Net
             }
 
             var payload = SerializeMessage(message);
+
+            if (TrySendViaSteamP2P(recipient.Id, payload))
+            {
+                return;
+            }
+
             SteamSessionDirectory.SendReliable(recipient.Id, payload, LocalGamer.Id);
         }
 
@@ -138,6 +186,12 @@ namespace Microsoft.Xna.Framework.Net
             }
 
             var payload = SerializeMessage(message);
+
+            if (TryBroadcastViaSteamP2P(payload))
+            {
+                return;
+            }
+
             var remoteRecipientIds = AllGamers.Where(g => !g.IsLocal).Select(g => g.Id).ToList();
             foreach (var recipientId in remoteRecipientIds)
             {
@@ -148,6 +202,8 @@ namespace Microsoft.Xna.Framework.Net
         public void Update(GameTime gameTime)
         {
             ThrowIfDisposed();
+            ProcessSteamP2PPackets();
+            SyncSteamLobbyMembership();
             ProcessInboundPackets();
         }
 
@@ -156,6 +212,31 @@ namespace Microsoft.Xna.Framework.Net
             if (disposed)
             {
                 return Task.CompletedTask;
+            }
+
+            if (SteamRuntime.IsInitialized && ulong.TryParse(SessionId, out var lobbyIdRaw))
+            {
+                try
+                {
+                    var lobbyId = new CSteamID(lobbyIdRaw);
+                    var memberCount = SteamMatchmaking.GetNumLobbyMembers(lobbyId);
+                    for (var i = 0; i < memberCount; i++)
+                    {
+                        var member = SteamMatchmaking.GetLobbyMemberByIndex(lobbyId, i);
+                        if (LocalGamer != null && member.ToString() == LocalGamer.Id)
+                        {
+                            continue;
+                        }
+
+                        SteamNetworking.CloseP2PSessionWithUser(member);
+                    }
+
+                    SteamMatchmaking.LeaveLobby(lobbyId);
+                }
+                catch
+                {
+                    // Best-effort cleanup only.
+                }
             }
 
             SteamSessionDirectory.RemoveSession(this);
@@ -326,12 +407,267 @@ namespace Microsoft.Xna.Framework.Net
             }
         }
 
+        private void SyncSteamLobbyMembership()
+        {
+            if (!SteamRuntime.IsInitialized || !ulong.TryParse(SessionId, out var lobbyIdRaw))
+            {
+                return;
+            }
+
+            try
+            {
+                var lobbyId = new CSteamID(lobbyIdRaw);
+                var memberCount = SteamMatchmaking.GetNumLobbyMembers(lobbyId);
+                if (memberCount <= 0)
+                {
+                    return;
+                }
+
+                var lobbyOwnerId = SteamMatchmaking.GetLobbyOwner(lobbyId).ToString();
+                var liveMemberIds = new HashSet<string>();
+                var joinedGamers = new List<INetworkGamer>();
+                var leftGamers = new List<INetworkGamer>();
+
+                lock (gate)
+                {
+                    for (var i = 0; i < memberCount; i++)
+                    {
+                        var memberSteamId = SteamMatchmaking.GetLobbyMemberByIndex(lobbyId, i);
+                        var memberId = memberSteamId.ToString();
+                        liveMemberIds.Add(memberId);
+
+                        var isHost = memberId == lobbyOwnerId;
+                        if (gamers.TryGetValue(memberId, out var existing))
+                        {
+                            existing.SetHost(isHost);
+                            continue;
+                        }
+
+                        if (LocalGamer != null && memberId == LocalGamer.Id)
+                        {
+                            if (LocalGamer is SteamNetworkGamer localSteamGamer)
+                            {
+                                localSteamGamer.SetHost(isHost);
+                            }
+
+                            continue;
+                        }
+
+                        var gamertag = SteamFriends.GetFriendPersonaName(memberSteamId);
+                        if (string.IsNullOrWhiteSpace(gamertag))
+                        {
+                            gamertag = memberId;
+                        }
+
+                        var joined = new SteamNetworkGamer(memberId, gamertag, isLocal: false, isHost: isHost);
+                        gamers[memberId] = joined;
+                        joinedGamers.Add(joined);
+                    }
+
+                    var departedIds = gamers.Keys
+                        .Where(id => (LocalGamer == null || id != LocalGamer.Id) && !liveMemberIds.Contains(id))
+                        .ToList();
+
+                    foreach (var departedId in departedIds)
+                    {
+                        if (gamers.TryGetValue(departedId, out var departed))
+                        {
+                            gamers.Remove(departedId);
+                            leftGamers.Add(departed);
+                        }
+                    }
+                }
+
+                foreach (var joined in joinedGamers)
+                {
+                    GamerJoined?.Invoke(this, new GamerJoinedEventArgs(joined));
+                }
+
+                foreach (var left in leftGamers)
+                {
+                    GamerLeft?.Invoke(this, new GamerLeftEventArgs(left));
+                }
+            }
+            catch
+            {
+                // Lobby sync is best-effort; existing fallback behavior stays active.
+            }
+        }
+
+        private bool TrySendViaSteamP2P(string recipientId, byte[] payload)
+        {
+            if (!SteamRuntime.IsInitialized || !ulong.TryParse(recipientId, out var recipientRaw))
+            {
+                return false;
+            }
+
+            try
+            {
+                return SteamNetworking.SendP2PPacket(
+                    new CSteamID(recipientRaw),
+                    payload,
+                    (uint)payload.Length,
+                    EP2PSend.k_EP2PSendReliable,
+                    0);
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private bool TryBroadcastViaSteamP2P(byte[] payload)
+        {
+            if (!SteamRuntime.IsInitialized || !ulong.TryParse(SessionId, out var lobbyIdRaw))
+            {
+                return false;
+            }
+
+            try
+            {
+                var lobbyId = new CSteamID(lobbyIdRaw);
+                var memberCount = SteamMatchmaking.GetNumLobbyMembers(lobbyId);
+                var sentToAnyone = false;
+                for (var i = 0; i < memberCount; i++)
+                {
+                    var member = SteamMatchmaking.GetLobbyMemberByIndex(lobbyId, i);
+                    if (LocalGamer != null && member.ToString() == LocalGamer.Id)
+                    {
+                        continue;
+                    }
+
+                    var sent = SteamNetworking.SendP2PPacket(
+                        member,
+                        payload,
+                        (uint)payload.Length,
+                        EP2PSend.k_EP2PSendReliable,
+                        0);
+
+                    sentToAnyone = sentToAnyone || sent;
+                }
+
+                return sentToAnyone;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private void ProcessSteamP2PPackets()
+        {
+            if (!SteamRuntime.IsInitialized)
+            {
+                return;
+            }
+
+            while (SteamNetworking.IsP2PPacketAvailable(out var packetSize, 0))
+            {
+                if (packetSize == 0)
+                {
+                    break;
+                }
+
+                var data = new byte[packetSize];
+                if (!SteamNetworking.ReadP2PPacket(data, packetSize, out var bytesRead, out var senderId, 0) || bytesRead == 0)
+                {
+                    continue;
+                }
+
+                var senderKey = senderId.ToString();
+                EnsureSteamRemoteGamer(senderId);
+                EnqueueInbound(data, senderKey);
+            }
+        }
+
+        private void EnsureSteamRemoteGamer(CSteamID senderId)
+        {
+            var senderKey = senderId.ToString();
+            var gamertag = SteamFriends.GetFriendPersonaName(senderId);
+            if (string.IsNullOrWhiteSpace(gamertag))
+            {
+                gamertag = senderKey;
+            }
+
+            EnsureRemoteGamer(senderKey, gamertag, isHost: false);
+        }
+
         private static byte[] SerializeMessage(INetworkMessage message)
         {
             var writer = new PacketWriter();
             writer.Write(message.MessageType);
             message.Serialize(writer);
             return writer.GetData();
+        }
+
+        private static ELobbyType ToSteamLobbyType(NetworkSessionType sessionType)
+        {
+            return sessionType switch
+            {
+                NetworkSessionType.PlayerMatch => ELobbyType.k_ELobbyTypePublic,
+                NetworkSessionType.Ranked => ELobbyType.k_ELobbyTypePublic,
+                NetworkSessionType.SystemLink => ELobbyType.k_ELobbyTypeFriendsOnly,
+                _ => ELobbyType.k_ELobbyTypePrivate
+            };
+        }
+
+        private static Task<T> AwaitCallResultAsync<T>(SteamAPICall_t apiCall) where T : struct
+        {
+            var tcs = new TaskCompletionSource<T>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+            var callResult = CallResult<T>.Create((result, ioFailure) =>
+            {
+                if (ioFailure)
+                {
+                    tcs.TrySetException(new InvalidOperationException($"Steam API call failed for {typeof(T).Name}."));
+                    return;
+                }
+
+                tcs.TrySetResult(result);
+            });
+
+            callResult.Set(apiCall);
+            return tcs.Task;
+        }
+
+        private static SteamLocalNetworkGamer CreateLocalGamer(string fallbackPrefix, bool isHost)
+        {
+            if (TryGetSteamIdentity(out var gamerId, out var gamertag))
+            {
+                return new SteamLocalNetworkGamer(gamerId, gamertag, isHost);
+            }
+
+            return new SteamLocalNetworkGamer(NewGamerId(), BuildDefaultGamertag(fallbackPrefix), isHost);
+        }
+
+        private static bool TryGetSteamIdentity(out string gamerId, out string gamertag)
+        {
+            gamerId = null;
+            gamertag = null;
+
+            if (!SteamRuntime.IsInitialized)
+            {
+                return false;
+            }
+
+            try
+            {
+                if (!SteamRuntime.RefreshSignedInGamerIdentity())
+                {
+                    return false;
+                }
+
+                var steamId = SteamUser.GetSteamID();
+                gamerId = steamId.ToString();
+                gamertag = SteamFriends.GetPersonaName();
+                return !string.IsNullOrWhiteSpace(gamerId);
+            }
+            catch
+            {
+                gamerId = null;
+                gamertag = null;
+                return false;
+            }
         }
 
         private static string NewGamerId() => Guid.NewGuid().ToString("N");
