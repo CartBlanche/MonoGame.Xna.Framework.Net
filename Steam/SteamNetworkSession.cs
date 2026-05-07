@@ -470,6 +470,8 @@ namespace Microsoft.Xna.Framework.Net
                 var liveMemberIds = new HashSet<string>();
                 var joinedGamers = new List<INetworkGamer>();
                 var leftGamers = new List<INetworkGamer>();
+                var shouldEndSession = false;
+                var endReason = NetworkSessionEndReason.Disconnected;
 
                 lock (gate)
                 {
@@ -519,6 +521,27 @@ namespace Microsoft.Xna.Framework.Net
                             leftGamers.Add(departed);
                         }
                     }
+
+                    if (state != NetworkSessionState.Ended && LocalGamer != null)
+                    {
+                        var localId = LocalGamer.Id;
+                        var localIsHost = LocalGamer.IsHost;
+                        var localStillMember = liveMemberIds.Contains(localId);
+                        var hostStillMember = liveMemberIds.Contains(lobbyOwnerId);
+
+                        if (!localStillMember)
+                        {
+                            shouldEndSession = true;
+                            endReason = hostStillMember
+                                ? NetworkSessionEndReason.RemovedByHost
+                                : NetworkSessionEndReason.Disconnected;
+                        }
+                        else if (!localIsHost && !hostStillMember)
+                        {
+                            shouldEndSession = true;
+                            endReason = NetworkSessionEndReason.HostEndedSession;
+                        }
+                    }
                 }
 
                 foreach (var joined in joinedGamers)
@@ -529,6 +552,11 @@ namespace Microsoft.Xna.Framework.Net
                 foreach (var left in leftGamers)
                 {
                     GamerLeft?.Invoke(this, new GamerLeftEventArgs(left));
+                }
+
+                if (shouldEndSession)
+                {
+                    ForceSessionEnded(endReason);
                 }
             }
             catch

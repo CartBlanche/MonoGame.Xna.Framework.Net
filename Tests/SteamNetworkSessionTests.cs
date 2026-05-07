@@ -113,5 +113,62 @@ namespace Microsoft.Xna.Framework.Net.Tests
                 await session.CloseAsync();
             }
         }
+
+        [Test]
+        public async Task SteamFactory_WhenHostCloses_ClientEndsWithHostEndedSession()
+        {
+            var factory = new SteamNetworkSessionFactory();
+            var host = factory.CreateSession();
+            var client = factory.CreateSession();
+            NetworkSessionEndReason? clientEndReason = null;
+
+            client.SessionEnded += (_, args) => clientEndReason = args.EndReason;
+
+            try
+            {
+                await host.CreateAsync(NetworkSessionType.PlayerMatch, maxGamers: 4, privateGamerSlots: 0);
+                var sessions = (await factory.FindSessionsAsync(NetworkSessionType.PlayerMatch)).ToList();
+                await client.JoinAsync(sessions[0].JoinAddress);
+
+                await host.CloseAsync();
+
+                Assert.That(client.State, Is.EqualTo(NetworkSessionState.Ended));
+                Assert.That(clientEndReason, Is.EqualTo(NetworkSessionEndReason.HostEndedSession));
+            }
+            finally
+            {
+                await client.CloseAsync();
+                await host.CloseAsync();
+            }
+        }
+
+        [Test]
+        public async Task SteamFactory_WhenClientCloses_HostStaysActiveAndGetsGamerLeft()
+        {
+            var factory = new SteamNetworkSessionFactory();
+            var host = factory.CreateSession();
+            var client = factory.CreateSession();
+            var hostGamerLeftCount = 0;
+
+            host.GamerLeft += (_, __) => hostGamerLeftCount++;
+
+            try
+            {
+                await host.CreateAsync(NetworkSessionType.PlayerMatch, maxGamers: 4, privateGamerSlots: 0);
+                var sessions = (await factory.FindSessionsAsync(NetworkSessionType.PlayerMatch)).ToList();
+                await client.JoinAsync(sessions[0].JoinAddress);
+
+                await client.CloseAsync();
+
+                Assert.That(host.State, Is.Not.EqualTo(NetworkSessionState.Ended));
+                Assert.That(hostGamerLeftCount, Is.EqualTo(1));
+                Assert.That(host.AllGamers.Count, Is.EqualTo(1));
+            }
+            finally
+            {
+                await client.CloseAsync();
+                await host.CloseAsync();
+            }
+        }
     }
 }

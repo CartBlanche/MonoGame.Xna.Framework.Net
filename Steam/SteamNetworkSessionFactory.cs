@@ -504,8 +504,8 @@ namespace Microsoft.Xna.Framework.Net
 
                 foreach (var participant in lobby.Participants)
                 {
-                    participant.RemoveRemoteGamer(session.LocalGamer.Id);
                     participant.NotifyGamerLeft(session.LocalGamer.Id);
+                    participant.RemoveRemoteGamer(session.LocalGamer.Id);
                 }
             }
         }
