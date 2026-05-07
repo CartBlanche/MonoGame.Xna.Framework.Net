@@ -70,6 +70,14 @@ namespace Microsoft.Xna.Framework.Net
                 throw new InvalidOperationException($"No SteamID mapping for endpoint {endpoint}");
             }
 
+            var localSteamId = SteamUser.GetSteamID();
+            if (recipient == localSteamId)
+            {
+                throw new InvalidOperationException(
+                    "Steam P2P recipient resolves to the local SteamID. " +
+                    "Running multiple instances under the same Steam account is not a supported peer configuration.");
+            }
+
             var payload = length == data.Length ? data : CopyPrefix(data, length);
             var ok = SteamNetworking.SendP2PPacket(recipient, payload, (uint)payload.Length, EP2PSend.k_EP2PSendReliable, DefaultChannel);
             if (!ok)

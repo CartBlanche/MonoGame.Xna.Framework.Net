@@ -42,6 +42,11 @@ namespace Microsoft.Xna.Framework.Net
         {
             if (!SteamRuntime.IsInitialized)
             {
+                if (sessionType == NetworkSessionType.SystemLink)
+                {
+                    return FindSystemLinkSessionsAsync(sessionType);
+                }
+
                 return Task.FromResult(SteamSessionDirectory.FindSessions(sessionType));
             }
 
@@ -85,11 +90,17 @@ namespace Microsoft.Xna.Framework.Net
             IDictionary<string, object> sessionProperties,
             CancellationToken cancellationToken = default)
         {
-            IEnumerable<SessionInfo> infos;
-            if (SteamRuntime.IsInitialized)
-                infos = await FindSteamLobbiesAsync(sessionType).ConfigureAwait(false);
-            else
-                infos = SteamSessionDirectory.FindSessions(sessionType);
+            if (!SteamRuntime.IsInitialized)
+            {
+                var lanSessions = (await SystemLinkSessionManager
+                    .DiscoverSessionsAsync(maxLocalGamers, cancellationToken)
+                    .ConfigureAwait(false))
+                    .ToList();
+
+                return new AvailableNetworkSessionCollection(lanSessions);
+            }
+
+            var infos = await FindSteamLobbiesAsync(sessionType).ConfigureAwait(false);
 
             var available = infos.Select(info => new AvailableNetworkSession(
                 sessionName: info.HostName ?? "Steam Session",
@@ -121,6 +132,15 @@ namespace Microsoft.Xna.Framework.Net
                 try
                 {
                     var lobbyId = new CSteamID(lobbyIdRaw);
+                    var localSteamId = SteamUser.GetSteamID();
+                    var lobbyOwner = SteamMatchmaking.GetLobbyOwner(lobbyId);
+                    if (lobbyOwner == localSteamId)
+                    {
+                        throw new InvalidOperationException(
+                            "Cannot join a lobby owned by the local Steam account. " +
+                            "Steam P2P requires distinct Steam identities for peers.");
+                    }
+
                     var call = SteamMatchmaking.JoinLobby(lobbyId);
                     await AwaitCallResultAsync<LobbyEnter_t>(call).ConfigureAwait(false);
                 }
@@ -195,6 +215,7 @@ namespace Microsoft.Xna.Framework.Net
                 SteamMatchmaking.AddRequestLobbyListStringFilter(LobbyGameKey, lobbyGameValue, ELobbyComparison.k_ELobbyComparisonEqual);
                 var call = SteamMatchmaking.RequestLobbyList();
                 var result = await AwaitCallResultAsync<LobbyMatchList_t>(call).ConfigureAwait(false);
+                var localSteamId = SteamUser.GetSteamID();
 
                 var lobbyCount = (int)result.m_nLobbiesMatching;
                 var sessions = new List<SessionInfo>(lobbyCount);
@@ -208,6 +229,12 @@ namespace Microsoft.Xna.Framework.Net
                     }
 
                     var ownerId = SteamMatchmaking.GetLobbyOwner(lobbyId);
+                    if (ownerId == localSteamId)
+                    {
+                        // Exclude self-owned lobbies to avoid misleading same-account joins.
+                        continue;
+                    }
+
                     var ownerName = SteamFriends.GetFriendPersonaName(ownerId);
 
                     if (string.IsNullOrWhiteSpace(ownerName))
@@ -234,6 +261,26 @@ namespace Microsoft.Xna.Framework.Net
                 // Keep vertical-slice behavior available if Steam lobby query fails.
                 return SteamSessionDirectory.FindSessions(sessionType).ToList();
             }
+        }
+
+        private static async Task<IEnumerable<SessionInfo>> FindSystemLinkSessionsAsync(NetworkSessionType sessionType)
+        {
+            if (sessionType != NetworkSessionType.SystemLink)
+            {
+                return Enumerable.Empty<SessionInfo>();
+            }
+
+            var lanSessions = await SystemLinkSessionManager.DiscoverSessionsAsync(maxLocalGamers: 1, CancellationToken.None).ConfigureAwait(false);
+            return lanSessions.Select(session => new SessionInfo
+            {
+                SessionId = session.SessionId,
+                JoinAddress = session.HostEndpoint?.ToString() ?? string.Empty,
+                HostName = session.HostGamertag,
+                CurrentPlayerCount = session.CurrentGamerCount,
+                MaxPlayerCount = session.CurrentGamerCount + session.OpenPublicGamerSlots + session.OpenPrivateGamerSlots,
+                IsPasswordProtected = false,
+                SessionType = session.SessionType
+            }).ToList();
         }
 
         private static string NormalizeGameTag(string gameTag)
