@@ -25,23 +25,32 @@ namespace Microsoft.Xna.Framework.Net
         private const string LobbyGameKey = "mgnet_game";
         private const string LobbyHostSteamIdKey = "host_steamid";
         private readonly string lobbyGameValue;
+        private readonly SteamFallbackMode fallbackMode;
 
-        public SteamNetworkSessionFactory(string gameTag = null)
+        public SteamNetworkSessionFactory(string gameTag = null, SteamFallbackMode fallbackMode = SteamFallbackMode.PreferFallback)
         {
             lobbyGameValue = NormalizeGameTag(gameTag);
+            this.fallbackMode = fallbackMode;
         }
+
+        private bool IsStrict => fallbackMode == SteamFallbackMode.Strict;
 
         public string BackendName => "Steam";
 
         public INetworkSession CreateSession()
         {
-            return new SteamNetworkSession();
+            return new SteamNetworkSession(fallbackMode);
         }
 
         public Task<IEnumerable<SessionInfo>> FindSessionsAsync(NetworkSessionType sessionType)
         {
             if (!SteamRuntime.IsInitialized)
             {
+                if (IsStrict)
+                {
+                    throw new InvalidOperationException("Steam runtime is not initialized for strict Steam session discovery.");
+                }
+
                 if (sessionType == NetworkSessionType.SystemLink)
                 {
                     return FindSystemLinkSessionsAsync(sessionType);
@@ -70,12 +79,26 @@ namespace Microsoft.Xna.Framework.Net
             IDictionary<string, object> sessionProperties,
             CancellationToken cancellationToken = default)
         {
+            if (IsStrict && !SteamRuntime.IsInitialized)
+            {
+                throw new InvalidOperationException("Steam runtime is not initialized for strict Steam session creation.");
+            }
+
             var session = SteamRuntime.IsInitialized
                 ? await NetworkSession.CreateSystemLinkSessionAsync(sessionType, maxGamers, privateGamerSlots, new SteamP2PTransport(), advertiseOnLan: false, cancellationToken).ConfigureAwait(false)
                 : await NetworkSession.CreateSystemLinkSessionAsync(sessionType, maxGamers, privateGamerSlots, cancellationToken).ConfigureAwait(false);
 
             if (SteamRuntime.IsInitialized)
-                _ = AdvertiseSteamLobbyAsync(session, maxGamers);
+            {
+                if (IsStrict)
+                {
+                    await AdvertiseSteamLobbyAsync(session, maxGamers).ConfigureAwait(false);
+                }
+                else
+                {
+                    _ = AdvertiseSteamLobbyAsync(session, maxGamers);
+                }
+            }
 
             return session;
         }
@@ -92,6 +115,11 @@ namespace Microsoft.Xna.Framework.Net
         {
             if (!SteamRuntime.IsInitialized)
             {
+                if (IsStrict)
+                {
+                    throw new InvalidOperationException("Steam runtime is not initialized for strict Steam session discovery.");
+                }
+
                 var lanSessions = (await SystemLinkSessionManager
                     .DiscoverSessionsAsync(maxLocalGamers, cancellationToken)
                     .ConfigureAwait(false))
@@ -125,6 +153,11 @@ namespace Microsoft.Xna.Framework.Net
             AvailableNetworkSession availableSession,
             CancellationToken cancellationToken = default)
         {
+            if (IsStrict && !SteamRuntime.IsInitialized)
+            {
+                throw new InvalidOperationException("Steam runtime is not initialized for strict Steam session join.");
+            }
+
             // Join the Steam lobby (for presence / invite tracking).
             if (SteamRuntime.IsInitialized &&
                 ulong.TryParse(availableSession.SessionId, out var lobbyIdRaw))
@@ -146,8 +179,17 @@ namespace Microsoft.Xna.Framework.Net
                 }
                 catch (Exception ex)
                 {
+                    if (IsStrict)
+                    {
+                        throw;
+                    }
+
                     Debug.WriteLine($"[Steam] JoinLobby failed (non-fatal): {ex.Message}");
                 }
+            }
+            else if (IsStrict)
+            {
+                throw new InvalidOperationException("Session id is not a valid Steam lobby id in strict mode.");
             }
 
             return SteamRuntime.IsInitialized
@@ -179,6 +221,11 @@ namespace Microsoft.Xna.Framework.Net
             }
             catch (Exception ex)
             {
+                if (IsStrict)
+                {
+                    throw;
+                }
+
                 Debug.WriteLine($"[Steam] AdvertiseSteamLobbyAsync failed: {ex.Message}");
             }
         }
@@ -258,6 +305,11 @@ namespace Microsoft.Xna.Framework.Net
             }
             catch
             {
+                if (IsStrict)
+                {
+                    throw;
+                }
+
                 // Keep vertical-slice behavior available if Steam lobby query fails.
                 return SteamSessionDirectory.FindSessions(sessionType).ToList();
             }

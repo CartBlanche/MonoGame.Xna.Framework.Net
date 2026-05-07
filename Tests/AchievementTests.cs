@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Xna.Framework.GamerServices;
+using Microsoft.Xna.Framework.Net.Steam;
 using NUnit.Framework;
 
 namespace Microsoft.Xna.Framework.Net.Tests
@@ -287,6 +288,31 @@ namespace Microsoft.Xna.Framework.Net.Tests
 
             Assert.That(local.GetCallCount, Is.EqualTo(0));
             Assert.That(live.GetCallCount, Is.EqualTo(1));
+        }
+
+        [Test]
+        public void AchievementIcon_StoresDimensions()
+        {
+            var icon = new AchievementIcon(
+                data: new byte[] { 7, 8, 9, 10 },
+                contentType: "application/x-steam-rgba32",
+                cacheKey: "k",
+                width: 64,
+                height: 64);
+
+            Assert.That(icon.Width, Is.EqualTo(64));
+            Assert.That(icon.Height, Is.EqualTo(64));
+        }
+
+        [Test]
+        public async Task SteamAchievementMediaProvider_WhenSteamNotInitialized_ReturnsNull()
+        {
+            var gamer = SignedInGamer.Current;
+            var provider = new SteamAchievementMediaProvider();
+
+            var icon = await provider.GetIconAsync(gamer, "achievement.any");
+
+            Assert.That(icon, Is.Null);
         }
 
         private sealed class RecordingAchievementProvider : IAchievementProvider

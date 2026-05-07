@@ -3,6 +3,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Net;
+using Microsoft.Xna.Framework.Net.Steam;
 using NUnit.Framework;
 
 namespace Microsoft.Xna.Framework.Net.Tests
@@ -81,6 +82,35 @@ namespace Microsoft.Xna.Framework.Net.Tests
             {
                 await client.CloseAsync();
                 await host.CloseAsync();
+            }
+        }
+
+        [Test]
+        public void SteamFactory_StrictMode_FindSessionsWithoutSteam_Throws()
+        {
+            var factory = new SteamNetworkSessionFactory(fallbackMode: SteamFallbackMode.Strict);
+
+            Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            {
+                await factory.FindSessionsAsync(NetworkSessionType.PlayerMatch);
+            });
+        }
+
+        [Test]
+        public async Task SteamSession_StrictMode_CreateWithoutSteam_Throws()
+        {
+            var session = new SteamNetworkSession(SteamFallbackMode.Strict);
+
+            try
+            {
+                Assert.ThrowsAsync<InvalidOperationException>(async () =>
+                {
+                    await session.CreateAsync(NetworkSessionType.PlayerMatch, maxGamers: 4, privateGamerSlots: 0);
+                });
+            }
+            finally
+            {
+                await session.CloseAsync();
             }
         }
     }

@@ -18,6 +18,7 @@ namespace Microsoft.Xna.Framework.Net
     public sealed class SteamNetworkSession : INetworkSession
     {
         private readonly object gate = new object();
+        private readonly SteamFallbackMode fallbackMode;
         private readonly Dictionary<string, SteamNetworkGamer> gamers = new Dictionary<string, SteamNetworkGamer>();
         private readonly Queue<(byte[] Data, string SenderId)> inboundPackets = new Queue<(byte[] Data, string SenderId)>();
 
@@ -25,10 +26,13 @@ namespace Microsoft.Xna.Framework.Net
         private NetworkSessionState state;
         private NetworkSessionType sessionType;
 
-        public SteamNetworkSession()
+        public SteamNetworkSession(SteamFallbackMode fallbackMode = SteamFallbackMode.PreferFallback)
         {
+            this.fallbackMode = fallbackMode;
             state = NetworkSessionState.Creating;
         }
+
+        private bool IsStrict => fallbackMode == SteamFallbackMode.Strict;
 
         public IReadOnlyList<INetworkGamer> AllGamers
         {
@@ -89,12 +93,25 @@ namespace Microsoft.Xna.Framework.Net
                 }
                 catch
                 {
+                    if (IsStrict)
+                    {
+                        throw;
+                    }
+
                     // Keep vertical-slice behavior available if Steam lobby creation fails.
                 }
             }
+            else if (IsStrict)
+            {
+                throw new InvalidOperationException("Steam runtime is not initialized for strict Steam session creation.");
+            }
 
             state = NetworkSessionState.Lobby;
-            SteamSessionDirectory.RegisterHost(this, SessionId, sessionType, maxGamers);
+
+            if (!IsStrict)
+            {
+                SteamSessionDirectory.RegisterHost(this, SessionId, sessionType, maxGamers);
+            }
         }
 
         public async Task JoinAsync(string hostAddress)
@@ -129,17 +146,33 @@ namespace Microsoft.Xna.Framework.Net
                 }
                 catch
                 {
+                    if (IsStrict)
+                    {
+                        throw;
+                    }
+
                     // Keep vertical-slice behavior available if Steam lobby join fails.
                 }
             }
-
-            try
+            else if (IsStrict)
             {
-                SteamSessionDirectory.JoinLobby(SessionId, this);
+                throw new InvalidOperationException("Steam runtime is not initialized or session id is not a valid Steam lobby id.");
             }
-            catch
+
+            if (!IsStrict)
             {
-                // If host is not in local directory (different process), keep joined lobby state.
+                try
+                {
+                    SteamSessionDirectory.JoinLobby(SessionId, this);
+                }
+                catch
+                {
+                    // If host is not in local directory (different process), keep joined lobby state.
+                    state = NetworkSessionState.Lobby;
+                }
+            }
+            else
+            {
                 state = NetworkSessionState.Lobby;
             }
         }
@@ -169,6 +202,11 @@ namespace Microsoft.Xna.Framework.Net
                 return;
             }
 
+            if (IsStrict)
+            {
+                throw new InvalidOperationException("Steam P2P send failed in strict mode.");
+            }
+
             SteamSessionDirectory.SendReliable(recipient.Id, payload, LocalGamer.Id);
         }
 
@@ -190,6 +228,11 @@ namespace Microsoft.Xna.Framework.Net
             if (TryBroadcastViaSteamP2P(payload))
             {
                 return;
+            }
+
+            if (IsStrict)
+            {
+                throw new InvalidOperationException("Steam P2P broadcast failed in strict mode.");
             }
 
             var remoteRecipientIds = AllGamers.Where(g => !g.IsLocal).Select(g => g.Id).ToList();

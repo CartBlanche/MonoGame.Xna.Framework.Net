@@ -1,4 +1,6 @@
 using Microsoft.Xna.Framework.GamerServices;
+using Microsoft.Xna.Framework.Net.Steam;
+using Steamworks;
 
 namespace Microsoft.Xna.Framework.Net.Steam
 {
@@ -17,10 +19,45 @@ namespace Microsoft.Xna.Framework.Net.Steam
 
             cancellationToken.ThrowIfCancellationRequested();
 
-            // Steam image handle->RGBA texture decode can be layered later; for now
-            // we expose metadata-driven icon lookup and return no binary payload by default.
-            _ = AchievementCatalog.Get(achievementKey);
-            return Task.FromResult<AchievementIcon>(null);
+            if (!SteamRuntime.IsInitialized)
+            {
+                return Task.FromResult<AchievementIcon>(null);
+            }
+
+            try
+            {
+                var iconHandle = SteamUserStats.GetAchievementIcon(achievementKey);
+                if (iconHandle == 0)
+                {
+                    return Task.FromResult<AchievementIcon>(null);
+                }
+
+                if (!SteamUtils.GetImageSize(iconHandle, out var width, out var height) || width == 0 || height == 0)
+                {
+                    return Task.FromResult<AchievementIcon>(null);
+                }
+
+                var rgbaByteCount = checked((int)(width * height * 4));
+                var rgba = new byte[rgbaByteCount];
+                if (!SteamUtils.GetImageRGBA(iconHandle, rgba, rgbaByteCount))
+                {
+                    return Task.FromResult<AchievementIcon>(null);
+                }
+
+                var icon = new AchievementIcon(
+                    data: rgba,
+                    contentType: "application/x-steam-rgba32",
+                    cacheKey: $"steam:{achievementKey}:{iconHandle}",
+                    width: (int)width,
+                    height: (int)height);
+
+                return Task.FromResult(icon);
+            }
+            catch
+            {
+                // Keep behavior resilient when Steam image APIs are unavailable.
+                return Task.FromResult<AchievementIcon>(null);
+            }
         }
     }
 }

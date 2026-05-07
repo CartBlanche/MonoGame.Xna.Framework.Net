@@ -5,7 +5,12 @@ namespace Microsoft.Xna.Framework.GamerServices
     /// </summary>
     public sealed class AchievementIcon
     {
-        public AchievementIcon(byte[] data, string contentType, string cacheKey = null)
+        public AchievementIcon(
+            byte[] data,
+            string contentType,
+            string cacheKey = null,
+            int width = 0,
+            int height = 0)
         {
             if (data == null)
                 throw new ArgumentNullException(nameof(data));
@@ -15,10 +20,14 @@ namespace Microsoft.Xna.Framework.GamerServices
             Data = data;
             ContentType = contentType;
             CacheKey = cacheKey;
+            Width = width;
+            Height = height;
         }
 
         public byte[] Data { get; }
         public string ContentType { get; }
         public string CacheKey { get; }
+        public int Width { get; }
+        public int Height { get; }
     }
 }

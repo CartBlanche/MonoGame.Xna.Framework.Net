@@ -27,7 +27,8 @@ namespace Microsoft.Xna.Framework.Net.Steam
             Func<ILeaderboardProvider> liveProviderFactoryOverride = null,
             Func<IAchievementProvider> achievementLiveProviderFactoryOverride = null,
             Func<IAchievementMediaProvider> achievementMediaLiveProviderFactoryOverride = null,
-            IEnumerable<AchievementDefinition> achievementDefinitions = null)
+            IEnumerable<AchievementDefinition> achievementDefinitions = null,
+            SteamFallbackMode fallbackMode = SteamFallbackMode.PreferFallback)
         {
             if (!string.IsNullOrWhiteSpace(gameName))
             {
@@ -41,7 +42,7 @@ namespace Microsoft.Xna.Framework.Net.Steam
             }
 
             Guide.SignInProvider = signInProvider ?? new SteamSignInProvider();
-            NetworkServiceProvider.SetSessionFactory(sessionFactory ?? new SteamNetworkSessionFactory(gameName));
+            NetworkServiceProvider.SetSessionFactory(sessionFactory ?? new SteamNetworkSessionFactory(gameName, fallbackMode));
 
             lock (Gate)
             {
