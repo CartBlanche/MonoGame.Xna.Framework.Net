@@ -88,6 +88,9 @@ namespace Microsoft.Xna.Framework.Net
                 ? await NetworkSession.CreateSystemLinkSessionAsync(sessionType, maxGamers, privateGamerSlots, new SteamP2PTransport(), advertiseOnLan: false, cancellationToken).ConfigureAwait(false)
                 : await NetworkSession.CreateSystemLinkSessionAsync(sessionType, maxGamers, privateGamerSlots, cancellationToken).ConfigureAwait(false);
 
+            // Steam vertical slice currently does not support host migration.
+            session.AllowHostMigration = false;
+
             if (SteamRuntime.IsInitialized)
             {
                 if (IsStrict)
@@ -192,9 +195,14 @@ namespace Microsoft.Xna.Framework.Net
                 throw new InvalidOperationException("Session id is not a valid Steam lobby id in strict mode.");
             }
 
-            return SteamRuntime.IsInitialized
+            var joined = SteamRuntime.IsInitialized
                 ? await NetworkSession.JoinSystemLinkSessionAsync(availableSession, new SteamP2PTransport(), cancellationToken).ConfigureAwait(false)
                 : await NetworkSession.JoinSystemLinkSessionAsync(availableSession, cancellationToken).ConfigureAwait(false);
+
+            // Steam vertical slice currently does not support host migration.
+            joined.AllowHostMigration = false;
+
+            return joined;
         }
 
         // -----------------------------------------------------------------------

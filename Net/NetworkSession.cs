@@ -1197,7 +1197,32 @@ namespace Microsoft.Xna.Framework.Net
 
         internal void EvictGamer(NetworkGamer gamer)
         {
+            if (gamer == null)
+            {
+                return;
+            }
+
+            var wasHost = gamer.IsHost;
+            var wasLocal = gamer.IsLocal;
+
             RemoveGamer(gamer);
+
+            if (sessionState == NetworkSessionState.Ended)
+            {
+                return;
+            }
+
+            // Host migration is currently not implemented. If a non-local host is removed
+            // (disconnect/timeout), non-host clients end the session deterministically.
+            if (wasHost && !wasLocal && !IsHost)
+            {
+                if (AllowHostMigration)
+                {
+                    logger?.LogWarning("AllowHostMigration is enabled, but host migration is not implemented. Ending session with HostEndedSession.");
+                }
+
+                OnSessionEnded(NetworkSessionEndReason.HostEndedSession);
+            }
         }
 
         internal void StartConnectionMonitoring()

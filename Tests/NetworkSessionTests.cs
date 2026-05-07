@@ -6,6 +6,7 @@ using System;
 using System.Net;
 using System.Threading;
 using System.Linq;
+using System.Reflection;
 
 namespace Microsoft.Xna.Framework.Net.Tests
 {
@@ -168,6 +169,62 @@ namespace Microsoft.Xna.Framework.Net.Tests
         {
             var session = await NetworkSession.CreateAsync(NetworkSessionType.Local, 1, 4, 0, new Dictionary<string, object>());
             Assert.DoesNotThrowAsync(async () => await session.DisposeAsync());
+        }
+
+        [Test]
+        public async Task EvictGamer_WhenRemoteHostRemoved_ClientEndsSession()
+        {
+            var session = CreateNonHostSessionForTests();
+            var remoteHost = new NetworkGamer(session, "remote-host", isLocal: false, isHost: true, gamertag: "Host");
+            session.AcceptGamer(remoteHost);
+            session.AllowHostMigration = true;
+
+            NetworkSessionEndReason? endReason = null;
+            session.SessionEnded += (_, args) => endReason = args.EndReason;
+
+            session.EvictGamer(remoteHost);
+
+            Assert.That(session.SessionState, Is.EqualTo(NetworkSessionState.Ended));
+            Assert.That(endReason, Is.EqualTo(NetworkSessionEndReason.HostEndedSession));
+
+            await session.DisposeAsync();
+        }
+
+        [Test]
+        public async Task EvictGamer_WhenRemotePeerRemoved_HostStaysActive()
+        {
+            var session = await NetworkSession.CreateAsync(NetworkSessionType.Local, 1, 4, 0, new Dictionary<string, object>());
+            var remotePeer = new NetworkGamer(session, "remote-peer", isLocal: false, isHost: false, gamertag: "Peer");
+            session.AcceptGamer(remotePeer);
+
+            session.EvictGamer(remotePeer);
+
+            Assert.That(session.SessionState, Is.Not.EqualTo(NetworkSessionState.Ended));
+            Assert.That(session.AllGamers.Any(g => g.Id == remotePeer.Id), Is.False);
+
+            await session.DisposeAsync();
+        }
+
+        private static NetworkSession CreateNonHostSessionForTests()
+        {
+            var ctor = typeof(NetworkSession).GetConstructor(
+                BindingFlags.Instance | BindingFlags.NonPublic,
+                binder: null,
+                types: new[] { typeof(NetworkSessionType), typeof(int), typeof(int), typeof(bool), typeof(INetworkTransport) },
+                modifiers: null);
+
+            Assert.That(ctor, Is.Not.Null, "Expected internal NetworkSession constructor for test setup.");
+
+            var session = (NetworkSession)ctor.Invoke(new object[]
+            {
+                NetworkSessionType.Local,
+                4,
+                0,
+                false,
+                new FakeNetworkTransport()
+            });
+
+            return session;
         }
     }
 }

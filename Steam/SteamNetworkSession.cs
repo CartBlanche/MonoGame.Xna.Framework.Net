@@ -245,9 +245,19 @@ namespace Microsoft.Xna.Framework.Net
         public void Update(GameTime gameTime)
         {
             ThrowIfDisposed();
-            ProcessSteamP2PPackets();
-            SyncSteamLobbyMembership();
-            ProcessInboundPackets();
+            try
+            {
+                ProcessSteamP2PPackets();
+                SyncSteamLobbyMembership();
+                ProcessInboundPackets();
+            }
+            catch
+            {
+                if (IsStrict)
+                {
+                    ForceSessionEnded(NetworkSessionEndReason.NetworkError);
+                }
+            }
         }
 
         public Task CloseAsync()

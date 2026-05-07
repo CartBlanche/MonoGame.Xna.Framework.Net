@@ -170,5 +170,27 @@ namespace Microsoft.Xna.Framework.Net.Tests
                 await host.CloseAsync();
             }
         }
+
+        [Test]
+        public async Task SteamProvider_CreateSession_DisablesHostMigration()
+        {
+            var factory = new SteamNetworkSessionFactory();
+
+            var session = await factory.CreateSessionAsync(
+                NetworkSessionType.PlayerMatch,
+                maxLocalGamers: 1,
+                maxGamers: 4,
+                privateGamerSlots: 0,
+                sessionProperties: new System.Collections.Generic.Dictionary<string, object>());
+
+            try
+            {
+                Assert.That(session.AllowHostMigration, Is.False);
+            }
+            finally
+            {
+                await session.DisposeAsync();
+            }
+        }
     }
 }
