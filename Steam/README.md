@@ -26,6 +26,7 @@ If you prefer projects built entirely without AI assistance, that is completely 
 
 - `Net/`: Core networking types, messages, abstractions, adapters, factories, services.
 - `GamerServices/`: XNA-style gamer/guide/leaderboard services.
+- `Android/`: Android-specific integration and composition helpers.
 - `Steam/`: Steam-specific integration and composition helpers.
 - `Tests/`: Unit and integration tests.
 
@@ -51,84 +52,21 @@ That means your game loop and message handlers can stay the same while the trans
 - Session implementation: `UdpNetworkSession`
 - Strategy: adapts the existing `NetworkSession` implementation through the abstraction interfaces.
 
-## Add a new back-end
+### Steam 
 
-Use Steam as the reference pattern.
+- Factory: `SteamNetworkSessionFactory`
+- Session implementation: `SteamNetworkSession`
+- Gamer model: `SteamNetworkGamer`
+- Bootstrap helper: `SteamPlatformBootstrap`
+- Runtime wrapper: `SteamRuntime`
 
-### 1) Implement the factory
-
-Create a class that implements `INetworkSessionFactory`.
-
-Responsibilities:
-
-- Return a back-end name in `BackendName`.
-- Create session objects in `CreateSession()`.
-- Return discoverable sessions in `FindSessionsAsync(...)`.
-
-### 2) Implement the session
-
-Create a class that implements `INetworkSession`.
-
-Minimum responsibilities:
-
-- Session lifecycle: `CreateAsync`, `JoinAsync`, `CloseAsync`, `Dispose`.
-- Messaging: `SendMessage`, `BroadcastMessage`, `Update`.
-- Gamer model exposure through `AllGamers` and `LocalGamer`.
-- Raise events (`MessageReceived`, `GamerJoined`, `GamerLeft`, `GameStarted`, `GameEnded`, `SessionEnded`) at the same points game code expects.
-
-### 3) Implement gamer types
-
-Implement `INetworkGamer` and `ILocalNetworkGamer` for your back-end.
-
-Keep behavior consistent with other back-ends:
-
-- Stable gamer identity (`Id`)
-- Display name (`Gamertag`)
-- Host/local flags
-- Readiness state
-
-### 4) Wire it at startup
-
-In your game initialization, choose the factory:
+The current Steam session is an in-memory vertical slice that validates host/find/join/reliable-message behavior using the same abstraction seams used by a full Steamworks transport.
 
 ```csharp
-NetworkServiceProvider.SetSessionFactory(new YourBackendSessionFactory());
+using Microsoft.Xna.Framework.Net;
+using Microsoft.Xna.Framework.Net.Steam;
+
+SteamPlatformBootstrap.Configure(gameName: "MyGame");
+// Optional in your update loop when Steam is enabled:
+// SteamRuntime.RunCallbacks();
 ```
-
-After this, your game code should use `NetworkServiceProvider.SessionFactory` to create/find/join sessions.
-
-### 5) Reuse shared message contracts
-
-Keep your message types implementing `INetworkMessage` and register them through `NetworkMessageRegistry`.
-
-This keeps payload formats shared across back-ends and reduces duplicate code.
-
-### 6) Add tests like Steam tests
-
-Use the existing test style as a template:
-
-- End-to-end host/find/join flow
-- Reliable message send/receive flow
-- Composition/root wiring test for startup configuration
-
-## Typical startup examples
-
-### Default UDP/SystemLink
-
-```csharp
-NetworkServiceProvider.ResetToDefault();
-```
-
-## Practical guidance when adding back-ends
-
-- Keep game-facing behavior the same across back-ends, even if transport internals differ.
-- Prefer adapter layers first (as done by UDP) when wrapping existing code.
-- Start with a small vertical slice (as done by Steam) before full platform API integration.
-- Keep backend-specific code isolated so package dependencies stay clean.
-
-## Status
-
-- Core networking abstraction layer: implemented
-- UDP/SystemLink factory + adapter: implemented
-- Steam backend : implemented and covered by tests
-- Additional back-ends: ready to be added through the same factory/session/gamer pattern
