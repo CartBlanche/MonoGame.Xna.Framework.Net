@@ -1,0 +1,44 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net9.0-android</TargetFrameworks>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>disable</Nullable>
+    <RootNamespace>Microsoft.Xna.Framework</RootNamespace>
+    <AssemblyName>MonoGame.Xna.Framework.Net.Android</AssemblyName>
+    <IsPackable>true</IsPackable>
+    <PackageId>MonoGame.Xna.Framework.Net.Android</PackageId>
+    <Version>0.1.0-preview.1</Version>
+    <Authors>CartBlanche Contributors</Authors>
+    <Company>CartBlanche</Company>
+    <Description>Android Play Games backend implementation for MonoGame.Xna.Framework.Net.</Description>
+    <PackageTags>monogame;xna;networking;android;googleplaygames</PackageTags>
+    <RepositoryUrl>https://github.com/CartBlanche/MonoGame.Xna.Framework.Net</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <Deterministic>true</Deterministic>
+    <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\MonoGame.Xna.Framework.Net.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="MonoGame.Framework.Android" Version="3.8.*" PrivateAssets="all" />
+    <PackageReference Include="Xamarin.GooglePlayServices.Games.V2" Version="121.0.*" />
+    <PackageReference Include="Xamarin.GooglePlayServices.Base" Version="118.10.*" />
+    <PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0" PrivateAssets="All" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\README.md" Pack="true" PackagePath="/" Link="README.md" />
+  </ItemGroup>
+
+</Project>

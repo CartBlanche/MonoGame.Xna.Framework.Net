@@ -14,4 +14,8 @@
     <PackageReference Include="MonoGame.Framework.DesktopGL" Version="3.8.*" PrivateAssets="all"/>
   </ItemGroup>
 
+  <ItemGroup>
+    <Compile Remove="AndroidCompositionRootTests.cs" />
+  </ItemGroup>
+
 </Project>

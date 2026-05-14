@@ -32,6 +32,9 @@
     <Compile Remove="Steam\**" />
     <EmbeddedResource Remove="Steam\**" />
     <None Remove="Steam\**" />
+    <Compile Remove="Android\**" />
+    <EmbeddedResource Remove="Android\**" />
+    <None Remove="Android\**" />
   </ItemGroup>
 
   <ItemGroup>
@@ -50,6 +53,9 @@
     </AssemblyAttribute>
     <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
       <_Parameter1>MonoGame.Xna.Framework.Net.Steam</_Parameter1>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>MonoGame.Xna.Framework.Net.Android</_Parameter1>
     </AssemblyAttribute>
   </ItemGroup>
 
