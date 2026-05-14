@@ -1,72 +1,65 @@
-# MonoGame.Xna.Framework.Net
+# MonoGame.Xna.Framework.Net.Steam
 
-A modern, XNA-style networking layer for MonoGame.
+Steam-specific back-end package for MonoGame.Xna.Framework.Net.
 
-This project keeps the familiar `Microsoft.Xna.Framework.Net` and `GamerServices` APIs, while making the transport layer pluggable so different networking back-ends can be used without rewriting game logic.
+This package keeps the same networking abstractions as the core library, but wires them to the Steam back-end path.
 
-## Project goals
+## What this package provides
 
-- Keep the classic XNA networking feel for existing game code.
-- Support multiple networking back-ends behind one common API.
-- Let games switch back-ends at startup (UDP/SystemLink, Steam, and others in the future).
-- Keep message contracts shared across all back-ends.
-- Make it easy to test host/find/join/message flows end-to-end.
+- `SteamNetworkSessionFactory`
+- `SteamNetworkSession`
+- `SteamNetworkGamer`
+- `SteamPlatformBootstrap`
+- `SteamRuntime`
 
-### AI-assisted development
+The current Steam session is an in-memory vertical slice that validates host/find/join and reliable message behavior using the same abstraction seams a full Steamworks transport would use.
 
-Full transparency: AI tools are used in this project to speed up development, research and refactoring.
+## Basic startup
 
-All architecture, implementation direction and final review decisions are made by an experienced human engineer with 35+ years in the software industry working across banking, insurance, multinational enterprises, indie game studios and other startups.
-
-The goal is simple: ship reliable, maintainable, human-quality code faster.
-
-If you prefer projects built entirely without AI assistance, that is completely fair, then realistically using this libaray is probably not for you.
-
-## Repository layout
-
-- `Net/`: Core networking types, messages, abstractions, adapters, factories, services.
-- `GamerServices/`: XNA-style gamer/guide/leaderboard services.
-- `Android/`: Android-specific integration and composition helpers.
-- `Steam/`: Steam-specific integration and composition helpers.
-- `Tests/`: Unit and integration tests.
-
-## How the back-end model works
-
-The key extension point is `INetworkSessionFactory`.
-
-At runtime, the game sets one active factory through `NetworkServiceProvider`.
-
-- `NetworkServiceProvider.SetSessionFactory(...)` selects the active back-end.
-- `NetworkServiceProvider.SessionFactory.CreateSession()` creates a session instance for that back-end.
-- `NetworkServiceProvider.SessionFactory.FindSessionsAsync(...)` discovers joinable sessions.
-
-All back-ends expose sessions through `INetworkSession` and gamers through `INetworkGamer`/`ILocalNetworkGamer`.
-
-That means your game loop and message handlers can stay the same while the transport changes.
-
-## Current back-ends in this repo
-
-### UDP/SystemLink (default)
-
-- Factory: `UdpNetworkSessionFactory`
-- Session implementation: `UdpNetworkSession`
-- Strategy: adapts the existing `NetworkSession` implementation through the abstraction interfaces.
-
-### Steam 
-
-- Factory: `SteamNetworkSessionFactory`
-- Session implementation: `SteamNetworkSession`
-- Gamer model: `SteamNetworkGamer`
-- Bootstrap helper: `SteamPlatformBootstrap`
-- Runtime wrapper: `SteamRuntime`
-
-The current Steam session is an in-memory vertical slice that validates host/find/join/reliable-message behavior using the same abstraction seams used by a full Steamworks transport.
+Use this package from your Steam build to select the Steam back-end during startup.
 
 ```csharp
 using Microsoft.Xna.Framework.Net;
 using Microsoft.Xna.Framework.Net.Steam;
 
 SteamPlatformBootstrap.Configure(gameName: "MyGame");
-// Optional in your update loop when Steam is enabled:
-// SteamRuntime.RunCallbacks();
+NetworkServiceProvider.SetSessionFactory(new SteamNetworkSessionFactory());
 ```
+
+## Typical app integration
+
+In a Steam game, initialize the back-end before creating or joining sessions, then let the shared networking APIs handle the rest.
+
+```csharp
+using Microsoft.Xna.Framework.Net;
+using Microsoft.Xna.Framework.Net.Steam;
+
+public static void ConfigureNetworking()
+{
+	SteamPlatformBootstrap.Configure(gameName: "MyGame");
+	NetworkServiceProvider.SetSessionFactory(new SteamNetworkSessionFactory());
+}
+
+public static async Task CreateSteamSessionAsync()
+{
+	var session = NetworkServiceProvider.SessionFactory.CreateSession();
+	await session.CreateAsync(sessionProperties: null, maxGamers: 4).ConfigureAwait(false);
+}
+```
+
+## Sending a reliable gameplay message
+
+```csharp
+using Microsoft.Xna.Framework.Net;
+using Microsoft.Xna.Framework.Net.Steam;
+
+var session = NetworkServiceProvider.SessionFactory.CreateSession();
+var message = new PlayerMoveMessage(playerId: 1, x: 10, y: 20);
+session.SendMessage(message, MessageDelivery.Reliable);
+```
+
+## Notes
+
+- Keep Steam-specific code isolated from the core package.
+- Use the shared message contracts in `Net/` so the same gameplay payloads work across back-ends.
+- If you need the broader architecture overview, start from the root README instead.

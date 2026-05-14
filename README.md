@@ -57,78 +57,60 @@ Use Steam as the reference pattern.
 
 ### 1) Implement the factory
 
-Create a class that implements `INetworkSessionFactory`.
+# MonoGame.Xna.Framework.Net
 
-Responsibilities:
+MonoGame.Xna.Framework.Net is a modern, XNA-style networking layer for MonoGame.
 
-- Return a back-end name in `BackendName`.
-- Create session objects in `CreateSession()`.
-- Return discoverable sessions in `FindSessionsAsync(...)`.
+It keeps the familiar `Microsoft.Xna.Framework.Net` and `GamerServices` APIs while making the transport layer pluggable, so game code can stay stable while the back-end changes.
 
-### 2) Implement the session
+## What lives here
 
-Create a class that implements `INetworkSession`.
+- `Net/`: core networking types, messages, abstractions, adapters, factories, and services.
+- `GamerServices/`: XNA-style gamer, guide, and leaderboard services.
+- `Steam/`: Steam-specific back-end package.
+- `Android/`: Android / Google Play Games back-end package.
+- `Tests/`: unit and integration tests.
 
-Minimum responsibilities:
+## Core networking model
 
-- Session lifecycle: `CreateAsync`, `JoinAsync`, `CloseAsync`, `Dispose`.
-- Messaging: `SendMessage`, `BroadcastMessage`, `Update`.
-- Gamer model exposure through `AllGamers` and `LocalGamer`.
-- Raise events (`MessageReceived`, `GamerJoined`, `GamerLeft`, `GameStarted`, `GameEnded`, `SessionEnded`) at the same points game code expects.
+The main extension point is `INetworkSessionFactory`.
 
-### 3) Implement gamer types
+At runtime, the game selects one active factory through `NetworkServiceProvider`.
 
-Implement `INetworkGamer` and `ILocalNetworkGamer` for your back-end.
+- `NetworkServiceProvider.SetSessionFactory(...)` selects the active back-end.
+- `NetworkServiceProvider.SessionFactory.CreateSession()` creates a session instance for that back-end.
+- `NetworkServiceProvider.SessionFactory.FindSessionsAsync(...)` discovers joinable sessions.
 
-Keep behavior consistent with other back-ends:
+Back-ends expose sessions through `INetworkSession` and gamers through `INetworkGamer` / `ILocalNetworkGamer`.
 
-- Stable gamer identity (`Id`)
-- Display name (`Gamertag`)
-- Host/local flags
-- Readiness state
+That lets your game loop and message handlers stay the same while the transport changes.
 
-### 4) Wire it at startup
+## Default back-end
 
-In your game initialization, choose the factory:
-
-```csharp
-NetworkServiceProvider.SetSessionFactory(new YourBackendSessionFactory());
-```
-
-After this, your game code should use `NetworkServiceProvider.SessionFactory` to create/find/join sessions.
-
-### 5) Reuse shared message contracts
-
-Keep your message types implementing `INetworkMessage` and register them through `NetworkMessageRegistry`.
-
-This keeps payload formats shared across back-ends and reduces duplicate code.
-
-### 6) Add tests like Steam tests
-
-Use the existing test style as a template:
-
-- End-to-end host/find/join flow
-- Reliable message send/receive flow
-- Composition/root wiring test for startup configuration
-
-## Typical startup examples
-
-### Default UDP/SystemLink
+The default UDP/SystemLink path is still available and remains the fallback when no platform back-end is selected.
 
 ```csharp
 NetworkServiceProvider.ResetToDefault();
 ```
 
-## Practical guidance when adding back-ends
+## Shared back-end guidance
 
-- Keep game-facing behavior the same across back-ends, even if transport internals differ.
-- Prefer adapter layers first (as done by UDP) when wrapping existing code.
-- Start with a small vertical slice (as done by Steam) before full platform API integration.
-- Keep backend-specific code isolated so package dependencies stay clean.
+- Keep game-facing behavior the same across back-ends, even if the transport internals differ.
+- Prefer adapter layers first when wrapping existing code.
+- Start with a small vertical slice before a larger platform API integration.
+- Keep back-end-specific code isolated so package dependencies stay clean.
+
+## Back-end docs
+
+If you are implementing or consuming a specific back-end, use the per-back-end README instead of this root file:
+
+- [Steam back-end README](Steam/README.md)
+- [Android back-end README](Android/README.md)
 
 ## Status
 
 - Core networking abstraction layer: implemented
 - UDP/SystemLink factory + adapter: implemented
-- Steam backend : implemented and covered by tests
-- Additional back-ends: ready to be added through the same factory/session/gamer pattern
+- Steam back-end: implemented and covered by tests
+- Android back-end: implemented and covered by tests
+### Default UDP/SystemLink

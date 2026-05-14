@@ -8,11 +8,17 @@ on:
     tags:
       - "v*"
       - "core-v*"
+      - "android-v*"
       - "steam-v*"
   workflow_dispatch:
     inputs:
       publish_core:
         description: "Publish core package"
+        required: false
+        default: false
+        type: boolean
+      publish_android:
+        description: "Publish Android package"
         required: false
         default: false
         type: boolean
@@ -23,6 +29,11 @@ on:
         type: boolean
       core_version_override:
         description: "Optional core package version override"
+        required: false
+        default: ""
+        type: string
+      android_version_override:
+        description: "Optional Android package version override"
         required: false
         default: ""
         type: string
@@ -72,6 +83,7 @@ jobs:
     needs: validate
     outputs:
       core_version: ${{ steps.version.outputs.core_version }}
+      android_version: ${{ steps.version.outputs.android_version }}
       steam_version: ${{ steps.version.outputs.steam_version }}
 
     steps:
@@ -99,20 +111,27 @@ jobs:
 
           # Default versions (NuGet/SemVer compatible core with calendar suffix).
           CORE_VERSION="0.1.0-${CALENDAR_STAMP}"
+          ANDROID_VERSION="0.1.0-${CALENDAR_STAMP}"
           STEAM_VERSION="0.1.0-${CALENDAR_STAMP}"
 
           # Tag-driven releases:
           # - vX.Y.Z[-suffix] publishes both with that version.
           # - core-vX.Y.Z[-suffix] overrides core only.
+          # - android-vX.Y.Z[-suffix] overrides android only.
           # - steam-vX.Y.Z[-suffix] overrides steam only.
           if [[ "${REF_NAME}" == v* ]]; then
             BOTH_VERSION="${REF_NAME#v}"
             CORE_VERSION="${BOTH_VERSION}"
+            ANDROID_VERSION="${BOTH_VERSION}"
             STEAM_VERSION="${BOTH_VERSION}"
           fi
 
           if [[ "${REF_NAME}" == core-v* ]]; then
             CORE_VERSION="${REF_NAME#core-v}"
+          fi
+
+          if [[ "${REF_NAME}" == android-v* ]]; then
+            ANDROID_VERSION="${REF_NAME#android-v}"
           fi
 
           if [[ "${REF_NAME}" == steam-v* ]]; then
@@ -121,10 +140,15 @@ jobs:
 
           # Manual workflow overrides (if provided).
           CORE_OVERRIDE="${{ inputs.core_version_override }}"
+          ANDROID_OVERRIDE="${{ inputs.android_version_override }}"
           STEAM_OVERRIDE="${{ inputs.steam_version_override }}"
 
           if [[ -n "${CORE_OVERRIDE}" ]]; then
             CORE_VERSION="${CORE_OVERRIDE}"
+          fi
+
+          if [[ -n "${ANDROID_OVERRIDE}" ]]; then
+            ANDROID_VERSION="${ANDROID_OVERRIDE}"
           fi
 
           if [[ -n "${STEAM_OVERRIDE}" ]]; then
@@ -132,8 +156,10 @@ jobs:
           fi
 
           echo "core_version=${CORE_VERSION}" >> "$GITHUB_OUTPUT"
+          echo "android_version=${ANDROID_VERSION}" >> "$GITHUB_OUTPUT"
           echo "steam_version=${STEAM_VERSION}" >> "$GITHUB_OUTPUT"
           echo "Using core version: ${CORE_VERSION}"
+          echo "Using android version: ${ANDROID_VERSION}"
           echo "Using steam version: ${STEAM_VERSION}"
 
       - name: Restore
@@ -148,6 +174,9 @@ jobs:
       - name: Pack core
         run: dotnet pack MonoGame.Xna.Framework.Net.csproj -c Release -o artifacts/core --no-build -p:PackageVersion=${{ steps.version.outputs.core_version }}
 
+      - name: Pack android
+        run: dotnet pack Android/MonoGame.Xna.Framework.Net.Android.csproj -c Release -o artifacts/android --no-build -p:PackageVersion=${{ steps.version.outputs.android_version }}
+
       - name: Pack steam
         run: dotnet pack Steam/MonoGame.Xna.Framework.Net.Steam.csproj -c Release -o artifacts/steam --no-build -p:PackageVersion=${{ steps.version.outputs.steam_version }}
 
@@ -158,6 +187,14 @@ jobs:
           path: |
             artifacts/core/*.nupkg
             artifacts/core/*.snupkg
+
+      - name: Upload android package artifacts
+        uses: actions/upload-artifact@v5
+        with:
+          name: nuget-android-${{ steps.version.outputs.android_version }}
+          path: |
+            artifacts/android/*.nupkg
+            artifacts/android/*.snupkg
 
       - name: Upload steam package artifacts
         uses: actions/upload-artifact@v5
@@ -199,6 +236,41 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           dotnet nuget push "artifacts/core/MonoGame.Xna.Framework.Net.${{ needs.pack.outputs.core_version }}.snupkg" \
+            --source "https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json" \
+            --api-key "$GITHUB_TOKEN" \
+            --skip-duplicate
+  publish-android:
+    name: Publish Android
+    runs-on: ubuntu-latest
+    needs: pack
+    if: startsWith(github.ref, 'refs/tags/v') || startsWith(github.ref, 'refs/tags/android-v') || (github.event_name == 'workflow_dispatch' && inputs.publish_android == true)
+
+    steps:
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 9.0.x
+
+      - name: Download android package artifacts
+        uses: actions/download-artifact@v5
+        with:
+          name: nuget-android-${{ needs.pack.outputs.android_version }}
+          path: artifacts/android
+
+      - name: Push Android package to GitHub Packages
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          dotnet nuget push "artifacts/android/MonoGame.Xna.Framework.Net.Android.${{ needs.pack.outputs.android_version }}.nupkg" \
+            --source "https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json" \
+            --api-key "$GITHUB_TOKEN" \
+            --skip-duplicate
+
+      - name: Push Android symbols to GitHub Packages
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          dotnet nuget push "artifacts/android/MonoGame.Xna.Framework.Net.Android.${{ needs.pack.outputs.android_version }}.snupkg" \
             --source "https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json" \
             --api-key "$GITHUB_TOKEN" \
             --skip-duplicate

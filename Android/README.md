@@ -1,72 +1,68 @@
-# MonoGame.Xna.Framework.Net
+# MonoGame.Xna.Framework.Net.Android
 
-A modern, XNA-style networking layer for MonoGame.
+Android / Google Play Games back-end package for MonoGame.Xna.Framework.Net.
 
-This project keeps the familiar `Microsoft.Xna.Framework.Net` and `GamerServices` APIs, while making the transport layer pluggable so different networking back-ends can be used without rewriting game logic.
+This package wires the shared networking abstractions to the Android back-end path and keeps the Android-specific startup and sign-in behavior isolated from the core package.
 
-## Project goals
+## What this package provides
 
-- Keep the classic XNA networking feel for existing game code.
-- Support multiple networking back-ends behind one common API.
-- Let games switch back-ends at startup (UDP/SystemLink, Steam, and others in the future).
-- Keep message contracts shared across all back-ends.
-- Make it easy to test host/find/join/message flows end-to-end.
+- `AndroidNetworkSessionFactory`
+- `AndroidNetworkSession`
+- `AndroidNetworkGamer` types through the Android runtime integration
+- `AndroidPlatformBootstrap`
+- `AndroidRuntime`
 
-### AI-assisted development
+## Basic startup
 
-Full transparency: AI tools are used in this project to speed up development, research and refactoring.
-
-All architecture, implementation direction and final review decisions are made by an experienced human engineer with 35+ years in the software industry working across banking, insurance, multinational enterprises, indie game studios and other startups.
-
-The goal is simple: ship reliable, maintainable, human-quality code faster.
-
-If you prefer projects built entirely without AI assistance, that is completely fair, then realistically using this libaray is probably not for you.
-
-## Repository layout
-
-- `Net/`: Core networking types, messages, abstractions, adapters, factories, services.
-- `GamerServices/`: XNA-style gamer/guide/leaderboard services.
-- `Android/`: Android-specific integration and composition helpers.
-- `Steam/`: Steam-specific integration and composition helpers.
-- `Tests/`: Unit and integration tests.
-
-## How the back-end model works
-
-The key extension point is `INetworkSessionFactory`.
-
-At runtime, the game sets one active factory through `NetworkServiceProvider`.
-
-- `NetworkServiceProvider.SetSessionFactory(...)` selects the active back-end.
-- `NetworkServiceProvider.SessionFactory.CreateSession()` creates a session instance for that back-end.
-- `NetworkServiceProvider.SessionFactory.FindSessionsAsync(...)` discovers joinable sessions.
-
-All back-ends expose sessions through `INetworkSession` and gamers through `INetworkGamer`/`ILocalNetworkGamer`.
-
-That means your game loop and message handlers can stay the same while the transport changes.
-
-## Current back-ends in this repo
-
-### UDP/SystemLink (default)
-
-- Factory: `UdpNetworkSessionFactory`
-- Session implementation: `UdpNetworkSession`
-- Strategy: adapts the existing `NetworkSession` implementation through the abstraction interfaces.
-
-### Google Play Games
-
-- Factory: `AndroidNetworkSessionFactory`
-- Session implementation: `AndroidNetworkSession`
-- Bootstrap helper: `AndroidPlatformBootstrap`
-- Runtime wrapper: `AndroidRuntime`
-
-The Google Play Games backend currently ships as a separate package and follows the same composition seams as Steam.
+Use this package from your Android app to initialize Play Games and select the Android session factory.
 
 ```csharp
 using Microsoft.Xna.Framework.Net;
 using Microsoft.Xna.Framework.Net.Android;
 
-AndroidRuntime.Initialize(initialPlayerId: "player-id", initialGamertag: "Player");
+AndroidRuntime.Initialize(
+	androidActivity: this,
+	initialPlayerId: "player-id",
+	initialGamertag: "Player");
 AndroidPlatformBootstrap.Configure(gameName: "MyGame");
-// Optional in your update loop when Google Play Games is enabled:
-// AndroidRuntime.RunCallbacks();
+NetworkServiceProvider.SetSessionFactory(new AndroidNetworkSessionFactory());
 ```
+
+## Typical app integration
+
+The Android host app should initialize the runtime once during startup, then sign in and wire the session factory before gameplay begins.
+
+```csharp
+using Microsoft.Xna.Framework.Net.Android;
+
+protected override void OnCreate(Bundle? savedInstanceState)
+{
+	base.OnCreate(savedInstanceState);
+
+	AndroidRuntime.Initialize(this, initialGamertag: "Player");
+	AndroidPlatformBootstrap.Configure(gameName: "MyGame");
+}
+```
+
+If your game uses a periodic update loop, you can keep the Android runtime alive with:
+
+```csharp
+AndroidRuntime.RunCallbacks();
+```
+
+## Sending a reliable gameplay message
+
+```csharp
+using Microsoft.Xna.Framework.Net;
+using Microsoft.Xna.Framework.Net.Android;
+
+var session = NetworkServiceProvider.SessionFactory.CreateSession();
+var message = new PlayerMoveMessage(playerId: 1, x: 10, y: 20);
+session.SendMessage(message, MessageDelivery.Reliable);
+```
+
+## Notes
+
+- Keep Android-specific code isolated from the core package.
+- Use the shared message contracts in `Net/` so the same gameplay payloads work across back-ends.
+- If you need the broader architecture overview, start from the root README instead.
