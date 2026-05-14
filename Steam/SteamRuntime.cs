@@ -17,7 +17,12 @@ namespace Microsoft.Xna.Framework.Net.Steam
 
         public static bool IsInitialized => isInitialized;
 
-        public static bool Initialize()
+        /// <param name="appId">
+        /// Your Steam App ID. When non-zero, <see cref="SteamAPI.RestartAppIfNecessary"/> is called
+        /// before init so the game relaunches via the Steam client if it was launched directly.
+        /// Pass 0 (the default) to skip this check — suitable for dev/test environments.
+        /// </param>
+        public static bool Initialize(uint appId = 0)
         {
             if (isInitialized)
             {
@@ -33,6 +38,12 @@ namespace Microsoft.Xna.Framework.Net.Steam
 
             try
             {
+                if (appId != 0 && SteamAPI.RestartAppIfNecessary(new AppId_t(appId)))
+                {
+                    // Steam will relaunch the game via the client; caller should terminate now.
+                    return false;
+                }
+
                 var initResult = SteamAPI.InitEx(out string steamErrMsg);
                 isInitialized = initResult == ESteamAPIInitResult.k_ESteamAPIInitResult_OK;
                 if (!isInitialized)

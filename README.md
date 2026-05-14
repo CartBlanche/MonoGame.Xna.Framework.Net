@@ -151,5 +151,5 @@ SteamPlatformBootstrap.Configure(gameName: "MyGame");
 
 - Core networking abstraction layer: implemented
 - UDP/SystemLink factory + adapter: implemented
-- Steam backend vertical slice: implemented and covered by tests
+- Steam backend : implemented and covered by tests
 - Additional back-ends: ready to be added through the same factory/session/gamer pattern
