@@ -97,6 +97,9 @@ jobs:
         uses: actions/setup-dotnet@v5
         with:
           dotnet-version: 9.0.x
+      
+      - name: Install .NET Android workload
+        run: dotnet workload install android
 
       - name: Compute package versions
         id: version
