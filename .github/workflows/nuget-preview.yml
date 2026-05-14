@@ -68,6 +68,9 @@ jobs:
         with:
           dotnet-version: 9.0.x
 
+      - name: Install .NET Android workload
+        run: dotnet workload install android
+
       - name: Restore
         run: dotnet restore MonoGame.Xna.Framework.Net.sln
 
