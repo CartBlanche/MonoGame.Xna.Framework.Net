@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0-android</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>disable</Nullable>
+    <RootNamespace>Microsoft.Xna.Framework</RootNamespace>
+    <AssemblyName>MonoGame.Xna.Framework.Net.Android.Tests</AssemblyName>
+    <IsPackable>false</IsPackable>
+    <ApplicationId>com.example.mgnet.android.tests</ApplicationId>
+    <ApplicationTitle>MonoGame.Xna.Framework.Net.Android.Tests</ApplicationTitle>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\MonoGame.Xna.Framework.Net.csproj" />
+    <ProjectReference Include="..\..\Android\MonoGame.Xna.Framework.Net.Android.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="NUnitLite" Version="3.13.2" />
+    <PackageReference Include="NUnit3TestAdapter" Version="4.5.0" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.7.2" />
+    <PackageReference Include="MonoGame.Framework.Android" Version="3.8.*" PrivateAssets="all"/>
+  </ItemGroup>
+
+</Project>

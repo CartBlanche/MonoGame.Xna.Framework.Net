@@ -9,6 +9,7 @@ on:
       - "v*"
       - "core-v*"
       - "android-v*"
+      - "ios-v*"
       - "steam-v*"
   workflow_dispatch:
     inputs:
@@ -27,6 +28,11 @@ on:
         required: false
         default: false
         type: boolean
+      publish_ios:
+        description: "Publish iOS package"
+        required: false
+        default: false
+        type: boolean
       core_version_override:
         description: "Optional core package version override"
         required: false
@@ -39,6 +45,11 @@ on:
         type: string
       steam_version_override:
         description: "Optional Steam package version override"
+        required: false
+        default: ""
+        type: string
+      ios_version_override:
+        description: "Optional iOS package version override"
         required: false
         default: ""
         type: string
@@ -80,6 +91,17 @@ jobs:
       - name: Test
         run: dotnet test Tests/MonoGame.Xna.Framework.Net.Tests.csproj -c Release --no-build
 
+      - name: Test Steam
+        run: dotnet test Tests/Steam/MonoGame.Xna.Framework.Net.Steam.Tests.csproj -c Release --no-build
+
+      - name: Build Android backend tests
+        if: runner.os != 'Windows'
+        run: dotnet build Tests/Android/MonoGame.Xna.Framework.Net.Android.Tests.csproj -c Release --no-restore
+
+      - name: Build iOS backend tests
+        if: runner.os == 'macOS'
+        run: dotnet build Tests/iOS/MonoGame.Xna.Framework.Net.iOS.Tests.csproj -c Release --no-restore
+
   pack:
     name: Pack
     runs-on: ubuntu-latest
@@ -88,6 +110,7 @@ jobs:
       core_version: ${{ steps.version.outputs.core_version }}
       android_version: ${{ steps.version.outputs.android_version }}
       steam_version: ${{ steps.version.outputs.steam_version }}
+      ios_version: ${{ steps.version.outputs.ios_version }}
 
     steps:
       - name: Checkout
@@ -100,6 +123,10 @@ jobs:
       
       - name: Install .NET Android workload
         run: dotnet workload install android
+
+      - name: Install .NET iOS workload
+        if: runner.os == 'macOS'
+        run: dotnet workload install ios
 
       - name: Compute package versions
         id: version
@@ -119,17 +146,20 @@ jobs:
           CORE_VERSION="0.1.0-${CALENDAR_STAMP}"
           ANDROID_VERSION="0.1.0-${CALENDAR_STAMP}"
           STEAM_VERSION="0.1.0-${CALENDAR_STAMP}"
+          IOS_VERSION="0.1.0-${CALENDAR_STAMP}"
 
           # Tag-driven releases:
           # - vX.Y.Z[-suffix] publishes both with that version.
           # - core-vX.Y.Z[-suffix] overrides core only.
           # - android-vX.Y.Z[-suffix] overrides android only.
+          # - ios-vX.Y.Z[-suffix] overrides ios only.
           # - steam-vX.Y.Z[-suffix] overrides steam only.
           if [[ "${REF_NAME}" == v* ]]; then
             BOTH_VERSION="${REF_NAME#v}"
             CORE_VERSION="${BOTH_VERSION}"
             ANDROID_VERSION="${BOTH_VERSION}"
             STEAM_VERSION="${BOTH_VERSION}"
+            IOS_VERSION="${BOTH_VERSION}"
           fi
 
           if [[ "${REF_NAME}" == core-v* ]]; then
@@ -144,10 +174,15 @@ jobs:
             STEAM_VERSION="${REF_NAME#steam-v}"
           fi
 
+          if [[ "${REF_NAME}" == ios-v* ]]; then
+            IOS_VERSION="${REF_NAME#ios-v}"
+          fi
+
           # Manual workflow overrides (if provided).
           CORE_OVERRIDE="${{ inputs.core_version_override }}"
           ANDROID_OVERRIDE="${{ inputs.android_version_override }}"
           STEAM_OVERRIDE="${{ inputs.steam_version_override }}"
+          IOS_OVERRIDE="${{ inputs.ios_version_override }}"
 
           if [[ -n "${CORE_OVERRIDE}" ]]; then
             CORE_VERSION="${CORE_OVERRIDE}"
@@ -161,12 +196,18 @@ jobs:
             STEAM_VERSION="${STEAM_OVERRIDE}"
           fi
 
+          if [[ -n "${IOS_OVERRIDE}" ]]; then
+            IOS_VERSION="${IOS_OVERRIDE}"
+          fi
+
           echo "core_version=${CORE_VERSION}" >> "$GITHUB_OUTPUT"
           echo "android_version=${ANDROID_VERSION}" >> "$GITHUB_OUTPUT"
           echo "steam_version=${STEAM_VERSION}" >> "$GITHUB_OUTPUT"
+          echo "ios_version=${IOS_VERSION}" >> "$GITHUB_OUTPUT"
           echo "Using core version: ${CORE_VERSION}"
           echo "Using android version: ${ANDROID_VERSION}"
           echo "Using steam version: ${STEAM_VERSION}"
+          echo "Using ios version: ${IOS_VERSION}"
 
       - name: Restore
         run: dotnet restore MonoGame.Xna.Framework.Net.sln
@@ -176,6 +217,17 @@ jobs:
 
       - name: Test
         run: dotnet test Tests/MonoGame.Xna.Framework.Net.Tests.csproj -c Release --no-build
+
+      - name: Test Steam
+        run: dotnet test Tests/Steam/MonoGame.Xna.Framework.Net.Steam.Tests.csproj -c Release --no-build
+
+      - name: Build Android backend tests
+        if: runner.os != 'Windows'
+        run: dotnet build Tests/Android/MonoGame.Xna.Framework.Net.Android.Tests.csproj -c Release --no-restore
+
+      - name: Build iOS backend tests
+        if: runner.os == 'macOS'
+        run: dotnet build Tests/iOS/MonoGame.Xna.Framework.Net.iOS.Tests.csproj -c Release --no-restore
 
       - name: Pack core
         run: dotnet pack MonoGame.Xna.Framework.Net.csproj -c Release -o artifacts/core --no-build -p:PackageVersion=${{ steps.version.outputs.core_version }}
@@ -209,6 +261,40 @@ jobs:
           path: |
             artifacts/steam/*.nupkg
             artifacts/steam/*.snupkg
+
+  pack-ios:
+    name: Pack iOS
+    runs-on: macos-latest
+    needs: pack
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 9.0.x
+
+      - name: Install .NET iOS workload
+        run: dotnet workload install ios
+
+      - name: Restore iOS package project
+        run: dotnet restore iOS/MonoGame.Xna.Framework.Net.iOS.csproj
+
+      - name: Build iOS package project
+        run: dotnet build iOS/MonoGame.Xna.Framework.Net.iOS.csproj -c Release --no-restore
+
+      - name: Pack ios
+        run: dotnet pack iOS/MonoGame.Xna.Framework.Net.iOS.csproj -c Release -o artifacts/ios --no-build -p:PackageVersion=${{ needs.pack.outputs.ios_version }}
+
+      - name: Upload ios package artifacts
+        uses: actions/upload-artifact@v5
+        with:
+          name: nuget-ios-${{ needs.pack.outputs.ios_version }}
+          path: |
+            artifacts/ios/*.nupkg
+            artifacts/ios/*.snupkg
 
   publish-core:
     name: Publish Core
@@ -313,6 +399,42 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           dotnet nuget push "artifacts/steam/MonoGame.Xna.Framework.Net.Steam.${{ needs.pack.outputs.steam_version }}.snupkg" \
+            --source "https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json" \
+            --api-key "$GITHUB_TOKEN" \
+            --skip-duplicate
+
+  publish-ios:
+    name: Publish iOS
+    runs-on: ubuntu-latest
+    needs: [pack, pack-ios]
+    if: startsWith(github.ref, 'refs/tags/v') || startsWith(github.ref, 'refs/tags/ios-v') || (github.event_name == 'workflow_dispatch' && inputs.publish_ios == true)
+
+    steps:
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 9.0.x
+
+      - name: Download ios package artifacts
+        uses: actions/download-artifact@v5
+        with:
+          name: nuget-ios-${{ needs.pack.outputs.ios_version }}
+          path: artifacts/ios
+
+      - name: Push iOS package to GitHub Packages
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          dotnet nuget push "artifacts/ios/MonoGame.Xna.Framework.Net.iOS.${{ needs.pack.outputs.ios_version }}.nupkg" \
+            --source "https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json" \
+            --api-key "$GITHUB_TOKEN" \
+            --skip-duplicate
+
+      - name: Push iOS symbols to GitHub Packages
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          dotnet nuget push "artifacts/ios/MonoGame.Xna.Framework.Net.iOS.${{ needs.pack.outputs.ios_version }}.snupkg" \
             --source "https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json" \
             --api-key "$GITHUB_TOKEN" \
             --skip-duplicate

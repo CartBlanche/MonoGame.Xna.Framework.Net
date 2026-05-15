@@ -69,6 +69,7 @@ It keeps the familiar `Microsoft.Xna.Framework.Net` and `GamerServices` APIs whi
 - `GamerServices/`: XNA-style gamer, guide, and leaderboard services.
 - `Steam/`: Steam-specific back-end package.
 - `Android/`: Android / Google Play Games back-end package.
+- `iOS/`: iOS / Game Center back-end package.
 - `Tests/`: unit and integration tests.
 
 ## Core networking model
@@ -106,6 +107,7 @@ If you are implementing or consuming a specific back-end, use the per-back-end R
 
 - [Steam back-end README](Steam/README.md)
 - [Android back-end README](Android/README.md)
+- [iOS back-end README](iOS/README.md)
 
 ## Status
 
@@ -113,4 +115,5 @@ If you are implementing or consuming a specific back-end, use the per-back-end R
 - UDP/SystemLink factory + adapter: implemented
 - Steam back-end: implemented and covered by tests
 - Android back-end: implemented and covered by tests
+- iOS back-end: implemented and covered by tests
 ### Default UDP/SystemLink

@@ -8,7 +8,7 @@
     <AssemblyName>MonoGame.Xna.Framework.Net.Steam</AssemblyName>
     <IsPackable>true</IsPackable>
     <PackageId>MonoGame.Xna.Framework.Net.Steam</PackageId>
-    <Version>0.1.0-preview.1</Version>
+    <Version>0.2.0-preview.1</Version>
     <Authors>CartBlanche Contributors</Authors>
     <Company>CartBlanche</Company>
     <Description>Steam backend implementation for MonoGame.Xna.Framework.Net.</Description>

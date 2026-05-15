@@ -7,7 +7,7 @@
     <RootNamespace>Microsoft.Xna.Framework</RootNamespace>
     <IsPackable>true</IsPackable>
     <PackageId>MonoGame.Xna.Framework.Net</PackageId>
-    <Version>0.1.0-preview.1</Version>
+    <Version>0.2.0-preview.1</Version>
     <Authors>CartBlanche Contributors</Authors>
     <Company>CartBlanche</Company>
     <Description>XNA-compatible networking and GamerServices APIs for MonoGame.</Description>
@@ -35,6 +35,9 @@
     <Compile Remove="Android\**" />
     <EmbeddedResource Remove="Android\**" />
     <None Remove="Android\**" />
+    <Compile Remove="iOS\**" />
+    <EmbeddedResource Remove="iOS\**" />
+    <None Remove="iOS\**" />
   </ItemGroup>
 
   <ItemGroup>
@@ -55,7 +58,19 @@
       <_Parameter1>MonoGame.Xna.Framework.Net.Steam</_Parameter1>
     </AssemblyAttribute>
     <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>MonoGame.Xna.Framework.Net.Steam.Tests</_Parameter1>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
       <_Parameter1>MonoGame.Xna.Framework.Net.Android</_Parameter1>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>MonoGame.Xna.Framework.Net.Android.Tests</_Parameter1>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>MonoGame.Xna.Framework.Net.iOS</_Parameter1>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>MonoGame.Xna.Framework.Net.iOS.Tests</_Parameter1>
     </AssemblyAttribute>
   </ItemGroup>
 

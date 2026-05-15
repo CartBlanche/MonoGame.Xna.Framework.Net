@@ -18,6 +18,7 @@ namespace Microsoft.Xna.Framework.Net.Android
         private static string playerId;
         private static string gamertag;
         private static Activity activity;
+        private static IGooglePlayGamesClient testClient;
 
         /// <summary>
         /// Initializes the Android runtime. Must be called from <c>Activity.OnCreate</c>
@@ -61,6 +62,12 @@ namespace Microsoft.Xna.Framework.Net.Android
         {
             lock (Gate)
             {
+                if (testClient != null)
+                {
+                    client = testClient;
+                    return true;
+                }
+
                 if (isInitialized && activity != null)
                 {
                     client = new AndroidPlayGamesClient(activity);
@@ -71,8 +78,13 @@ namespace Microsoft.Xna.Framework.Net.Android
             }
         }
 
-        // Test-injection seam — no-op on real builds where AndroidPlayGamesClient is used.
-        internal static void SetGooglePlayGamesClient(IGooglePlayGamesClient testClient) { }
+        internal static void SetGooglePlayGamesClient(IGooglePlayGamesClient testClient)
+        {
+            lock (Gate)
+            {
+                AndroidRuntime.testClient = testClient;
+            }
+        }
 
         public static async Task<bool> SignInAsync(CancellationToken cancellationToken = default)
         {
@@ -173,6 +185,7 @@ namespace Microsoft.Xna.Framework.Net.Android
                 playerId = null;
                 gamertag = null;
                 activity = null;
+                testClient = null;
             }
 
             SignedInGamer.Current.SetSignedInToLive(false);

@@ -1,18 +1,18 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFrameworks>net9.0-android</TargetFrameworks>
+    <TargetFramework>net9.0-ios</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>disable</Nullable>
     <RootNamespace>Microsoft.Xna.Framework</RootNamespace>
-    <AssemblyName>MonoGame.Xna.Framework.Net.Android</AssemblyName>
+    <AssemblyName>MonoGame.Xna.Framework.Net.iOS</AssemblyName>
     <IsPackable>true</IsPackable>
-    <PackageId>MonoGame.Xna.Framework.Net.Android</PackageId>
+    <PackageId>MonoGame.Xna.Framework.Net.iOS</PackageId>
     <Version>0.2.0-preview.1</Version>
     <Authors>CartBlanche Contributors</Authors>
     <Company>CartBlanche</Company>
-    <Description>Android Play Games backend implementation for MonoGame.Xna.Framework.Net.</Description>
-    <PackageTags>monogame;xna;networking;android;googleplaygames</PackageTags>
+    <Description>iOS Game Center backend implementation for MonoGame.Xna.Framework.Net.</Description>
+    <PackageTags>monogame;xna;networking;ios;gamecenter</PackageTags>
     <RepositoryUrl>https://github.com/CartBlanche/MonoGame.Xna.Framework.Net</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <PackageReadmeFile>README.md</PackageReadmeFile>
@@ -24,6 +24,7 @@
     <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
     <PublishRepositoryUrl>true</PublishRepositoryUrl>
     <EmbedUntrackedSources>true</EmbedUntrackedSources>
+    <CodesignKey>iPhone Developer</CodesignKey>
   </PropertyGroup>
 
   <ItemGroup>
@@ -31,19 +32,17 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="MonoGame.Framework.Android" Version="3.8.*" PrivateAssets="all" />
-    <PackageReference Include="Xamarin.GooglePlayServices.Games.V2" Version="121.0.*" />
-    <PackageReference Include="Xamarin.GooglePlayServices.Base" Version="118.10.*" />
+    <PackageReference Include="MonoGame.Framework.iOS" Version="3.8.*" PrivateAssets="all" />
     <PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0" PrivateAssets="All" />
   </ItemGroup>
 
   <ItemGroup>
-    <None Include="README.md" Pack="true" PackagePath="/"/>
+    <None Include="README.md" Pack="true" PackagePath="/" />
   </ItemGroup>
 
   <ItemGroup>
     <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
-      <_Parameter1>MonoGame.Xna.Framework.Net.Android.Tests</_Parameter1>
+      <_Parameter1>MonoGame.Xna.Framework.Net.iOS.Tests</_Parameter1>
     </AssemblyAttribute>
   </ItemGroup>
 

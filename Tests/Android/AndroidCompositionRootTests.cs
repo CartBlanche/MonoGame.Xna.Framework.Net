@@ -2,6 +2,7 @@ using System;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.GamerServices;
 using Microsoft.Xna.Framework.Net.Android;
 using NUnit.Framework;
@@ -99,7 +100,7 @@ namespace Microsoft.Xna.Framework.Net.Tests
         [Test]
         public async Task Configure_ThenSignIn_EnablesLiveProvidersAndBackend()
         {
-            AndroidRuntime.Initialize(initialPlayerId: "player-1", initialGamertag: "AndroidTester");
+            AndroidRuntime.Initialize(androidActivity: null, initialPlayerId: "player-1", initialGamertag: "AndroidTester");
 
             AndroidPlatformBootstrap.Configure(
                 gameName: "AndroidTests",
@@ -119,7 +120,7 @@ namespace Microsoft.Xna.Framework.Net.Tests
         [Test]
         public async Task Networking_DefaultFactory_SupportsHostFindAndJoin()
         {
-            AndroidRuntime.Initialize(initialPlayerId: "player-2", initialGamertag: "AndroidHost");
+            AndroidRuntime.Initialize(androidActivity: null, initialPlayerId: "player-2", initialGamertag: "AndroidHost");
             var factory = new AndroidNetworkSessionFactory();
             NetworkServiceProvider.SetSessionFactory(factory);
 

@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0-ios</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>disable</Nullable>
+    <RootNamespace>Microsoft.Xna.Framework</RootNamespace>
+    <AssemblyName>MonoGame.Xna.Framework.Net.iOS.Tests</AssemblyName>
+    <IsPackable>false</IsPackable>
+    <RuntimeIdentifier>iossimulator-arm64</RuntimeIdentifier>
+    <ApplicationId>com.example.mgnet.ios.tests</ApplicationId>
+    <ApplicationTitle>MonoGame.Xna.Framework.Net.iOS.Tests</ApplicationTitle>
+    <ApplicationManifest>Info.plist</ApplicationManifest>
+    <EnableCodeSigning>false</EnableCodeSigning>
+    <CodesignKey></CodesignKey>
+    <CodesignProvision></CodesignProvision>
+    <SigningKey></SigningKey>
+    <ProvisioningType></ProvisioningType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\MonoGame.Xna.Framework.Net.csproj" />
+    <ProjectReference Include="..\..\iOS\MonoGame.Xna.Framework.Net.iOS.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="NUnit" Version="3.13.2" />
+    <PackageReference Include="NUnitLite" Version="3.13.2" />
+    <PackageReference Include="MonoGame.Framework.iOS" Version="3.8.*" PrivateAssets="all"/>
+  </ItemGroup>
+
+</Project>
