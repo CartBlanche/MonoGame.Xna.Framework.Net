@@ -44,6 +44,7 @@ Use Steam implementation in this repo as the canonical pattern for:
 - Composition root wiring for Guide, network session factory, leaderboard and achievement providers
 - Provider interfaces and service routing
 - Test structure (composition tests, provider behavior tests, session smoke tests)
+- Backend README structure and setup guidance
 
 Match shape and behavior first. Replace only platform-specific API calls and lifecycle semantics.
 
@@ -105,11 +106,14 @@ Match shape and behavior first. Replace only platform-specific API calls and lif
 
 7. Add tests before claiming completion
 - Required tests based on scope:
+  - Unit tests for new provider, bootstrap, and routing behavior where the code can run on the host platform
   - Composition root wiring
   - Provider routing signed-in vs signed-out
   - Achievement metadata projection including hidden flag where supported
   - Networking host/find/join and one reliable message flow if networking was implemented
 - Add an opt-in smoke test harness for real platform runtime where feasible.
+- Prefer small backend-specific unit tests over broad integration-only coverage.
+- If a platform backend cannot run on the host, keep as much logic as possible behind seams so host-runnable unit tests still cover mapping, routing, fallback, and bootstrap behavior.
 
 ### Platform Test Execution Policy (required)
 
@@ -177,7 +181,25 @@ Validation and pack pipelines must use the same backend-test policy:
 - Report concrete pass/fail outcomes.
 
 9. Update docs
-- Update README backend list and startup wiring examples.
+- Update the root README backend list and startup wiring examples.
+- Add or update a backend-specific README in the platform folder.
+- Keep backend README files structurally consistent with existing Steam, Android, and iOS READMEs.
+- Use this section order for backend READMEs unless the user asks otherwise:
+  - Title and short description
+  - What this package provides
+  - Required setup (login, leaderboards, achievements, multiplayer)
+  - Official docs
+  - Step-by-step app setup
+  - Basic startup
+  - Typical app integration
+  - Sending a reliable gameplay message
+  - Verify your setup
+  - Common failures
+  - Notes
+- Include concrete platform setup prerequisites, not just code samples.
+- Include official platform documentation links only.
+- Document the platform requirements needed for login, leaderboards, achievements, and multiplayer or session discovery to work in a real app.
+- Keep wording simple, friendly, and direct.
 - Update integration status doc for the new backend with:
   - implemented
   - partial
@@ -208,6 +230,7 @@ Do not mark done while avoidable warnings remain in newly added backend/test pro
 Only mark done when all are true:
 - Backend compiles and wires through existing abstractions.
 - Existing backends still compile and pass relevant tests.
+- New or updated unit tests cover the backend seams that are expected to be host-runnable.
 - At least one end-to-end happy path is validated for each in-scope feature.
 - Residual risks and next smallest increment are documented.
 - Test execution policy is explicitly documented per backend (host-runnable vs compile-only vs runtime smoke).
