@@ -82,25 +82,48 @@ jobs:
       - name: Install .NET Android workload
         run: dotnet workload install android
 
+      - name: Install .NET iOS workload
+        if: runner.os == 'macOS'
+        run: dotnet workload install ios
+
       - name: Restore
-        run: dotnet restore MonoGame.Xna.Framework.Net.slnx
+        run: |
+          dotnet restore MonoGame.Xna.Framework.Net.csproj
+          dotnet restore Android/MonoGame.Xna.Framework.Net.Android.csproj
+          dotnet restore Steam/MonoGame.Xna.Framework.Net.Steam.csproj
+          dotnet restore Tests/Core/MonoGame.Xna.Framework.Net.Tests.csproj
+          dotnet restore Tests/Steam/MonoGame.Xna.Framework.Net.Steam.Tests.csproj
+          dotnet restore Tests/Android/MonoGame.Xna.Framework.Net.Android.Tests.csproj
+
+      - name: Restore iOS
+        if: runner.os == 'macOS'
+        run: |
+          dotnet restore iOS/MonoGame.Xna.Framework.Net.iOS.csproj
+          dotnet restore Tests/iOS/MonoGame.Xna.Framework.Net.iOS.Tests.csproj
 
       - name: Build
-        run: dotnet build MonoGame.Xna.Framework.Net.slnx -c Release --no-restore
+        run: |
+          dotnet build MonoGame.Xna.Framework.Net.csproj -c Release --no-restore
+          dotnet build Android/MonoGame.Xna.Framework.Net.Android.csproj -c Release --no-restore
+          dotnet build Steam/MonoGame.Xna.Framework.Net.Steam.csproj -c Release --no-restore
+          dotnet build Tests/Core/MonoGame.Xna.Framework.Net.Tests.csproj -c Release --no-restore
+          dotnet build Tests/Steam/MonoGame.Xna.Framework.Net.Steam.Tests.csproj -c Release --no-restore
+
+      - name: Build Android backend tests
+        if: runner.os != 'Windows'
+        run: dotnet build Tests/Android/MonoGame.Xna.Framework.Net.Android.Tests.csproj -c Release --no-restore
+
+      - name: Build iOS
+        if: runner.os == 'macOS'
+        run: |
+          dotnet build iOS/MonoGame.Xna.Framework.Net.iOS.csproj -c Release --no-restore
+          dotnet build Tests/iOS/MonoGame.Xna.Framework.Net.iOS.Tests.csproj -c Release --no-restore
 
       - name: Test
         run: dotnet test Tests/Core/MonoGame.Xna.Framework.Net.Tests.csproj -c Release --no-build
 
       - name: Test Steam
         run: dotnet test Tests/Steam/MonoGame.Xna.Framework.Net.Steam.Tests.csproj -c Release --no-build
-
-      - name: Build Android backend tests
-        if: runner.os != 'Windows'
-        run: dotnet build Tests/Android/MonoGame.Xna.Framework.Net.Android.Tests.csproj -c Release --no-restore
-
-      - name: Build iOS backend tests
-        if: runner.os == 'macOS'
-        run: dotnet build Tests/iOS/MonoGame.Xna.Framework.Net.iOS.Tests.csproj -c Release --no-restore
 
   pack:
     name: Pack
@@ -210,24 +233,31 @@ jobs:
           echo "Using ios version: ${IOS_VERSION}"
 
       - name: Restore
-        run: dotnet restore MonoGame.Xna.Framework.Net.slnx
+        run: |
+          dotnet restore MonoGame.Xna.Framework.Net.csproj
+          dotnet restore Android/MonoGame.Xna.Framework.Net.Android.csproj
+          dotnet restore Steam/MonoGame.Xna.Framework.Net.Steam.csproj
+          dotnet restore Tests/Core/MonoGame.Xna.Framework.Net.Tests.csproj
+          dotnet restore Tests/Steam/MonoGame.Xna.Framework.Net.Steam.Tests.csproj
+          dotnet restore Tests/Android/MonoGame.Xna.Framework.Net.Android.Tests.csproj
 
       - name: Build
-        run: dotnet build MonoGame.Xna.Framework.Net.slnx -c Release --no-restore
+        run: |
+          dotnet build MonoGame.Xna.Framework.Net.csproj -c Release --no-restore
+          dotnet build Android/MonoGame.Xna.Framework.Net.Android.csproj -c Release --no-restore
+          dotnet build Steam/MonoGame.Xna.Framework.Net.Steam.csproj -c Release --no-restore
+          dotnet build Tests/Core/MonoGame.Xna.Framework.Net.Tests.csproj -c Release --no-restore
+          dotnet build Tests/Steam/MonoGame.Xna.Framework.Net.Steam.Tests.csproj -c Release --no-restore
+
+      - name: Build Android backend tests
+        if: runner.os != 'Windows'
+        run: dotnet build Tests/Android/MonoGame.Xna.Framework.Net.Android.Tests.csproj -c Release --no-restore
 
       - name: Test
         run: dotnet test Tests/Core/MonoGame.Xna.Framework.Net.Tests.csproj -c Release --no-build
 
       - name: Test Steam
         run: dotnet test Tests/Steam/MonoGame.Xna.Framework.Net.Steam.Tests.csproj -c Release --no-build
-
-      - name: Build Android backend tests
-        if: runner.os != 'Windows'
-        run: dotnet build Tests/Android/MonoGame.Xna.Framework.Net.Android.Tests.csproj -c Release --no-restore
-
-      - name: Build iOS backend tests
-        if: runner.os == 'macOS'
-        run: dotnet build Tests/iOS/MonoGame.Xna.Framework.Net.iOS.Tests.csproj -c Release --no-restore
 
       - name: Pack core
         run: dotnet pack MonoGame.Xna.Framework.Net.csproj -c Release -o artifacts/core --no-build -p:PackageVersion=${{ steps.version.outputs.core_version }}

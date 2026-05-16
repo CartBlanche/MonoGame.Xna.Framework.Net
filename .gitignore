@@ -8,6 +8,7 @@
 # Visual Studio files
 *.pidb
 *.userprefs
+*.lscache
 *.[Oo]bj
 *.exe
 *.pdb
