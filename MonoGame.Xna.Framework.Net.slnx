@@ -1,0 +1,25 @@
+<Solution>
+  <Configurations>
+    <Platform Name="Any CPU" />
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+  </Configurations>
+  <Folder Name="/iOS/">
+    <Project Path="iOS/MonoGame.Xna.Framework.Net.iOS.csproj" />
+  </Folder>
+  <Folder Name="/Tests/">
+    <Project Path="Tests/Core/MonoGame.Xna.Framework.Net.Tests.csproj" />
+  </Folder>
+  <Folder Name="/Tests/Android/">
+    <Project Path="Tests/Android/MonoGame.Xna.Framework.Net.Android.Tests.csproj" />
+  </Folder>
+  <Folder Name="/Tests/iOS/">
+    <Project Path="Tests/iOS/MonoGame.Xna.Framework.Net.iOS.Tests.csproj" />
+  </Folder>
+  <Folder Name="/Tests/Steam/">
+    <Project Path="Tests/Steam/MonoGame.Xna.Framework.Net.Steam.Tests.csproj" />
+  </Folder>
+  <Project Path="Android/MonoGame.Xna.Framework.Net.Android.csproj" />
+  <Project Path="MonoGame.Xna.Framework.Net.csproj" />
+  <Project Path="Steam/MonoGame.Xna.Framework.Net.Steam.csproj" />
+</Solution>
