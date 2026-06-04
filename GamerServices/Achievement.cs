@@ -1,6 +1,17 @@
 namespace Microsoft.Xna.Framework.GamerServices
 {
     /// <summary>
+    /// Sync lifecycle state for an earned achievement.
+    /// </summary>
+    public enum AchievementSyncState
+    {
+        Locked = 0,
+        UnlockedPendingSync = 1,
+        UnlockedSynced = 2,
+        SyncFailedRetry = 3,
+    }
+
+    /// <summary>
     /// Represents a single achievement and the current player's progress toward it.
     /// </summary>
     public sealed class Achievement
@@ -16,7 +27,8 @@ namespace Microsoft.Xna.Framework.GamerServices
             DateTime? earnedDate,
             bool isHidden = false,
             string iconKey = null,
-            string iconUri = null)
+            string iconUri = null,
+            AchievementSyncState? syncState = null)
         {
             if (string.IsNullOrWhiteSpace(key))
                 throw new ArgumentException("Achievement key cannot be empty.", nameof(key));
@@ -32,6 +44,7 @@ namespace Microsoft.Xna.Framework.GamerServices
             IsHidden = isHidden;
             IconKey = iconKey;
             IconUri = iconUri;
+            SyncState = syncState ?? (isEarned ? AchievementSyncState.UnlockedSynced : AchievementSyncState.Locked);
         }
 
         public string Key { get; }
@@ -45,5 +58,6 @@ namespace Microsoft.Xna.Framework.GamerServices
         public bool IsHidden { get; }
         public string IconKey { get; }
         public string IconUri { get; }
+        public AchievementSyncState SyncState { get; }
     }
 }

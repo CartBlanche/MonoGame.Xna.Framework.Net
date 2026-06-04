@@ -19,6 +19,13 @@ namespace Microsoft.Xna.Framework.GamerServices
 
         private static IAchievementProvider liveProvider;
         private static IAchievementProvider localProvider = new PersistentLocalAchievementProvider();
+        private static readonly IAchievementProvider syncAwareProvider = new SyncAwareAchievementProvider();
+
+        /// <summary>
+        /// Indicates whether this build should track pending remote synchronization
+        /// for locally earned achievements.
+        /// </summary>
+        public static bool RemoteSyncEnabled { get; set; }
 
         /// <summary>
         /// Gets or sets the online/live provider used when a gamer is signed in.
@@ -43,7 +50,7 @@ namespace Microsoft.Xna.Framework.GamerServices
         /// </summary>
         public static IAchievementProvider Provider
         {
-            get => LiveProvider ?? LocalProvider;
+            get => syncAwareProvider;
             set => LiveProvider = value ?? throw new ArgumentNullException(nameof(value));
         }
 
@@ -66,6 +73,113 @@ namespace Microsoft.Xna.Framework.GamerServices
                 return LiveProvider;
 
             return LocalProvider;
+        }
+
+        /// <summary>
+        /// Unlocks the achievement using local-first persistence and attempts live sync when available.
+        /// </summary>
+        public static async Task UnlockWithSyncAsync(
+            SignedInGamer gamer,
+            string achievementKey,
+            CancellationToken cancellationToken = default)
+        {
+            if (gamer == null)
+                throw new ArgumentNullException(nameof(gamer));
+            if (string.IsNullOrWhiteSpace(achievementKey))
+                throw new ArgumentException("Achievement key cannot be empty.", nameof(achievementKey));
+
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var local = LocalProvider;
+            var localPersistent = local as PersistentLocalAchievementProvider;
+            var shouldTrackPendingSync = RemoteSyncEnabled;
+
+            if (localPersistent != null)
+            {
+                localPersistent.UnlockLocal(gamer, achievementKey, shouldTrackPendingSync);
+            }
+            else
+            {
+                await local.UnlockAsync(gamer, achievementKey, cancellationToken).ConfigureAwait(false);
+            }
+
+            if (!shouldTrackPendingSync)
+                return;
+
+            if (gamer.IsSignedInToLive && LiveProvider != null)
+            {
+                try
+                {
+                    await LiveProvider.UnlockAsync(gamer, achievementKey, cancellationToken).ConfigureAwait(false);
+                    localPersistent?.MarkSynced(gamer, achievementKey);
+                }
+                catch (Exception ex)
+                {
+                    localPersistent?.MarkSyncFailed(gamer, achievementKey, ex.Message);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Retries all pending locally unlocked achievements against the active live provider.
+        /// Returns the number of achievements synced successfully in this pass.
+        /// </summary>
+        public static async Task<int> ReconcilePendingUnlocksAsync(
+            SignedInGamer gamer,
+            CancellationToken cancellationToken = default)
+        {
+            if (gamer == null)
+                throw new ArgumentNullException(nameof(gamer));
+
+            cancellationToken.ThrowIfCancellationRequested();
+
+            if (!RemoteSyncEnabled || !gamer.IsSignedInToLive || LiveProvider == null)
+                return 0;
+
+            if (LocalProvider is not PersistentLocalAchievementProvider localPersistent)
+                return 0;
+
+            var pendingKeys = localPersistent.GetPendingSyncKeys(gamer);
+            var syncedCount = 0;
+
+            foreach (var key in pendingKeys)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                try
+                {
+                    await LiveProvider.UnlockAsync(gamer, key, cancellationToken).ConfigureAwait(false);
+                    localPersistent.MarkSynced(gamer, key);
+                    syncedCount++;
+                }
+                catch (Exception ex)
+                {
+                    localPersistent.MarkSyncFailed(gamer, key, ex.Message);
+                }
+            }
+
+            return syncedCount;
+        }
+
+        private sealed class SyncAwareAchievementProvider : IAchievementProvider
+        {
+            public Task<AchievementCollection> GetAchievementsAsync(SignedInGamer gamer, CancellationToken cancellationToken = default)
+            {
+                return ResolveProvider(gamer).GetAchievementsAsync(gamer, cancellationToken);
+            }
+
+            public Task SetProgressAsync(
+                SignedInGamer gamer,
+                string achievementKey,
+                float percentComplete,
+                CancellationToken cancellationToken = default)
+            {
+                return ResolveProvider(gamer).SetProgressAsync(gamer, achievementKey, percentComplete, cancellationToken);
+            }
+
+            public Task UnlockAsync(SignedInGamer gamer, string achievementKey, CancellationToken cancellationToken = default)
+            {
+                return UnlockWithSyncAsync(gamer, achievementKey, cancellationToken);
+            }
         }
     }
 
@@ -128,7 +242,7 @@ namespace Microsoft.Xna.Framework.GamerServices
             lock (gate)
             {
                 var state = AchievementProjection.GetOrCreateStateLocked(gamerAchievements, gamer.Gamertag, achievementKey);
-                AchievementProjection.UnlockState(state);
+                AchievementProjection.UnlockState(state, AchievementSyncState.UnlockedSynced);
             }
 
             return Task.CompletedTask;
@@ -236,16 +350,117 @@ namespace Microsoft.Xna.Framework.GamerServices
 
                 var state = AchievementProjection.GetOrCreateStateLocked(gamerAchievements, gamer.Gamertag, achievementKey);
                 var wasEarned = state.IsEarned;
+                var previousSyncState = state.SyncState;
 
-                AchievementProjection.UnlockState(state);
+                AchievementProjection.UnlockState(state, AchievementSyncState.UnlockedSynced);
 
-                if (!wasEarned)
+                if (!wasEarned || previousSyncState != state.SyncState)
                 {
                     SaveLocked();
                 }
             }
 
             return Task.CompletedTask;
+        }
+
+        internal void UnlockLocal(SignedInGamer gamer, string achievementKey, bool markPendingSync)
+        {
+            if (gamer == null)
+                throw new ArgumentNullException(nameof(gamer));
+            if (string.IsNullOrWhiteSpace(achievementKey))
+                throw new ArgumentException("Achievement key cannot be empty.", nameof(achievementKey));
+
+            lock (gate)
+            {
+                EnsureLoaded();
+
+                var state = AchievementProjection.GetOrCreateStateLocked(gamerAchievements, gamer.Gamertag, achievementKey);
+                var wasEarned = state.IsEarned;
+                var previousSyncState = state.SyncState;
+                var desiredSyncState = markPendingSync
+                    ? AchievementSyncState.UnlockedPendingSync
+                    : AchievementSyncState.UnlockedSynced;
+
+                AchievementProjection.UnlockState(state, desiredSyncState);
+
+                if (!wasEarned || previousSyncState != state.SyncState)
+                {
+                    SaveLocked();
+                }
+            }
+        }
+
+        internal IReadOnlyList<string> GetPendingSyncKeys(SignedInGamer gamer)
+        {
+            if (gamer == null)
+                throw new ArgumentNullException(nameof(gamer));
+
+            lock (gate)
+            {
+                EnsureLoaded();
+
+                if (!gamerAchievements.TryGetValue(gamer.Gamertag, out var states))
+                {
+                    return Array.Empty<string>();
+                }
+
+                return states.Values
+                    .Where(s => s.IsEarned &&
+                        (s.SyncState == AchievementSyncState.UnlockedPendingSync ||
+                         s.SyncState == AchievementSyncState.SyncFailedRetry))
+                    .Select(s => s.Key)
+                    .ToList();
+            }
+        }
+
+        internal void MarkSynced(SignedInGamer gamer, string achievementKey)
+        {
+            if (gamer == null)
+                throw new ArgumentNullException(nameof(gamer));
+            if (string.IsNullOrWhiteSpace(achievementKey))
+                throw new ArgumentException("Achievement key cannot be empty.", nameof(achievementKey));
+
+            lock (gate)
+            {
+                EnsureLoaded();
+
+                var state = AchievementProjection.GetOrCreateStateLocked(gamerAchievements, gamer.Gamertag, achievementKey);
+                var changed = state.SyncState != AchievementSyncState.UnlockedSynced || state.LastSyncError != null;
+
+                state.SyncState = AchievementSyncState.UnlockedSynced;
+                state.LastSyncAttemptUtc = DateTime.UtcNow;
+                state.LastSyncError = null;
+
+                if (changed)
+                {
+                    SaveLocked();
+                }
+            }
+        }
+
+        internal void MarkSyncFailed(SignedInGamer gamer, string achievementKey, string errorMessage)
+        {
+            if (gamer == null)
+                throw new ArgumentNullException(nameof(gamer));
+            if (string.IsNullOrWhiteSpace(achievementKey))
+                throw new ArgumentException("Achievement key cannot be empty.", nameof(achievementKey));
+
+            lock (gate)
+            {
+                EnsureLoaded();
+
+                var state = AchievementProjection.GetOrCreateStateLocked(gamerAchievements, gamer.Gamertag, achievementKey);
+                var changed = state.SyncState != AchievementSyncState.SyncFailedRetry || !string.Equals(state.LastSyncError, errorMessage, StringComparison.Ordinal);
+
+                state.SyncState = AchievementSyncState.SyncFailedRetry;
+                state.LastSyncAttemptUtc = DateTime.UtcNow;
+                state.LastSyncError = string.IsNullOrWhiteSpace(errorMessage) ? "sync_failed" : errorMessage;
+
+                if (changed)
+                {
+                    SaveLocked();
+                }
+            }
         }
 
         private static string GetDefaultStoragePath(string appFolderName)
@@ -286,6 +501,18 @@ namespace Microsoft.Xna.Framework.GamerServices
                     kv => kv.Key,
                     kv => kv.Value.ToDictionary(s => s.Key, s => s, StringComparer.Ordinal),
                     StringComparer.Ordinal);
+
+                // Upgrade legacy rows that predate sync-state metadata.
+                foreach (var gamerRow in gamerAchievements.Values)
+                {
+                    foreach (var state in gamerRow.Values)
+                    {
+                        if (state.IsEarned && state.SyncState == AchievementSyncState.Locked)
+                        {
+                            state.SyncState = AchievementSyncState.UnlockedSynced;
+                        }
+                    }
+                }
             }
             catch
             {
@@ -319,6 +546,9 @@ namespace Microsoft.Xna.Framework.GamerServices
         public float PercentComplete { get; set; }
         public bool IsEarned { get; set; }
         public DateTime? EarnedDate { get; set; }
+        public AchievementSyncState SyncState { get; set; }
+        public DateTime? LastSyncAttemptUtc { get; set; }
+        public string LastSyncError { get; set; }
     }
 
     internal static class AchievementProjection
@@ -365,7 +595,10 @@ namespace Microsoft.Xna.Framework.GamerServices
                     Key = key,
                     PercentComplete = 0f,
                     IsEarned = false,
-                    EarnedDate = null
+                    EarnedDate = null,
+                    SyncState = AchievementSyncState.Locked,
+                    LastSyncAttemptUtc = null,
+                    LastSyncError = null,
                 };
                 states[key] = state;
             }
@@ -385,15 +618,26 @@ namespace Microsoft.Xna.Framework.GamerServices
 
             if (state.PercentComplete >= 100f)
             {
-                UnlockState(state);
+                UnlockState(state, AchievementSyncState.UnlockedSynced);
             }
         }
 
-        internal static void UnlockState(AchievementState state)
+        internal static void UnlockState(AchievementState state, AchievementSyncState syncState)
         {
             state.PercentComplete = 100f;
             state.IsEarned = true;
             state.EarnedDate ??= DateTime.UtcNow;
+            state.SyncState = syncState;
+
+            if (syncState == AchievementSyncState.UnlockedSynced)
+            {
+                state.LastSyncAttemptUtc = DateTime.UtcNow;
+                state.LastSyncError = null;
+            }
+            else
+            {
+                state.LastSyncAttemptUtc = null;
+            }
         }
 
         private static Achievement ToAchievement(AchievementDefinition definition, AchievementState state)
@@ -409,7 +653,8 @@ namespace Microsoft.Xna.Framework.GamerServices
                 earnedDate: state?.EarnedDate,
                 isHidden: definition.IsHidden,
                 iconKey: definition.IconKey,
-                iconUri: definition.IconUri);
+                iconUri: definition.IconUri,
+                syncState: state?.SyncState);
         }
     }
 }

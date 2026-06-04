@@ -29,6 +29,8 @@ namespace Microsoft.Xna.Framework.Net.iOS
                 AchievementService.UsePersistentLocalStorage(gameName.Trim());
             }
 
+            AchievementService.RemoteSyncEnabled = true;
+
             if (achievementDefinitions != null)
             {
                 AchievementCatalog.RegisterRange(achievementDefinitions);
@@ -74,6 +76,16 @@ namespace Microsoft.Xna.Framework.Net.iOS
             LeaderboardService.LiveProvider = providerFactory();
             AchievementService.LiveProvider = achievementProviderFactory();
             AchievementMediaService.LiveProvider = achievementMediaProviderFactory();
+
+            try
+            {
+                await AchievementService.ReconcilePendingUnlocksAsync(SignedInGamer.Current, cancellationToken).ConfigureAwait(false);
+            }
+            catch
+            {
+                // Reconciliation failures should not block sign-in completion.
+            }
+
             return true;
         }
     }

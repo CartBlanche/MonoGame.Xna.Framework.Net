@@ -29,6 +29,7 @@ namespace Microsoft.Xna.Framework.Net.Tests
             AchievementMediaService.LiveProvider = null;
             AchievementMediaService.LocalProvider = new InMemoryAchievementMediaProvider();
             AchievementCatalog.Clear();
+            AchievementService.RemoteSyncEnabled = false;
 
             SignedInGamer.Current.SetSignedInToLive(false);
         }
@@ -41,6 +42,7 @@ namespace Microsoft.Xna.Framework.Net.Tests
             AchievementMediaService.LiveProvider = originalMediaLiveProvider;
             AchievementMediaService.LocalProvider = originalMediaLocalProvider;
             AchievementCatalog.Clear();
+            AchievementService.RemoteSyncEnabled = false;
             SignedInGamer.Current.SetSignedInToLive(false);
         }
 
@@ -303,6 +305,150 @@ namespace Microsoft.Xna.Framework.Net.Tests
             Assert.That(icon.Height, Is.EqualTo(64));
         }
 
+        [Test]
+        public async Task UnlockWithSyncAsync_WhenOffline_MarksAchievementPendingSync()
+        {
+            var tempRoot = Path.Combine(Path.GetTempPath(), $"mgnet.ach.sync.pending.{Guid.NewGuid():N}");
+            Directory.CreateDirectory(tempRoot);
+            var storagePath = Path.Combine(tempRoot, "achievements.json");
+
+            try
+            {
+                AchievementService.LocalProvider = new PersistentLocalAchievementProvider(storagePath);
+                AchievementService.LiveProvider = new RecordingAchievementProvider();
+                AchievementService.RemoteSyncEnabled = true;
+
+                var gamer = SignedInGamer.Current;
+                gamer.SetSignedInToLive(false);
+                var key = $"achievement.sync.pending.{Guid.NewGuid():N}";
+
+                await AchievementService.UnlockWithSyncAsync(gamer, key);
+
+                var achievements = await gamer.GetAchievementsAsync();
+                var value = achievements[key];
+
+                Assert.That(value, Is.Not.Null);
+                Assert.That(value.IsEarned, Is.True);
+                Assert.That(value.SyncState, Is.EqualTo(AchievementSyncState.UnlockedPendingSync));
+            }
+            finally
+            {
+                if (Directory.Exists(tempRoot))
+                    Directory.Delete(tempRoot, recursive: true);
+            }
+        }
+
+        [Test]
+        public async Task ReconcilePendingUnlocksAsync_WhenOnlineAndLiveSucceeds_MarksSynced()
+        {
+            var tempRoot = Path.Combine(Path.GetTempPath(), $"mgnet.ach.sync.reconcile.{Guid.NewGuid():N}");
+            Directory.CreateDirectory(tempRoot);
+            var storagePath = Path.Combine(tempRoot, "achievements.json");
+
+            try
+            {
+                var live = new RecordingAchievementProvider();
+                var local = new PersistentLocalAchievementProvider(storagePath);
+                AchievementService.LocalProvider = local;
+                AchievementService.LiveProvider = live;
+                AchievementService.RemoteSyncEnabled = true;
+
+                var gamer = SignedInGamer.Current;
+                gamer.SetSignedInToLive(false);
+                var key = $"achievement.sync.reconcile.{Guid.NewGuid():N}";
+
+                await AchievementService.UnlockWithSyncAsync(gamer, key);
+
+                gamer.SetSignedInToLive(true);
+                var synced = await AchievementService.ReconcilePendingUnlocksAsync(gamer);
+
+                var achievements = await local.GetAchievementsAsync(gamer);
+                var value = achievements[key];
+
+                Assert.That(synced, Is.EqualTo(1));
+                Assert.That(live.UnlockCallCount, Is.EqualTo(1));
+                Assert.That(value.SyncState, Is.EqualTo(AchievementSyncState.UnlockedSynced));
+            }
+            finally
+            {
+                if (Directory.Exists(tempRoot))
+                    Directory.Delete(tempRoot, recursive: true);
+            }
+        }
+
+        [Test]
+        public async Task ReconcilePendingUnlocksAsync_WhenLiveFails_MarksRetryState()
+        {
+            var tempRoot = Path.Combine(Path.GetTempPath(), $"mgnet.ach.sync.retry.{Guid.NewGuid():N}");
+            Directory.CreateDirectory(tempRoot);
+            var storagePath = Path.Combine(tempRoot, "achievements.json");
+
+            try
+            {
+                var live = new ThrowingAchievementProvider();
+                var local = new PersistentLocalAchievementProvider(storagePath);
+                AchievementService.LocalProvider = local;
+                AchievementService.LiveProvider = live;
+                AchievementService.RemoteSyncEnabled = true;
+
+                var gamer = SignedInGamer.Current;
+                gamer.SetSignedInToLive(false);
+                var key = $"achievement.sync.retry.{Guid.NewGuid():N}";
+
+                await AchievementService.UnlockWithSyncAsync(gamer, key);
+
+                gamer.SetSignedInToLive(true);
+                var synced = await AchievementService.ReconcilePendingUnlocksAsync(gamer);
+
+                var achievements = await local.GetAchievementsAsync(gamer);
+                var value = achievements[key];
+
+                Assert.That(synced, Is.EqualTo(0));
+                Assert.That(value.SyncState, Is.EqualTo(AchievementSyncState.SyncFailedRetry));
+            }
+            finally
+            {
+                if (Directory.Exists(tempRoot))
+                    Directory.Delete(tempRoot, recursive: true);
+            }
+        }
+
+        [Test]
+        public async Task UnlockWithSyncAsync_IsIdempotent_ForAlreadyEarnedAchievement()
+        {
+            var tempRoot = Path.Combine(Path.GetTempPath(), $"mgnet.ach.sync.idem.{Guid.NewGuid():N}");
+            Directory.CreateDirectory(tempRoot);
+            var storagePath = Path.Combine(tempRoot, "achievements.json");
+
+            try
+            {
+                var live = new RecordingAchievementProvider();
+                var local = new PersistentLocalAchievementProvider(storagePath);
+                AchievementService.LocalProvider = local;
+                AchievementService.LiveProvider = live;
+                AchievementService.RemoteSyncEnabled = true;
+
+                var gamer = SignedInGamer.Current;
+                gamer.SetSignedInToLive(true);
+                var key = $"achievement.sync.idempotent.{Guid.NewGuid():N}";
+
+                await AchievementService.UnlockWithSyncAsync(gamer, key);
+                await AchievementService.UnlockWithSyncAsync(gamer, key);
+
+                var achievements = await local.GetAchievementsAsync(gamer);
+                var value = achievements[key];
+
+                Assert.That(value.IsEarned, Is.True);
+                Assert.That(value.PercentComplete, Is.EqualTo(100f));
+                Assert.That(value.SyncState, Is.EqualTo(AchievementSyncState.UnlockedSynced));
+            }
+            finally
+            {
+                if (Directory.Exists(tempRoot))
+                    Directory.Delete(tempRoot, recursive: true);
+            }
+        }
+
         private sealed class RecordingAchievementProvider : IAchievementProvider
         {
             public int GetCallCount { get; private set; }
@@ -328,6 +474,27 @@ namespace Microsoft.Xna.Framework.Net.Tests
                 cancellationToken.ThrowIfCancellationRequested();
                 UnlockCallCount++;
                 return Task.CompletedTask;
+            }
+        }
+
+        private sealed class ThrowingAchievementProvider : IAchievementProvider
+        {
+            public Task<AchievementCollection> GetAchievementsAsync(SignedInGamer gamer, CancellationToken cancellationToken = default)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                return Task.FromResult(new AchievementCollection(Array.Empty<Achievement>()));
+            }
+
+            public Task SetProgressAsync(SignedInGamer gamer, string achievementKey, float percentComplete, CancellationToken cancellationToken = default)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                throw new InvalidOperationException("simulated progress failure");
+            }
+
+            public Task UnlockAsync(SignedInGamer gamer, string achievementKey, CancellationToken cancellationToken = default)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                throw new InvalidOperationException("simulated unlock failure");
             }
         }
 
