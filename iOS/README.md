@@ -52,7 +52,6 @@ using Microsoft.Xna.Framework.Net.iOS;
 
 IOSRuntime.Initialize(initialGamertag: "Player");
 IOSPlatformBootstrap.Configure(gameName: "MyGame");
-NetworkServiceProvider.SetSessionFactory(new IOSNetworkSessionFactory());
 ```
 
 ## Typical app integration
@@ -67,13 +66,13 @@ public override void FinishedLaunching(UIApplication app)
 {
     IOSRuntime.Initialize(initialGamertag: "Player");
     IOSPlatformBootstrap.Configure(gameName: "MyGame");
-    NetworkServiceProvider.SetSessionFactory(new IOSNetworkSessionFactory());
 }
 
 public static async Task CreateSessionAsync()
 {
     var session = NetworkServiceProvider.SessionFactory.CreateSession();
-    await session.CreateAsync(sessionProperties: null, maxGamers: 4).ConfigureAwait(false);
+    await session.CreateAsync(NetworkSessionType.SystemLink, maxGamers: 4, privateGamerSlots: 0)
+        .ConfigureAwait(false);
 }
 ```
 
@@ -91,8 +90,19 @@ using Microsoft.Xna.Framework.Net.iOS;
 
 var session = NetworkServiceProvider.SessionFactory.CreateSession();
 var message = new PlayerMoveMessage(playerId: 1, x: 10, y: 20);
-session.SendMessage(message, MessageDelivery.Reliable);
+session.BroadcastMessage(message);
 ```
+
+## Backend parity matrix
+
+| Capability | iOS status |
+| --- | --- |
+| SignIn | implemented |
+| Leaderboards | implemented |
+| Achievements | implemented |
+| Achievement media | implemented |
+| Networking | implemented |
+| Runtime smoke | compile-validated only |
 
 ## Verify your setup
 

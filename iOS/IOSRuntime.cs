@@ -1,4 +1,5 @@
 using Microsoft.Xna.Framework.GamerServices;
+using System.Diagnostics;
 
 namespace Microsoft.Xna.Framework.Net.iOS
 {
@@ -90,7 +91,7 @@ namespace Microsoft.Xna.Framework.Net.iOS
                 }
                 catch (Exception ex)
                 {
-                    Console.Error.WriteLine($"[IOSRuntime] SignIn failed: {ex.Message}");
+                    Debug.WriteLine($"[IOSRuntime] SignIn failed: {ex.Message}");
                 }
             }
 
