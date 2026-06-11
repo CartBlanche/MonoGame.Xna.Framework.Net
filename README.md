@@ -19,6 +19,7 @@ It keeps the familiar Microsoft.Xna.Framework.Net and GamerServices APIs while m
 - Steam/: Steam back-end package.
 - Android/: Android and Play Games back-end package.
 - iOS/: iOS and Game Center back-end package.
+- EOS/: Epic Online Services back-end package.
 - Tests/: unit and integration tests.
 
 ## Core networking model
@@ -49,6 +50,7 @@ NetworkServiceProvider.ResetToDefault();
 - Steam: implemented and covered by tests
 - Android: implemented and covered by tests
 - iOS: implemented and covered by tests
+- EOS: implemented and covered by tests
 
 ## Back-end setup guides
 
@@ -57,6 +59,7 @@ Use the backend README files for platform setup requirements and verification st
 - [Steam back-end README](Steam/README.md)
 - [Android back-end README](Android/README.md)
 - [iOS back-end README](iOS/README.md)
+- [EOS back-end README](EOS/README.md)
 
 ## Shared implementation guidance
 

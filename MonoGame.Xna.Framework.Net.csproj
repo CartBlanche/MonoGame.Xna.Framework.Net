@@ -38,6 +38,9 @@
     <Compile Remove="iOS\**" />
     <EmbeddedResource Remove="iOS\**" />
     <None Remove="iOS\**" />
+    <Compile Remove="EOS\**" />
+    <EmbeddedResource Remove="EOS\**" />
+    <None Remove="EOS\**" />
   </ItemGroup>
 
   <ItemGroup>
@@ -71,6 +74,12 @@
     </AssemblyAttribute>
     <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
       <_Parameter1>MonoGame.Xna.Framework.Net.iOS.Tests</_Parameter1>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>MonoGame.Xna.Framework.Net.EOS</_Parameter1>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>MonoGame.Xna.Framework.Net.EOS.Tests</_Parameter1>
     </AssemblyAttribute>
   </ItemGroup>
 

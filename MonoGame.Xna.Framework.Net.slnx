@@ -4,6 +4,9 @@
     <Platform Name="x64" />
     <Platform Name="x86" />
   </Configurations>
+  <Folder Name="/EOS/">
+    <Project Path="EOS/MonoGame.Xna.Framework.Net.EOS.csproj" />
+  </Folder>
   <Folder Name="/iOS/">
     <Project Path="iOS/MonoGame.Xna.Framework.Net.iOS.csproj" />
   </Folder>
@@ -12,6 +15,9 @@
   </Folder>
   <Folder Name="/Tests/Android/">
     <Project Path="Tests/Android/MonoGame.Xna.Framework.Net.Android.Tests.csproj" />
+  </Folder>
+  <Folder Name="/Tests/EOS/">
+    <Project Path="Tests/EOS/MonoGame.Xna.Framework.Net.EOS.Tests.csproj" />
   </Folder>
   <Folder Name="/Tests/iOS/">
     <Project Path="Tests/iOS/MonoGame.Xna.Framework.Net.iOS.Tests.csproj" />
