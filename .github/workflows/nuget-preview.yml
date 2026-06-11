@@ -73,8 +73,8 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
-  validate:
-    name: Validate (${{ matrix.os }})
+  build:
+    name: Build (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -134,6 +134,42 @@ jobs:
           dotnet build iOS/MonoGame.Xna.Framework.Net.iOS.csproj -c Release --no-restore
           dotnet build Tests/iOS/MonoGame.Xna.Framework.Net.iOS.Tests.csproj -c Release --no-restore
 
+  test:
+    name: Test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 9.0.x
+
+      - name: Restore test dependencies
+        run: |
+          dotnet restore MonoGame.Xna.Framework.Net.csproj
+          dotnet restore Steam/MonoGame.Xna.Framework.Net.Steam.csproj
+          dotnet restore EOS/MonoGame.Xna.Framework.Net.EOS.csproj
+          dotnet restore Tests/Core/MonoGame.Xna.Framework.Net.Tests.csproj
+          dotnet restore Tests/Steam/MonoGame.Xna.Framework.Net.Steam.Tests.csproj
+          dotnet restore Tests/EOS/MonoGame.Xna.Framework.Net.EOS.Tests.csproj
+
+      - name: Build test targets
+        run: |
+          dotnet build MonoGame.Xna.Framework.Net.csproj -c Release --no-restore
+          dotnet build Steam/MonoGame.Xna.Framework.Net.Steam.csproj -c Release --no-restore
+          dotnet build EOS/MonoGame.Xna.Framework.Net.EOS.csproj -c Release --no-restore
+          dotnet build Tests/Core/MonoGame.Xna.Framework.Net.Tests.csproj -c Release --no-restore
+          dotnet build Tests/Steam/MonoGame.Xna.Framework.Net.Steam.Tests.csproj -c Release --no-restore
+          dotnet build Tests/EOS/MonoGame.Xna.Framework.Net.EOS.Tests.csproj -c Release --no-restore
+
       - name: Test Core
         run: dotnet test Tests/Core/MonoGame.Xna.Framework.Net.Tests.csproj -c Release --no-build
 
@@ -146,7 +182,7 @@ jobs:
   pack:
     name: Pack
     runs-on: ubuntu-latest
-    needs: validate
+    needs: build
     outputs:
       core_version: ${{ steps.version.outputs.core_version }}
       android_version: ${{ steps.version.outputs.android_version }}
@@ -244,15 +280,6 @@ jobs:
         if: runner.os != 'Windows'
         run: dotnet build Tests/Android/MonoGame.Xna.Framework.Net.Android.Tests.csproj -c Release --no-restore
 
-      - name: Test Core
-        run: dotnet test Tests/Core/MonoGame.Xna.Framework.Net.Tests.csproj -c Release --no-build
-
-      - name: Test Steam
-        run: dotnet test Tests/Steam/MonoGame.Xna.Framework.Net.Steam.Tests.csproj -c Release --no-build
-
-      - name: Test EOS
-        run: dotnet test Tests/EOS/MonoGame.Xna.Framework.Net.EOS.Tests.csproj -c Release --no-build
-
       - name: Pack core
         run: dotnet pack MonoGame.Xna.Framework.Net.csproj -c Release -o artifacts/core --no-build -p:PackageVersion=${{ steps.version.outputs.core_version }}
 
@@ -334,7 +361,7 @@ jobs:
   publish-core:
     name: Publish Core
     runs-on: ubuntu-latest
-    needs: pack
+    needs: [pack, test]
     if: startsWith(github.ref, 'refs/tags/v') || startsWith(github.ref, 'refs/tags/core-v') || (github.event_name == 'workflow_dispatch' && inputs.publish_core == true)
 
     steps:
@@ -370,7 +397,7 @@ jobs:
   publish-android:
     name: Publish Android
     runs-on: ubuntu-latest
-    needs: pack
+    needs: [pack, test]
     if: startsWith(github.ref, 'refs/tags/v') || startsWith(github.ref, 'refs/tags/android-v') || (github.event_name == 'workflow_dispatch' && inputs.publish_android == true)
 
     steps:
@@ -406,7 +433,7 @@ jobs:
   publish-steam:
     name: Publish Steam
     runs-on: ubuntu-latest
-    needs: pack
+    needs: [pack, test]
     if: startsWith(github.ref, 'refs/tags/v') || startsWith(github.ref, 'refs/tags/steam-v') || (github.event_name == 'workflow_dispatch' && inputs.publish_steam == true)
 
     steps:
@@ -442,7 +469,7 @@ jobs:
   publish-ios:
     name: Publish iOS
     runs-on: ubuntu-latest
-    needs: [pack, pack-ios]
+    needs: [pack, pack-ios, test]
     if: startsWith(github.ref, 'refs/tags/v') || startsWith(github.ref, 'refs/tags/ios-v') || (github.event_name == 'workflow_dispatch' && inputs.publish_ios == true)
 
     steps:
@@ -478,7 +505,7 @@ jobs:
   publish-eos:
     name: Publish EOS
     runs-on: ubuntu-latest
-    needs: pack
+    needs: [pack, test]
     if: startsWith(github.ref, 'refs/tags/v') || startsWith(github.ref, 'refs/tags/eos-v') || (github.event_name == 'workflow_dispatch' && inputs.publish_eos == true)
 
     steps:

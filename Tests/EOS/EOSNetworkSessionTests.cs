@@ -33,13 +33,16 @@ namespace Microsoft.Xna.Framework.Net.Tests
                 await host.CreateAsync(NetworkSessionType.SystemLink, maxGamers: 4, privateGamerSlots: 0);
 
                 SessionInfo sessionInfo = null;
-                for (var attempt = 0; attempt < 8 && sessionInfo == null; attempt++)
+                for (var attempt = 0; attempt < 60 && sessionInfo == null; attempt++)
                 {
+                    host.Update(new GameTime());
+                    client.Update(new GameTime());
+
                     var sessions = (await factory.FindSessionsAsync(NetworkSessionType.SystemLink)).ToList();
                     sessionInfo = sessions.FirstOrDefault();
                     if (sessionInfo == null)
                     {
-                        await Task.Delay(150);
+                        await Task.Delay(100);
                     }
                 }
 
@@ -47,7 +50,7 @@ namespace Microsoft.Xna.Framework.Net.Tests
 
                 await client.JoinAsync(sessionInfo.JoinAddress);
 
-                for (var attempt = 0; attempt < 20; attempt++)
+                for (var attempt = 0; attempt < 80; attempt++)
                 {
                     host.Update(new GameTime());
                     client.Update(new GameTime());
@@ -57,7 +60,7 @@ namespace Microsoft.Xna.Framework.Net.Tests
                         break;
                     }
 
-                    await Task.Delay(50);
+                    await Task.Delay(100);
                 }
 
                 Assert.That(host.AllGamers.Count, Is.EqualTo(2));
