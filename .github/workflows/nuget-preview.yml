@@ -216,11 +216,11 @@ jobs:
           WEEK_OF_MONTH=$(( (10#${DAY_OF_MONTH} - 1) / 7 + 1 ))
           CALENDAR_STAMP="${YEAR}-${MONTH}-${WEEK_OF_MONTH}${DAY_OF_WEEK}${HOUR}"
 
-          CORE_VERSION="0.1.0-${CALENDAR_STAMP}"
-          ANDROID_VERSION="0.1.0-${CALENDAR_STAMP}"
-          STEAM_VERSION="0.1.0-${CALENDAR_STAMP}"
-          IOS_VERSION="0.1.0-${CALENDAR_STAMP}"
-          EOS_VERSION="0.1.0-${CALENDAR_STAMP}"
+          CORE_VERSION="0.3.0-${CALENDAR_STAMP}"
+          ANDROID_VERSION="0.3.0-${CALENDAR_STAMP}"
+          STEAM_VERSION="0.3.0-${CALENDAR_STAMP}"
+          IOS_VERSION="0.3.0-${CALENDAR_STAMP}"
+          EOS_VERSION="0.3.0-${CALENDAR_STAMP}"
 
           if [[ "${REF_NAME}" == v* ]]; then
             BOTH_VERSION="${REF_NAME#v}"
