@@ -1,7 +1,7 @@
 namespace Microsoft.Xna.Framework.Net
 {
 	/// <summary>
-	/// Wrapper for async operations to provide XNA-compatible IAsyncResult interface.
+	/// Wrapper for async operations to provide MonoGame compatible IAsyncResult interface.
 	/// </summary>
 	internal class AsyncResultWrapper<T> : IAsyncResult
     {

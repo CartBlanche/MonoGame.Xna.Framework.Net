@@ -8,10 +8,10 @@
     <AssemblyName>MonoGame.Xna.Framework.Net.Android</AssemblyName>
     <IsPackable>true</IsPackable>
     <PackageId>MonoGame.Xna.Framework.Net.Android</PackageId>
-    <Version>0.2.0-preview.1</Version>
+    <Version>0.3.0-preview.1</Version>
     <Authors>CartBlanche Contributors</Authors>
     <Company>CartBlanche</Company>
-    <Description>Android Play Games backend implementation for MonoGame.Xna.Framework.Net.</Description>
+    <Description>Android Play Games back-end implementation for MonoGame.Xna.Framework.Net.</Description>
     <PackageTags>monogame;xna;networking;android;googleplaygames</PackageTags>
     <RepositoryUrl>https://github.com/CartBlanche/MonoGame.Xna.Framework.Net</RepositoryUrl>
     <RepositoryType>git</RepositoryType>

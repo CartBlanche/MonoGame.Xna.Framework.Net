@@ -7,10 +7,10 @@
     <RootNamespace>Microsoft.Xna.Framework</RootNamespace>
     <IsPackable>true</IsPackable>
     <PackageId>MonoGame.Xna.Framework.Net</PackageId>
-    <Version>0.2.0-preview.1</Version>
+    <Version>0.3.0-preview.1</Version>
     <Authors>CartBlanche Contributors</Authors>
     <Company>CartBlanche</Company>
-    <Description>XNA-compatible networking and GamerServices APIs for MonoGame.</Description>
+    <Description>MonoGame compatible networking and GamerServices APIs.</Description>
     <PackageTags>monogame;xna;networking;gamerservices;systemlink</PackageTags>
     <RepositoryUrl>https://github.com/CartBlanche/MonoGame.Xna.Framework.Net</RepositoryUrl>
     <RepositoryType>git</RepositoryType>

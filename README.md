@@ -54,7 +54,7 @@ NetworkServiceProvider.ResetToDefault();
 
 ## Back-end setup guides
 
-Use the backend README files for platform setup requirements and verification steps for login, leaderboards, achievements, and multiplayer/session discovery:
+Use the back-end README files for platform setup requirements and verification steps for login, leaderboards, achievements, and multiplayer/session discovery:
 
 - [Steam back-end README](Steam/README.md)
 - [Android back-end README](Android/README.md)

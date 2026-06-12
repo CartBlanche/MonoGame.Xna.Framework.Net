@@ -8,10 +8,10 @@
     <AssemblyName>MonoGame.Xna.Framework.Net.Steam</AssemblyName>
     <IsPackable>true</IsPackable>
     <PackageId>MonoGame.Xna.Framework.Net.Steam</PackageId>
-    <Version>0.2.0-preview.1</Version>
+    <Version>0.3.0-preview.1</Version>
     <Authors>CartBlanche Contributors</Authors>
     <Company>CartBlanche</Company>
-    <Description>Steam backend implementation for MonoGame.Xna.Framework.Net.</Description>
+    <Description>Steam back-end implementation for MonoGame.Xna.Framework.Net.</Description>
     <PackageTags>monogame;xna;networking;steam;steamworks</PackageTags>
     <RepositoryUrl>https://github.com/CartBlanche/MonoGame.Xna.Framework.Net</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
