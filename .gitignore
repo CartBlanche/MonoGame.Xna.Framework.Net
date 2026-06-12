@@ -178,3 +178,7 @@ paket-files/
 .fake/
 .idea/
 *.sln.iml
+
+# Keep EOS runtime-native DLLs committed for NuGet RID asset packing.
+!EOS/runtimes/win-x64/native/EOSSDK-Win64-Shipping.dll
+!EOS/runtimes/win-arm64/native/EOSSDK-Win64-Shipping.dll

@@ -106,7 +106,8 @@ session.BroadcastMessage(message);
 
 - This vertical slice keeps EOS calls behind an injectable client seam for deterministic tests.
 - Network transport currently uses shared SystemLink/UDP path while preserving EOS backend routing.
-- Packaged runtime binaries are included under runtimes for desktop targets; macOS ships the same universal dylib in both `osx-x64` and `osx-arm64` RID folders for predictable .NET native asset resolution.
+- Bundled native runtime version for this release: EOS SDK v1.19.1.2.
+- Packaged runtime binaries are included under runtimes for desktop targets, including `linux-x64`, `linux-arm64`, `win-x64`, and `win-arm64`; macOS ships the same universal dylib in both `osx-x64` and `osx-arm64` RID folders for predictable .NET native asset resolution.
 
 ## Backend parity matrix
 
