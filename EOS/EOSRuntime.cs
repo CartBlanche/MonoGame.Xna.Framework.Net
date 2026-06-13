@@ -14,6 +14,15 @@ namespace Microsoft.Xna.Framework.Net.EOS
         private static string playerId;
         private static string gamertag;
         private static IEpicOnlineServicesClient eosClient;
+        private static EOSCredentials credentials;
+
+        internal static void SetCredentials(EOSCredentials runtimeCredentials)
+        {
+            lock (Gate)
+            {
+                credentials = runtimeCredentials;
+            }
+        }
 
         public static bool Initialize(string initialPlayerId = null, string initialGamertag = null)
         {
@@ -25,7 +34,7 @@ namespace Microsoft.Xna.Framework.Net.EOS
 
                 if (eosClient == null)
                 {
-                    eosClient = new EOSClient();
+                    eosClient = new EOSClient(credentials);
                 }
             }
 
@@ -57,6 +66,11 @@ namespace Microsoft.Xna.Framework.Net.EOS
         {
             lock (Gate)
             {
+                if (!ReferenceEquals(eosClient, testClient) && eosClient is IDisposable disposable)
+                {
+                    disposable.Dispose();
+                }
+
                 eosClient = testClient;
             }
         }
@@ -110,7 +124,10 @@ namespace Microsoft.Xna.Framework.Net.EOS
 
         public static void RunCallbacks()
         {
-            // Reserved for future EOS callback/event pumping.
+            if (TryGetEpicOnlineServicesClient(out var client) && client is EOSClient eosSdkClient)
+            {
+                eosSdkClient.PumpCallbacks();
+            }
         }
 
         internal static bool RefreshSignedInGamerIdentity()
@@ -142,12 +159,20 @@ namespace Microsoft.Xna.Framework.Net.EOS
 
         public static void Shutdown()
         {
+            IEpicOnlineServicesClient clientToDispose = null;
+
             lock (Gate)
             {
                 isInitialized = false;
                 playerId = null;
                 gamertag = null;
+                clientToDispose = eosClient;
                 eosClient = null;
+            }
+
+            if (clientToDispose is IDisposable disposable)
+            {
+                disposable.Dispose();
             }
 
             SignedInGamer.Current.SetSignedInToLive(false);

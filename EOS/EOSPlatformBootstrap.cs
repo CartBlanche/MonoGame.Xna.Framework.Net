@@ -15,6 +15,7 @@ namespace Microsoft.Xna.Framework.Net.EOS
 
         public static void Configure(
             string gameName,
+            EOSCredentials credentials = null,
             IGuideSignInProvider signInProvider = null,
             INetworkSessionFactory sessionFactory = null,
             Func<ILeaderboardProvider> liveProviderFactoryOverride = null,
@@ -23,6 +24,11 @@ namespace Microsoft.Xna.Framework.Net.EOS
             IEnumerable<AchievementDefinition> achievementDefinitions = null,
             EOSFallbackMode fallbackMode = EOSFallbackMode.PreferFallback)
         {
+            if (credentials != null)
+            {
+                EOSRuntime.SetCredentials(credentials);
+            }
+
             if (!string.IsNullOrWhiteSpace(gameName))
             {
                 LeaderboardService.UsePersistentLocalStorage(gameName.Trim());

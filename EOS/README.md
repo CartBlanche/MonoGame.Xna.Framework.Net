@@ -22,6 +22,41 @@ Use this checklist before debugging runtime issues.
 - [ ] Ensure EOS runtime native libraries are deployed with your app.
 - [ ] Configure user login path for your target environment (dev/auth/external).
 
+### SDK Auth + Connect environment settings
+
+`EOSClient` now follows the EOS C# SDK Auth + Connect flow (Auth login, CopyIdToken, Connect login, continuance token CreateUser retry).
+
+Required environment variables:
+
+- `MGNET_EOS_PRODUCT_ID`
+- `MGNET_EOS_SANDBOX_ID`
+- `MGNET_EOS_DEPLOYMENT_ID`
+- `MGNET_EOS_CLIENT_ID`
+- `MGNET_EOS_CLIENT_SECRET`
+
+Optional environment variables:
+
+- `MGNET_EOS_PRODUCT_NAME` (default: `MonoGame.Xna.Framework.Net`)
+- `MGNET_EOS_PRODUCT_VERSION` (default: `1.0.0`)
+- `MGNET_EOS_LOGIN_TYPE` (default: `PersistentAuth`)
+- `MGNET_EOS_LOGIN_ID`
+- `MGNET_EOS_LOGIN_TOKEN`
+- `MGNET_EOS_ENABLE_LOGIN_MODE_LADDER` (default: `true`)
+- `MGNET_EOS_RECOVERY_LOGIN_TYPE` (used after failed `PersistentAuth`; default: `AccountPortal`)
+- `MGNET_EOS_RECOVERY_LOGIN_ID`
+- `MGNET_EOS_RECOVERY_LOGIN_TOKEN`
+- `MGNET_EOS_DEVELOPER_LOGIN_ID` (used for optional `Developer` fallback in the ladder)
+- `MGNET_EOS_DEVELOPER_LOGIN_TOKEN` (used for optional `Developer` fallback in the ladder)
+- `MGNET_EOS_SCOPE_FLAGS` (default: `BasicProfile, FriendsList, Presence`)
+- `MGNET_EOS_AUTH_TIMEOUT_SECONDS` (default: `180`)
+- `MGNET_EOS_EXCHANGE_CODE` (overrides login type/token to `ExchangeCode`)
+
+Default ladder when enabled and starting from `PersistentAuth`:
+
+1. `PersistentAuth`
+2. `AccountPortal`
+3. `Developer` (only when both developer ID/token are provided)
+
 ## Official docs
 
 - EOS main docs: https://dev.epicgames.com/docs/epic-online-services
