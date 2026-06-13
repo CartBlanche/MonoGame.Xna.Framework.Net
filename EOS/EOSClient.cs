@@ -1,8 +1,10 @@
 using Auth = Epic.OnlineServices.Auth;
 using Connect = Epic.OnlineServices.Connect;
 using Epic.OnlineServices;
+using Leaderboards = Epic.OnlineServices.Leaderboards;
 using Logging = Epic.OnlineServices.Logging;
 using Platform = Epic.OnlineServices.Platform;
+using Stats = Epic.OnlineServices.Stats;
 using System.Diagnostics;
 using System.Reflection;
 using System.Runtime.InteropServices;
@@ -21,6 +23,7 @@ namespace Microsoft.Xna.Framework.Net.EOS
         private static bool sdkInitialized;
         private static Platform.PlatformInterface platformInterface;
         private static EOSCredentials runtimeCredentials;
+        private static ProductUserId currentProductUserId;
 
         internal EOSClient(EOSCredentials credentials = null)
         {
@@ -74,6 +77,7 @@ namespace Microsoft.Xna.Framework.Net.EOS
             var productUserId = await LoginProductUserAsync(platform, settings, idToken.Value.JsonWebToken, cancellationToken).ConfigureAwait(false);
             if (!string.IsNullOrWhiteSpace(productUserId))
             {
+                lock (SdkGate) { currentProductUserId = ProductUserId.FromString(productUserId); }
                 return new EpicAccountPlayer { Id = productUserId };
             }
 
@@ -88,23 +92,113 @@ namespace Microsoft.Xna.Framework.Net.EOS
             }
         }
 
-        public Task SubmitScoreAsync(string leaderboardId, long score, CancellationToken cancellationToken = default)
+        public async Task SubmitScoreAsync(string leaderboardId, long score, CancellationToken cancellationToken = default)
         {
             cancellationToken.ThrowIfCancellationRequested();
             if (string.IsNullOrWhiteSpace(leaderboardId))
                 throw new ArgumentException("Leaderboard id cannot be empty.", nameof(leaderboardId));
 
-            return Task.CompletedTask;
+            if (!TryEnsurePlatform(out var settings, out var platform))
+            {
+                Debug.WriteLine("[EOSClient] SubmitScoreAsync: platform not available.");
+                return;
+            }
+
+            ProductUserId userId;
+            lock (SdkGate) { userId = currentProductUserId; }
+
+            if (userId == null || !userId.IsValid())
+            {
+                Debug.WriteLine("[EOSClient] SubmitScoreAsync: no authenticated product user.");
+                return;
+            }
+
+            // EOS leaderboards are backed by stats. The leaderboardId must match the stat name
+            // configured in the EOS Developer Portal for the target leaderboard.
+            var ingestOptions = new Stats.IngestStatOptions
+            {
+                LocalUserId = userId,
+                TargetUserId = userId,
+                Stats =
+                [
+                    new Stats.IngestData
+                    {
+                        StatName = leaderboardId,
+                        IngestAmount = (int)Math.Clamp(score, int.MinValue, int.MaxValue)
+                    }
+                ]
+            };
+
+            var completion = new TaskCompletionSource<Stats.IngestStatCompleteCallbackInfo>(TaskCreationOptions.RunContinuationsAsynchronously);
+            platform.GetStatsInterface().IngestStat(ref ingestOptions, null, (ref Stats.IngestStatCompleteCallbackInfo info) =>
+            {
+                completion.TrySetResult(info);
+            });
+
+            var result = await WaitForCallbackAsync(completion, settings.CallbackTimeout, cancellationToken, "Stats.IngestStat").ConfigureAwait(false);
+            if (result.ResultCode != Result.Success)
+                Debug.WriteLine($"[EOSClient] Stats.IngestStat failed: {result.ResultCode}");
         }
 
-        public Task<IReadOnlyList<EpicLeaderboardEntry>> GetTopScoresAsync(string leaderboardId, int maxResults, CancellationToken cancellationToken = default)
+        public async Task<IReadOnlyList<EpicLeaderboardEntry>> GetTopScoresAsync(string leaderboardId, int maxResults, CancellationToken cancellationToken = default)
         {
             cancellationToken.ThrowIfCancellationRequested();
             if (string.IsNullOrWhiteSpace(leaderboardId))
                 throw new ArgumentException("Leaderboard id cannot be empty.", nameof(leaderboardId));
 
             maxResults = Math.Clamp(maxResults, 1, 100);
-            return Task.FromResult<IReadOnlyList<EpicLeaderboardEntry>>(Array.Empty<EpicLeaderboardEntry>());
+
+            if (!TryEnsurePlatform(out var settings, out var platform))
+            {
+                Debug.WriteLine("[EOSClient] GetTopScoresAsync: platform not available.");
+                return [];
+            }
+
+            ProductUserId userId;
+            lock (SdkGate) { userId = currentProductUserId; }
+
+            var queryOptions = new Leaderboards.QueryLeaderboardRanksOptions
+            {
+                LeaderboardId = leaderboardId,
+                LocalUserId = userId
+            };
+
+            var completion = new TaskCompletionSource<Leaderboards.OnQueryLeaderboardRanksCompleteCallbackInfo>(TaskCreationOptions.RunContinuationsAsynchronously);
+            platform.GetLeaderboardsInterface().QueryLeaderboardRanks(ref queryOptions, null, (ref Leaderboards.OnQueryLeaderboardRanksCompleteCallbackInfo info) =>
+            {
+                completion.TrySetResult(info);
+            });
+
+            var queryResult = await WaitForCallbackAsync(completion, settings.CallbackTimeout, cancellationToken, "Leaderboards.QueryLeaderboardRanks").ConfigureAwait(false);
+            if (queryResult.ResultCode != Result.Success)
+            {
+                Debug.WriteLine($"[EOSClient] Leaderboards.QueryLeaderboardRanks failed: {queryResult.ResultCode}");
+                return [];
+            }
+
+            var leaderboardsInterface = platform.GetLeaderboardsInterface();
+            var countOptions = new Leaderboards.GetLeaderboardRecordCountOptions();
+            var count = (int)leaderboardsInterface.GetLeaderboardRecordCount(ref countOptions);
+            count = Math.Min(count, maxResults);
+
+            var entries = new List<EpicLeaderboardEntry>(count);
+            for (var i = 0; i < count; i++)
+            {
+                var copyOptions = new Leaderboards.CopyLeaderboardRecordByIndexOptions { LeaderboardRecordIndex = (uint)i };
+                var copyResult = leaderboardsInterface.CopyLeaderboardRecordByIndex(ref copyOptions, out var record);
+                if (copyResult != Result.Success || record == null)
+                    continue;
+
+                entries.Add(new EpicLeaderboardEntry
+                {
+                    Rank = (int)record.Value.Rank,
+                    PlayerDisplayName = record.Value.UserDisplayName ?? record.Value.UserId?.ToString() ?? string.Empty,
+                    Score = record.Value.Score,
+                    IsCurrentPlayer = userId != null && record.Value.UserId?.ToString() == userId.ToString()
+                });
+            }
+
+            return entries;
         }
 
         public Task<IReadOnlyDictionary<string, EpicAchievementProgress>> GetAchievementProgressAsync(CancellationToken cancellationToken = default)
