@@ -1,3 +1,4 @@
+using Achievements = Epic.OnlineServices.Achievements;
 using Auth = Epic.OnlineServices.Auth;
 using Connect = Epic.OnlineServices.Connect;
 using Epic.OnlineServices;
@@ -201,24 +202,167 @@ namespace Microsoft.Xna.Framework.Net.EOS
             return entries;
         }
 
-        public Task<IReadOnlyDictionary<string, EpicAchievementProgress>> GetAchievementProgressAsync(CancellationToken cancellationToken = default)
+        public async Task<IReadOnlyDictionary<string, EpicAchievementProgress>> GetAchievementProgressAsync(CancellationToken cancellationToken = default)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            return Task.FromResult<IReadOnlyDictionary<string, EpicAchievementProgress>>(new Dictionary<string, EpicAchievementProgress>());
+
+            if (!TryEnsurePlatform(out var settings, out var platform))
+            {
+                Debug.WriteLine("[EOSClient] GetAchievementProgressAsync: platform not available.");
+                return new Dictionary<string, EpicAchievementProgress>();
+            }
+
+            ProductUserId userId;
+            lock (SdkGate) { userId = currentProductUserId; }
+
+            if (userId == null || !userId.IsValid())
+            {
+                Debug.WriteLine("[EOSClient] GetAchievementProgressAsync: no authenticated product user.");
+                return new Dictionary<string, EpicAchievementProgress>();
+            }
+
+            var queryOptions = new Achievements.QueryPlayerAchievementsOptions
+            {
+                TargetUserId = userId,
+                LocalUserId = userId
+            };
+
+            var completion = new TaskCompletionSource<Achievements.OnQueryPlayerAchievementsCompleteCallbackInfo>(TaskCreationOptions.RunContinuationsAsynchronously);
+            platform.GetAchievementsInterface().QueryPlayerAchievements(ref queryOptions, null, (ref Achievements.OnQueryPlayerAchievementsCompleteCallbackInfo info) =>
+            {
+                completion.TrySetResult(info);
+            });
+
+            var queryResult = await WaitForCallbackAsync(completion, settings.CallbackTimeout, cancellationToken, "Achievements.QueryPlayerAchievements").ConfigureAwait(false);
+            if (queryResult.ResultCode != Result.Success)
+            {
+                Debug.WriteLine($"[EOSClient] Achievements.QueryPlayerAchievements failed: {queryResult.ResultCode}");
+                return new Dictionary<string, EpicAchievementProgress>();
+            }
+
+            var achievementsInterface = platform.GetAchievementsInterface();
+            var countOptions = new Achievements.GetPlayerAchievementCountOptions { UserId = userId };
+            var count = (int)achievementsInterface.GetPlayerAchievementCount(ref countOptions);
+
+            var result = new Dictionary<string, EpicAchievementProgress>(count);
+            for (var i = 0; i < count; i++)
+            {
+                var copyOptions = new Achievements.CopyPlayerAchievementByIndexOptions
+                {
+                    TargetUserId = userId,
+                    LocalUserId = userId,
+                    AchievementIndex = (uint)i
+                };
+
+                var copyResult = achievementsInterface.CopyPlayerAchievementByIndex(ref copyOptions, out var achievement);
+                if (copyResult != Result.Success || achievement == null)
+                    continue;
+
+                var a = achievement.Value;
+                var isUnlocked = a.UnlockTime.HasValue;
+                result[a.AchievementId] = new EpicAchievementProgress
+                {
+                    Id = a.AchievementId,
+                    IsUnlocked = isUnlocked,
+                    PercentComplete = (float)(a.Progress * 100.0),
+                    LastUpdatedUtc = a.UnlockTime?.UtcDateTime,
+                    IsRevealed = true
+                };
+            }
+
+            return result;
         }
 
-        public Task UnlockAchievementAsync(string achievementId, CancellationToken cancellationToken = default)
-        {
-            return ReportProgressAsync(achievementId, 100f, cancellationToken);
-        }
-
-        public Task ReportProgressAsync(string achievementId, float percentComplete, CancellationToken cancellationToken = default)
+        public async Task UnlockAchievementAsync(string achievementId, CancellationToken cancellationToken = default)
         {
             cancellationToken.ThrowIfCancellationRequested();
             if (string.IsNullOrWhiteSpace(achievementId))
                 throw new ArgumentException("Achievement id cannot be empty.", nameof(achievementId));
 
-            return Task.CompletedTask;
+            if (!TryEnsurePlatform(out var settings, out var platform))
+            {
+                Debug.WriteLine("[EOSClient] UnlockAchievementAsync: platform not available.");
+                return;
+            }
+
+            ProductUserId userId;
+            lock (SdkGate) { userId = currentProductUserId; }
+
+            if (userId == null || !userId.IsValid())
+            {
+                Debug.WriteLine("[EOSClient] UnlockAchievementAsync: no authenticated product user.");
+                return;
+            }
+
+            var unlockOptions = new Achievements.UnlockAchievementsOptions
+            {
+                UserId = userId,
+                AchievementIds = [achievementId]
+            };
+
+            var completion = new TaskCompletionSource<Achievements.OnUnlockAchievementsCompleteCallbackInfo>(TaskCreationOptions.RunContinuationsAsynchronously);
+            platform.GetAchievementsInterface().UnlockAchievements(ref unlockOptions, null, (ref Achievements.OnUnlockAchievementsCompleteCallbackInfo info) =>
+            {
+                completion.TrySetResult(info);
+            });
+
+            var result = await WaitForCallbackAsync(completion, settings.CallbackTimeout, cancellationToken, "Achievements.UnlockAchievements").ConfigureAwait(false);
+            if (result.ResultCode != Result.Success)
+                Debug.WriteLine($"[EOSClient] Achievements.UnlockAchievements failed: {result.ResultCode}");
+        }
+
+        public async Task ReportProgressAsync(string achievementId, float percentComplete, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (string.IsNullOrWhiteSpace(achievementId))
+                throw new ArgumentException("Achievement id cannot be empty.", nameof(achievementId));
+
+            if (percentComplete >= 100f)
+            {
+                await UnlockAchievementAsync(achievementId, cancellationToken).ConfigureAwait(false);
+                return;
+            }
+
+            if (!TryEnsurePlatform(out var settings, out var platform))
+            {
+                Debug.WriteLine("[EOSClient] ReportProgressAsync: platform not available.");
+                return;
+            }
+
+            ProductUserId userId;
+            lock (SdkGate) { userId = currentProductUserId; }
+
+            if (userId == null || !userId.IsValid())
+            {
+                Debug.WriteLine("[EOSClient] ReportProgressAsync: no authenticated product user.");
+                return;
+            }
+
+            // Ingest a stat whose name matches the achievementId. The EOS portal must have
+            // the achievement configured with a stat of the same name and a threshold of 100.
+            var ingestOptions = new Stats.IngestStatOptions
+            {
+                LocalUserId = userId,
+                TargetUserId = userId,
+                Stats =
+                [
+                    new Stats.IngestData
+                    {
+                        StatName = achievementId,
+                        IngestAmount = (int)Math.Clamp(percentComplete, 0f, 99f)
+                    }
+                ]
+            };
+
+            var completion = new TaskCompletionSource<Stats.IngestStatCompleteCallbackInfo>(TaskCreationOptions.RunContinuationsAsynchronously);
+            platform.GetStatsInterface().IngestStat(ref ingestOptions, null, (ref Stats.IngestStatCompleteCallbackInfo info) =>
+            {
+                completion.TrySetResult(info);
+            });
+
+            var result = await WaitForCallbackAsync(completion, settings.CallbackTimeout, cancellationToken, "Stats.IngestStat(achievement)").ConfigureAwait(false);
+            if (result.ResultCode != Result.Success)
+                Debug.WriteLine($"[EOSClient] Stats.IngestStat(achievement) failed: {result.ResultCode}");
         }
 
         public void Dispose()
