@@ -25,6 +25,7 @@ namespace Microsoft.Xna.Framework.Net.EOS
         private static Platform.PlatformInterface platformInterface;
         private static EOSCredentials runtimeCredentials;
         private static ProductUserId currentProductUserId;
+        private static TimeSpan cachedCallbackTimeout = TimeSpan.FromSeconds(DefaultAuthTimeoutSeconds);
 
         internal EOSClient(EOSCredentials credentials = null)
         {
@@ -380,6 +381,21 @@ namespace Microsoft.Xna.Framework.Net.EOS
             }
         }
 
+        internal static Platform.PlatformInterface TryGetPlatform()
+        {
+            lock (SdkGate) { return platformInterface; }
+        }
+
+        internal static ProductUserId TryGetCurrentProductUserId()
+        {
+            lock (SdkGate) { return currentProductUserId; }
+        }
+
+        internal static TimeSpan GetCallbackTimeout()
+        {
+            lock (SdkGate) { return cachedCallbackTimeout; }
+        }
+
         private static bool TryEnsurePlatform(out EosAuthSettings settings, out Platform.PlatformInterface platform)
         {
             settings = EosAuthSettings.TryBuild(runtimeCredentials);
@@ -391,6 +407,7 @@ namespace Microsoft.Xna.Framework.Net.EOS
 
             lock (SdkGate)
             {
+                cachedCallbackTimeout = settings.CallbackTimeout;
                 InstallNativeResolverIfNeeded();
 
                 if (!sdkInitialized)
@@ -713,7 +730,7 @@ namespace Microsoft.Xna.Framework.Net.EOS
             return await WaitForCallbackAsync(completion, timeout, cancellationToken, "Connect.Login").ConfigureAwait(false);
         }
 
-        private static async Task<TCallback> WaitForCallbackAsync<TCallback>(
+        internal static async Task<TCallback> WaitForCallbackAsync<TCallback>(
             TaskCompletionSource<TCallback> completion,
             TimeSpan timeout,
             CancellationToken cancellationToken,

@@ -13,5 +13,6 @@ namespace Microsoft.Xna.Framework.Net.EOS
         public string ClientSecret { get; init; }
         public string ProductName { get; init; }
         public string ProductVersion { get; init; }
+        public string BucketId { get; init; }
     }
 }

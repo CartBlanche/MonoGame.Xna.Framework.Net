@@ -1,3 +1,6 @@
+using Epic.OnlineServices;
+using Lobby = Epic.OnlineServices.Lobby;
+
 namespace Microsoft.Xna.Framework.Net.EOS
 {
     /// <summary>
@@ -24,18 +27,85 @@ namespace Microsoft.Xna.Framework.Net.EOS
 
         public async Task<IEnumerable<SessionInfo>> FindSessionsAsync(NetworkSessionType sessionType)
         {
-            var found = await FindSessionsAsync(sessionType, 1, null).ConfigureAwait(false);
+            if (!EOSRuntime.IsInitialized)
+                return [];
 
-            return found.Select(session => new SessionInfo
+            var platform = EOSRuntime.TryGetPlatform();
+            var localUserId = EOSRuntime.TryGetCurrentProductUserId();
+            if (platform == null || localUserId == null)
+                return [];
+
+            var lobbyInterface = platform.GetLobbyInterface();
+            var bucketId = "MonoGame.Xna.Framework.Net";
+
+            var createSearchOpts = new Lobby.CreateLobbySearchOptions { MaxResults = 50 };
+            if (lobbyInterface.CreateLobbySearch(ref createSearchOpts, out var search) != Result.Success || search == null)
+                return [];
+
+            try
             {
-                SessionId = session.SessionId,
-                JoinAddress = session.HostEndpoint?.ToString() ?? string.Empty,
-                HostName = session.HostGamertag,
-                CurrentPlayerCount = session.CurrentGamerCount,
-                MaxPlayerCount = session.CurrentGamerCount + session.OpenPublicGamerSlots + session.OpenPrivateGamerSlots,
-                IsPasswordProtected = false,
-                SessionType = sessionType
-            }).ToList();
+                var setParamOpts = new Lobby.LobbySearchSetParameterOptions
+                {
+                    Parameter = new Lobby.AttributeData
+                    {
+                        Key = "bucket",
+                        Value = new Lobby.AttributeDataValue { AsUtf8 = bucketId }
+                    },
+                    ComparisonOp = ComparisonOp.Equal
+                };
+                search.SetParameter(ref setParamOpts);
+
+                var findOpts = new Lobby.LobbySearchFindOptions { LocalUserId = localUserId };
+                var findTcs = new TaskCompletionSource<Lobby.LobbySearchFindCallbackInfo>(TaskCreationOptions.RunContinuationsAsynchronously);
+                search.Find(ref findOpts, null, (ref Lobby.LobbySearchFindCallbackInfo info) =>
+                {
+                    findTcs.TrySetResult(info);
+                });
+
+                var findResult = await EOSClient.WaitForCallbackAsync(findTcs, EOSClient.GetCallbackTimeout(), CancellationToken.None, "LobbySearch.Find").ConfigureAwait(false);
+                if (findResult.ResultCode != Result.Success)
+                    return [];
+
+                var countOpts = new Lobby.LobbySearchGetSearchResultCountOptions();
+                var count = (int)search.GetSearchResultCount(ref countOpts);
+                var sessions = new List<SessionInfo>(count);
+
+                for (var i = 0; i < count; i++)
+                {
+                    var copyOpts = new Lobby.LobbySearchCopySearchResultByIndexOptions { LobbyIndex = (uint)i };
+                    if (search.CopySearchResultByIndex(ref copyOpts, out var details) != Result.Success || details == null)
+                        continue;
+
+                    try
+                    {
+                        var infoOpts = new Lobby.LobbyDetailsCopyInfoOptions();
+                        if (details.CopyInfo(ref infoOpts, out var lobbyInfo) == Result.Success && lobbyInfo.HasValue)
+                        {
+                            var info = lobbyInfo.Value;
+                            sessions.Add(new SessionInfo
+                            {
+                                SessionId = info.LobbyId,
+                                JoinAddress = info.LobbyId,
+                                HostName = info.LobbyOwnerUserId?.ToString() ?? string.Empty,
+                                CurrentPlayerCount = (int)(info.MaxMembers - info.AvailableSlots),
+                                MaxPlayerCount = (int)info.MaxMembers,
+                                IsPasswordProtected = false,
+                                SessionType = sessionType
+                            });
+                        }
+                    }
+                    finally
+                    {
+                        details.Release();
+                    }
+                }
+
+                return sessions;
+            }
+            finally
+            {
+                search.Release();
+            }
         }
 
         public async Task<NetworkSession> CreateSessionAsync(

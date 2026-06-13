@@ -1,4 +1,6 @@
+using Epic.OnlineServices;
 using Microsoft.Xna.Framework.GamerServices;
+using Platform = Epic.OnlineServices.Platform;
 using System.Diagnostics;
 
 namespace Microsoft.Xna.Framework.Net.EOS
@@ -46,6 +48,12 @@ namespace Microsoft.Xna.Framework.Net.EOS
         {
             get { lock (Gate) { return isInitialized; } }
         }
+
+        internal static Platform.PlatformInterface TryGetPlatform()
+            => (TryGetEpicOnlineServicesClient(out var c) && c is EOSClient) ? EOSClient.TryGetPlatform() : null;
+
+        internal static ProductUserId TryGetCurrentProductUserId()
+            => (TryGetEpicOnlineServicesClient(out var c) && c is EOSClient) ? EOSClient.TryGetCurrentProductUserId() : null;
 
         internal static bool TryGetEpicOnlineServicesClient(out IEpicOnlineServicesClient client)
         {
