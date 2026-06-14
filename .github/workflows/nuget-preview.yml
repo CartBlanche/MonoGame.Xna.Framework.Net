@@ -99,7 +99,7 @@ jobs:
 
       - name: Restore
         run: |
-          dotnet restore MonoGame.Xna.Framework.Net.csproj
+          dotnet restore Core/MonoGame.Xna.Framework.Net.csproj
           dotnet restore Android/MonoGame.Xna.Framework.Net.Android.csproj
           dotnet restore Steam/MonoGame.Xna.Framework.Net.Steam.csproj
           dotnet restore EOS/MonoGame.Xna.Framework.Net.EOS.csproj
@@ -116,7 +116,7 @@ jobs:
 
       - name: Build
         run: |
-          dotnet build MonoGame.Xna.Framework.Net.csproj -c Release --no-restore
+          dotnet build Core/MonoGame.Xna.Framework.Net.csproj -c Release --no-restore
           dotnet build Android/MonoGame.Xna.Framework.Net.Android.csproj -c Release --no-restore
           dotnet build Steam/MonoGame.Xna.Framework.Net.Steam.csproj -c Release --no-restore
           dotnet build EOS/MonoGame.Xna.Framework.Net.EOS.csproj -c Release --no-restore
@@ -154,7 +154,7 @@ jobs:
 
       - name: Restore test dependencies
         run: |
-          dotnet restore MonoGame.Xna.Framework.Net.csproj
+          dotnet restore Core/MonoGame.Xna.Framework.Net.csproj
           dotnet restore Steam/MonoGame.Xna.Framework.Net.Steam.csproj
           dotnet restore EOS/MonoGame.Xna.Framework.Net.EOS.csproj
           dotnet restore Tests/Core/MonoGame.Xna.Framework.Net.Tests.csproj
@@ -163,7 +163,7 @@ jobs:
 
       - name: Build test targets
         run: |
-          dotnet build MonoGame.Xna.Framework.Net.csproj -c Release --no-restore
+          dotnet build Core/MonoGame.Xna.Framework.Net.csproj -c Release --no-restore
           dotnet build Steam/MonoGame.Xna.Framework.Net.Steam.csproj -c Release --no-restore
           dotnet build EOS/MonoGame.Xna.Framework.Net.EOS.csproj -c Release --no-restore
           dotnet build Tests/Core/MonoGame.Xna.Framework.Net.Tests.csproj -c Release --no-restore
@@ -207,28 +207,29 @@ jobs:
         shell: bash
         run: |
           REF_NAME="${GITHUB_REF_NAME}"
-          YEAR="$(date -u +%Y)"
-          MONTH="$(date -u +%m)"
-          DAY_OF_MONTH="$(date -u +%d)"
-          DAY_OF_WEEK="$(date -u +%u)"
-          HOUR="$(date -u +%H)"
+          DATE_STAMP="$(date -u +%Y-%m-%d)"
 
-          WEEK_OF_MONTH=$(( (10#${DAY_OF_MONTH} - 1) / 7 + 1 ))
-          CALENDAR_STAMP="${YEAR}-${MONTH}-${WEEK_OF_MONTH}${DAY_OF_WEEK}${HOUR}"
+          read_version() { grep -oP '(?<=<Version>)[^<]+' "$1/Directory.Build.props"; }
 
-          CORE_VERSION="0.3.0-${CALENDAR_STAMP}"
-          ANDROID_VERSION="0.3.0-${CALENDAR_STAMP}"
-          STEAM_VERSION="0.3.0-${CALENDAR_STAMP}"
-          IOS_VERSION="0.3.0-${CALENDAR_STAMP}"
-          EOS_VERSION="0.3.0-${CALENDAR_STAMP}"
+          CORE_BASE=$(read_version Core)
+          ANDROID_BASE=$(read_version Android)
+          STEAM_BASE=$(read_version Steam)
+          IOS_BASE=$(read_version iOS)
+          EOS_BASE=$(read_version EOS)
+
+          CORE_VERSION="${CORE_BASE}-${DATE_STAMP}"
+          ANDROID_VERSION="${ANDROID_BASE}-${DATE_STAMP}"
+          STEAM_VERSION="${STEAM_BASE}-${DATE_STAMP}"
+          IOS_VERSION="${IOS_BASE}-${DATE_STAMP}"
+          EOS_VERSION="${EOS_BASE}-${DATE_STAMP}"
 
           if [[ "${REF_NAME}" == v* ]]; then
-            BOTH_VERSION="${REF_NAME#v}"
-            CORE_VERSION="${BOTH_VERSION}"
-            ANDROID_VERSION="${BOTH_VERSION}"
-            STEAM_VERSION="${BOTH_VERSION}"
-            IOS_VERSION="${BOTH_VERSION}"
-            EOS_VERSION="${BOTH_VERSION}"
+            TAG_VERSION="${REF_NAME#v}"
+            CORE_VERSION="${TAG_VERSION}"
+            ANDROID_VERSION="${TAG_VERSION}"
+            STEAM_VERSION="${TAG_VERSION}"
+            IOS_VERSION="${TAG_VERSION}"
+            EOS_VERSION="${TAG_VERSION}"
           fi
 
           if [[ "${REF_NAME}" == core-v* ]]; then CORE_VERSION="${REF_NAME#core-v}"; fi
@@ -257,7 +258,7 @@ jobs:
 
       - name: Restore
         run: |
-          dotnet restore MonoGame.Xna.Framework.Net.csproj
+          dotnet restore Core/MonoGame.Xna.Framework.Net.csproj
           dotnet restore Android/MonoGame.Xna.Framework.Net.Android.csproj
           dotnet restore Steam/MonoGame.Xna.Framework.Net.Steam.csproj
           dotnet restore EOS/MonoGame.Xna.Framework.Net.EOS.csproj
@@ -268,7 +269,7 @@ jobs:
 
       - name: Build
         run: |
-          dotnet build MonoGame.Xna.Framework.Net.csproj -c Release --no-restore
+          dotnet build Core/MonoGame.Xna.Framework.Net.csproj -c Release --no-restore
           dotnet build Android/MonoGame.Xna.Framework.Net.Android.csproj -c Release --no-restore
           dotnet build Steam/MonoGame.Xna.Framework.Net.Steam.csproj -c Release --no-restore
           dotnet build EOS/MonoGame.Xna.Framework.Net.EOS.csproj -c Release --no-restore
@@ -281,7 +282,7 @@ jobs:
         run: dotnet build Tests/Android/MonoGame.Xna.Framework.Net.Android.Tests.csproj -c Release --no-restore
 
       - name: Pack core
-        run: dotnet pack MonoGame.Xna.Framework.Net.csproj -c Release -o artifacts/core --no-build -p:PackageVersion=${{ steps.version.outputs.core_version }}
+        run: dotnet pack Core/MonoGame.Xna.Framework.Net.csproj -c Release -o artifacts/core --no-build -p:PackageVersion=${{ steps.version.outputs.core_version }}
 
       - name: Pack android
         run: dotnet pack Android/MonoGame.Xna.Framework.Net.Android.csproj -c Release -o artifacts/android --no-build -p:PackageVersion=${{ steps.version.outputs.android_version }}

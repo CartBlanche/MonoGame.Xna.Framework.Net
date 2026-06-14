@@ -25,7 +25,9 @@
   <Folder Name="/Tests/Steam/">
     <Project Path="Tests/Steam/MonoGame.Xna.Framework.Net.Steam.Tests.csproj" />
   </Folder>
+  <Folder Name="/Core/">
+    <Project Path="Core/MonoGame.Xna.Framework.Net.csproj" />
+  </Folder>
   <Project Path="Android/MonoGame.Xna.Framework.Net.Android.csproj" />
-  <Project Path="MonoGame.Xna.Framework.Net.csproj" />
   <Project Path="Steam/MonoGame.Xna.Framework.Net.Steam.csproj" />
 </Solution>

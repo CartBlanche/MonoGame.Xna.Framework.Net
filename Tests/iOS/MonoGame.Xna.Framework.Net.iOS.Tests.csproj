@@ -19,14 +19,13 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\MonoGame.Xna.Framework.Net.csproj" />
     <ProjectReference Include="..\..\iOS\MonoGame.Xna.Framework.Net.iOS.csproj" />
   </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="NUnit" Version="3.13.2" />
     <PackageReference Include="NUnitLite" Version="3.13.2" />
-    <PackageReference Include="MonoGame.Framework.iOS" Version="3.8.*" PrivateAssets="all"/>
+    <PackageReference Include="MonoGame.Framework.iOS" Version="3.8.*" PrivateAssets="all" />
   </ItemGroup>
 
 </Project>

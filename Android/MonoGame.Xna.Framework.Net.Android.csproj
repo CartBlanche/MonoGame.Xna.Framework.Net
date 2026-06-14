@@ -8,7 +8,6 @@
     <AssemblyName>MonoGame.Xna.Framework.Net.Android</AssemblyName>
     <IsPackable>true</IsPackable>
     <PackageId>MonoGame.Xna.Framework.Net.Android</PackageId>
-    <Version>0.3.0-preview.1</Version>
     <Authors>CartBlanche Contributors</Authors>
     <Company>CartBlanche</Company>
     <Description>Android Play Games back-end implementation for MonoGame.Xna.Framework.Net.</Description>
@@ -27,7 +26,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\MonoGame.Xna.Framework.Net.csproj" />
+    <ProjectReference Include="..\Core\MonoGame.Xna.Framework.Net.csproj" />
   </ItemGroup>
 
   <ItemGroup>
@@ -38,7 +37,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Include="README.md" Pack="true" PackagePath="/"/>
+    <None Include="README.md" Pack="true" PackagePath="/" />
   </ItemGroup>
 
   <ItemGroup>

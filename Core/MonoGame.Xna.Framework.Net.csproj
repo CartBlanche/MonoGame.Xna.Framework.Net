@@ -7,7 +7,6 @@
     <RootNamespace>Microsoft.Xna.Framework</RootNamespace>
     <IsPackable>true</IsPackable>
     <PackageId>MonoGame.Xna.Framework.Net</PackageId>
-    <Version>0.3.0-preview.1</Version>
     <Authors>CartBlanche Contributors</Authors>
     <Company>CartBlanche</Company>
     <Description>MonoGame compatible networking and GamerServices APIs.</Description>
@@ -26,30 +25,12 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Remove="Tests\**" />
-    <EmbeddedResource Remove="Tests\**" />
-    <None Remove="Tests\**" />
-    <Compile Remove="Steam\**" />
-    <EmbeddedResource Remove="Steam\**" />
-    <None Remove="Steam\**" />
-    <Compile Remove="Android\**" />
-    <EmbeddedResource Remove="Android\**" />
-    <None Remove="Android\**" />
-    <Compile Remove="iOS\**" />
-    <EmbeddedResource Remove="iOS\**" />
-    <None Remove="iOS\**" />
-    <Compile Remove="EOS\**" />
-    <EmbeddedResource Remove="EOS\**" />
-    <None Remove="EOS\**" />
-  </ItemGroup>
-
-  <ItemGroup>
     <PackageReference Include="MonoGame.Framework.DesktopGL" Version="3.8.*" PrivateAssets="all" />
     <PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0" PrivateAssets="All" />
   </ItemGroup>
 
   <ItemGroup>
-    <None Include="README.md" Pack="true" PackagePath="/" />
+    <None Include="../README.md" Pack="true" PackagePath="/" />
   </ItemGroup>
 
   <ItemGroup>
