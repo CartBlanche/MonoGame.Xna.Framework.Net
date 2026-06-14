@@ -20,8 +20,19 @@ namespace Microsoft.Xna.Framework.Net.Tests
         }
 
         [Test]
+        [Category("Smoke")]
         public async Task EOSFactory_HostFindAndJoin_EndToEnd()
         {
+            var smokeEnabled = string.Equals(
+                Environment.GetEnvironmentVariable("MGNET_EOS_SMOKE"),
+                "1",
+                StringComparison.Ordinal);
+
+            if (!smokeEnabled)
+            {
+                Assert.Ignore("EOSFactory_HostFindAndJoin_EndToEnd: Requires MGNET_EOS_SMOKE=1 and valid EOS runtime configuration.");
+            }
+
             EOSRuntime.Initialize(initialPlayerId: "eos-1", initialGamertag: "EOSHost");
 
             var factory = new EOSNetworkSessionFactory();
