@@ -59,6 +59,15 @@ namespace Microsoft.Xna.Framework.Net.Android
             get { lock (Gate) { return isInitialized; } }
         }
 
+        internal static bool TryGetActivity(out Activity result)
+        {
+            lock (Gate)
+            {
+                result = activity;
+                return isInitialized && activity != null;
+            }
+        }
+
         internal static bool TryGetGooglePlayGamesClient(out IGooglePlayGamesClient client)
         {
             lock (Gate)

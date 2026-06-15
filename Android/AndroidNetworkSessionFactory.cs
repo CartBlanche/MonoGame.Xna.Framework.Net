@@ -1,11 +1,13 @@
+using Android.Gms.Nearby;
+using Android.Gms.Nearby.Connection;
+using Android.Gms.Extensions;
+
 namespace Microsoft.Xna.Framework.Net.Android
 {
-    /// <summary>
-    /// Factory and provider for Android-backed sessions.
-    /// The initial slice reuses SystemLink networking while preserving backend routing seams.
-    /// </summary>
     public sealed class AndroidNetworkSessionFactory : INetworkSessionFactory, INetworkSessionProvider
     {
+        private const int DiscoveryScanMs = 2000;
+
         private readonly AndroidFallbackMode fallbackMode;
 
         public AndroidNetworkSessionFactory(AndroidFallbackMode fallbackMode = AndroidFallbackMode.PreferFallback)
@@ -24,18 +26,54 @@ namespace Microsoft.Xna.Framework.Net.Android
 
         public async Task<IEnumerable<SessionInfo>> FindSessionsAsync(NetworkSessionType sessionType)
         {
-            var found = await FindSessionsAsync(sessionType, 1, null).ConfigureAwait(false);
+            if (IsStrict && !AndroidRuntime.IsInitialized)
+                throw new InvalidOperationException("Android runtime is not initialized for strict session discovery.");
 
-            return found.Select(session => new SessionInfo
+            if (!AndroidRuntime.IsInitialized || !AndroidRuntime.TryGetActivity(out var activity))
+                return [];
+
+            var connectionsClient = Nearby.GetConnectionsClient(activity);
+            var sessions = new List<SessionInfo>();
+
+            var discoveryCallback = new ScanEndpointDiscoveryCallback(
+                onFound: (endpointId, info) =>
+                {
+                    lock (sessions)
+                    {
+                        sessions.Add(new SessionInfo
+                        {
+                            SessionId = endpointId,
+                            JoinAddress = endpointId,
+                            HostName = info.EndpointName,
+                            CurrentPlayerCount = 1,
+                            MaxPlayerCount = 8,
+                            IsPasswordProtected = false,
+                            SessionType = sessionType
+                        });
+                    }
+                },
+                onLost: _ => { }
+            );
+
+            var options = new DiscoveryOptions.Builder()
+                .SetStrategy(Strategy.P2pStar)
+                .Build();
+
+            try
             {
-                SessionId = session.SessionId,
-                JoinAddress = session.HostEndpoint?.ToString() ?? string.Empty,
-                HostName = session.HostGamertag,
-                CurrentPlayerCount = session.CurrentGamerCount,
-                MaxPlayerCount = session.CurrentGamerCount + session.OpenPublicGamerSlots + session.OpenPrivateGamerSlots,
-                IsPasswordProtected = false,
-                SessionType = sessionType
-            }).ToList();
+                await connectionsClient
+                    .StartDiscovery(AndroidNetworkSession.ServiceId, discoveryCallback, options)
+                    .AsAsync<Java.Lang.Object>()
+                    .ConfigureAwait(false);
+
+                await Task.Delay(DiscoveryScanMs).ConfigureAwait(false);
+            }
+            finally
+            {
+                connectionsClient.StopDiscovery();
+            }
+
+            lock (sessions) { return sessions.ToList(); }
         }
 
         public async Task<NetworkSession> CreateSessionAsync(
@@ -88,6 +126,26 @@ namespace Microsoft.Xna.Framework.Net.Android
             var joined = await NetworkSession.JoinSystemLinkSessionAsync(availableSession, cancellationToken).ConfigureAwait(false);
             joined.AllowHostMigration = false;
             return joined;
+        }
+
+        private sealed class ScanEndpointDiscoveryCallback : EndpointDiscoveryCallback
+        {
+            private readonly Action<string, DiscoveredEndpointInfo> onFound;
+            private readonly Action<string> onLost;
+
+            internal ScanEndpointDiscoveryCallback(
+                Action<string, DiscoveredEndpointInfo> onFound,
+                Action<string> onLost)
+            {
+                this.onFound = onFound;
+                this.onLost = onLost;
+            }
+
+            public override void OnEndpointFound(string endpointId, DiscoveredEndpointInfo info)
+                => onFound(endpointId, info);
+
+            public override void OnEndpointLost(string endpointId)
+                => onLost(endpointId);
         }
     }
 }

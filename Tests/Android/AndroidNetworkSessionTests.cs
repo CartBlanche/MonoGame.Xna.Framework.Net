@@ -29,6 +29,9 @@ namespace Microsoft.Xna.Framework.Net.Tests
             }
         }
 
+        private static bool NearbyEnabled() =>
+            string.Equals(Environment.GetEnvironmentVariable("MGNET_ANDROID_NEARBY"), "1", StringComparison.Ordinal);
+
         [SetUp]
         public void Setup()
         {
@@ -43,8 +46,12 @@ namespace Microsoft.Xna.Framework.Net.Tests
         }
 
         [Test]
+        [Category("Smoke")]
         public async Task AndroidFactory_HostJoinAndReliableMessage_EndToEnd()
         {
+            if (!NearbyEnabled())
+                Assert.Ignore("AndroidFactory_HostJoinAndReliableMessage_EndToEnd: Requires MGNET_ANDROID_NEARBY=1 and a real Android device with Nearby Connections.");
+
             AndroidRuntime.Initialize(androidActivity: null, initialPlayerId: "android-1", initialGamertag: "AndroidHost");
 
             var factory = new AndroidNetworkSessionFactory();
@@ -124,8 +131,12 @@ namespace Microsoft.Xna.Framework.Net.Tests
         }
 
         [Test]
+        [Category("Smoke")]
         public async Task AndroidFactory_WhenHostCloses_ClientEndsWithHostEndedSession()
         {
+            if (!NearbyEnabled())
+                Assert.Ignore("AndroidFactory_WhenHostCloses_ClientEndsWithHostEndedSession: Requires MGNET_ANDROID_NEARBY=1 and a real Android device with Nearby Connections.");
+
             AndroidRuntime.Initialize(androidActivity: null, initialPlayerId: "android-2", initialGamertag: "AndroidHost");
 
             var factory = new AndroidNetworkSessionFactory();
@@ -154,8 +165,12 @@ namespace Microsoft.Xna.Framework.Net.Tests
         }
 
         [Test]
+        [Category("Smoke")]
         public async Task AndroidFactory_WhenClientCloses_HostStaysActiveAndGetsGamerLeft()
         {
+            if (!NearbyEnabled())
+                Assert.Ignore("AndroidFactory_WhenClientCloses_HostStaysActiveAndGetsGamerLeft: Requires MGNET_ANDROID_NEARBY=1 and a real Android device with Nearby Connections.");
+
             AndroidRuntime.Initialize(androidActivity: null, initialPlayerId: "android-3", initialGamertag: "AndroidHost");
 
             var factory = new AndroidNetworkSessionFactory();
