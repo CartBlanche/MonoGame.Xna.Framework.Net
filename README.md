@@ -14,8 +14,7 @@ It keeps the familiar Microsoft.Xna.Framework.Net and GamerServices APIs while m
 
 ## Repository layout
 
-- Net/: core networking types, messages, abstractions, adapters, factories, and services.
-- GamerServices/: XNA-style gamer, guide, and leaderboard services.
+- Core/: core package — `Net/` (networking types, messages, abstractions, adapters, factories, and services) and `GamerServices/` (XNA-style gamer, guide, and leaderboard services).
 - Steam/: Steam back-end package.
 - Android/: Android and Play Games back-end package.
 - iOS/: iOS and Game Center back-end package.
