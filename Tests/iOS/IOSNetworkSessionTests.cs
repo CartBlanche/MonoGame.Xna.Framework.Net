@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.Xna.Framework;
@@ -29,6 +30,9 @@ namespace Microsoft.Xna.Framework.Net.Tests
             }
         }
 
+        private static bool GameKitEnabled() =>
+            string.Equals(Environment.GetEnvironmentVariable("MGNET_IOS_GAMEKIT"), "1", StringComparison.Ordinal);
+
         [SetUp]
         public void Setup()
         {
@@ -43,8 +47,12 @@ namespace Microsoft.Xna.Framework.Net.Tests
         }
 
         [Test]
+        [Category("Smoke")]
         public async Task IOSFactory_HostJoinAndReliableMessage_EndToEnd()
         {
+            if (!GameKitEnabled())
+                Assert.Ignore("IOSFactory_HostJoinAndReliableMessage_EndToEnd: Requires MGNET_IOS_GAMEKIT=1 and a real iOS device with Game Center authentication.");
+
             IOSRuntime.Initialize(initialPlayerId: "ios-1", initialGamertag: "IOSHost");
 
             var factory = new IOSNetworkSessionFactory();
@@ -53,22 +61,13 @@ namespace Microsoft.Xna.Framework.Net.Tests
 
             try
             {
+                // Phase 1: no session browser. Host starts matchmaking; client joins by session ID.
                 await host.CreateAsync(NetworkSessionType.SystemLink, maxGamers: 4, privateGamerSlots: 0);
+                await client.JoinAsync(host.SessionId);
 
-                SessionInfo sessionInfo = null;
-                for (var attempt = 0; attempt < 8 && sessionInfo == null; attempt++)
-                {
-                    var sessions = (await factory.FindSessionsAsync(NetworkSessionType.SystemLink)).ToList();
-                    sessionInfo = sessions.FirstOrDefault();
-                    if (sessionInfo == null)
-                    {
-                        await Task.Delay(150);
-                    }
-                }
-
-                Assert.That(sessionInfo, Is.Not.Null);
-
-                await client.JoinAsync(sessionInfo.JoinAddress);
+                // Wait for GKMatchmaker to route both peers and for each side to snapshot the other.
+                for (var i = 0; i < 50 && (host.AllGamers.Count < 2 || client.AllGamers.Count < 2); i++)
+                    await Task.Delay(100);
 
                 Assert.That(host.AllGamers.Count, Is.EqualTo(2));
                 Assert.That(client.AllGamers.Count, Is.EqualTo(2));
@@ -79,13 +78,14 @@ namespace Microsoft.Xna.Framework.Net.Tests
                 client.MessageReceived += (_, args) =>
                 {
                     if (args.Message is TestReliableMessage message)
-                    {
                         receivedPayload = message.Payload;
-                    }
                 };
 
                 host.BroadcastMessage(new TestReliableMessage { Payload = "ios-e2e" });
-                client.Update(new GameTime());
+
+                // Wait for the message to travel over GameKit P2P.
+                for (var i = 0; i < 50 && receivedPayload == null; i++)
+                    await Task.Delay(100);
 
                 Assert.That(receivedPayload, Is.EqualTo("ios-e2e"));
             }
@@ -101,9 +101,9 @@ namespace Microsoft.Xna.Framework.Net.Tests
         {
             var factory = new IOSNetworkSessionFactory(fallbackMode: IOSFallbackMode.Strict);
 
-            Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            Assert.Throws<InvalidOperationException>(() =>
             {
-                await factory.FindSessionsAsync(NetworkSessionType.SystemLink);
+                factory.FindSessionsAsync(NetworkSessionType.SystemLink);
             });
         }
 
@@ -124,8 +124,12 @@ namespace Microsoft.Xna.Framework.Net.Tests
         }
 
         [Test]
+        [Category("Smoke")]
         public async Task IOSFactory_WhenHostCloses_ClientEndsWithHostEndedSession()
         {
+            if (!GameKitEnabled())
+                Assert.Ignore("IOSFactory_WhenHostCloses_ClientEndsWithHostEndedSession: Requires MGNET_IOS_GAMEKIT=1 and a real iOS device with Game Center authentication.");
+
             IOSRuntime.Initialize(initialPlayerId: "ios-2", initialGamertag: "IOSHost");
 
             var factory = new IOSNetworkSessionFactory();
@@ -138,10 +142,16 @@ namespace Microsoft.Xna.Framework.Net.Tests
             try
             {
                 await host.CreateAsync(NetworkSessionType.SystemLink, maxGamers: 4, privateGamerSlots: 0);
-                var sessions = (await factory.FindSessionsAsync(NetworkSessionType.SystemLink)).ToList();
-                await client.JoinAsync(sessions[0].JoinAddress);
+                await client.JoinAsync(host.SessionId);
+
+                for (var i = 0; i < 50 && (host.AllGamers.Count < 2 || client.AllGamers.Count < 2); i++)
+                    await Task.Delay(100);
 
                 await host.CloseAsync();
+
+                // Wait for GameKit disconnect notification to reach the client.
+                for (var i = 0; i < 50 && client.State != NetworkSessionState.Ended; i++)
+                    await Task.Delay(100);
 
                 Assert.That(client.State, Is.EqualTo(NetworkSessionState.Ended));
                 Assert.That(clientEndReason, Is.EqualTo(NetworkSessionEndReason.HostEndedSession));
@@ -154,8 +164,12 @@ namespace Microsoft.Xna.Framework.Net.Tests
         }
 
         [Test]
+        [Category("Smoke")]
         public async Task IOSFactory_WhenClientCloses_HostStaysActiveAndGetsGamerLeft()
         {
+            if (!GameKitEnabled())
+                Assert.Ignore("IOSFactory_WhenClientCloses_HostStaysActiveAndGetsGamerLeft: Requires MGNET_IOS_GAMEKIT=1 and a real iOS device with Game Center authentication.");
+
             IOSRuntime.Initialize(initialPlayerId: "ios-3", initialGamertag: "IOSHost");
 
             var factory = new IOSNetworkSessionFactory();
@@ -168,10 +182,16 @@ namespace Microsoft.Xna.Framework.Net.Tests
             try
             {
                 await host.CreateAsync(NetworkSessionType.SystemLink, maxGamers: 4, privateGamerSlots: 0);
-                var sessions = (await factory.FindSessionsAsync(NetworkSessionType.SystemLink)).ToList();
-                await client.JoinAsync(sessions[0].JoinAddress);
+                await client.JoinAsync(host.SessionId);
+
+                for (var i = 0; i < 50 && (host.AllGamers.Count < 2 || client.AllGamers.Count < 2); i++)
+                    await Task.Delay(100);
 
                 await client.CloseAsync();
+
+                // Wait for GameKit disconnect notification to reach the host.
+                for (var i = 0; i < 50 && hostGamerLeftCount == 0; i++)
+                    await Task.Delay(100);
 
                 Assert.That(host.State, Is.Not.EqualTo(NetworkSessionState.Ended));
                 Assert.That(hostGamerLeftCount, Is.EqualTo(1));
@@ -204,6 +224,17 @@ namespace Microsoft.Xna.Framework.Net.Tests
             {
                 await session.DisposeAsync();
             }
+        }
+
+        [Test]
+        public async Task IOSFactory_FindSessions_ReturnsEmpty_InPhaseOne()
+        {
+            IOSRuntime.Initialize(initialPlayerId: "ios-4", initialGamertag: "IOSPlayer");
+
+            var factory = new IOSNetworkSessionFactory();
+            var sessions = (await factory.FindSessionsAsync(NetworkSessionType.SystemLink)).ToList();
+
+            Assert.That(sessions, Is.Empty);
         }
     }
 }

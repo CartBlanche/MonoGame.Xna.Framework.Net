@@ -1,9 +1,5 @@
 namespace Microsoft.Xna.Framework.Net.iOS
 {
-    /// <summary>
-    /// Factory and provider for iOS-backed sessions.
-    /// The initial slice reuses SystemLink networking while preserving backend routing seams.
-    /// </summary>
     public sealed class IOSNetworkSessionFactory : INetworkSessionFactory, INetworkSessionProvider
     {
         private readonly IOSFallbackMode fallbackMode;
@@ -22,20 +18,14 @@ namespace Microsoft.Xna.Framework.Net.iOS
             return new IOSNetworkSession();
         }
 
-        public async Task<IEnumerable<SessionInfo>> FindSessionsAsync(NetworkSessionType sessionType)
+        public Task<IEnumerable<SessionInfo>> FindSessionsAsync(NetworkSessionType sessionType)
         {
-            var found = await FindSessionsAsync(sessionType, 1, null).ConfigureAwait(false);
+            if (IsStrict && !IOSRuntime.IsInitialized)
+                throw new InvalidOperationException("iOS runtime is not initialized for strict session discovery.");
 
-            return found.Select(session => new SessionInfo
-            {
-                SessionId = session.SessionId,
-                JoinAddress = session.HostEndpoint?.ToString() ?? string.Empty,
-                HostName = session.HostGamertag,
-                CurrentPlayerCount = session.CurrentGamerCount,
-                MaxPlayerCount = session.CurrentGamerCount + session.OpenPublicGamerSlots + session.OpenPrivateGamerSlots,
-                IsPasswordProtected = false,
-                SessionType = sessionType
-            }).ToList();
+            // Phase 1: GameKit does not expose a session-browse API.
+            // Phase 2 will add CloudKit-backed session discovery.
+            return Task.FromResult(Enumerable.Empty<SessionInfo>());
         }
 
         public async Task<NetworkSession> CreateSessionAsync(

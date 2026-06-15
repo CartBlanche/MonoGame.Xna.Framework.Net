@@ -1,8 +1,8 @@
 using Android.Gms.Nearby;
 using Android.Gms.Nearby.Connection;
-using Android.Gms.Extensions;
 using Microsoft.Xna.Framework;
 using System.Diagnostics;
+using Activity = Android.App.Activity;
 
 namespace Microsoft.Xna.Framework.Net.Android
 {
@@ -15,7 +15,7 @@ namespace Microsoft.Xna.Framework.Net.Android
         private readonly object gate = new();
 
         private Activity activity;
-        private ConnectionsClient connectionsClient;
+        private IConnectionsClient connectionsClient;
         private string sessionId;
         private bool isHost;
         private bool disposed;
@@ -71,8 +71,7 @@ namespace Microsoft.Xna.Framework.Net.Android
                 .Build();
 
             await connectionsClient
-                .StartAdvertising(gamertag, ServiceId, lifecycleCallback, options)
-                .AsAsync<Java.Lang.Object>()
+                .StartAdvertisingAsync(gamertag, ServiceId, lifecycleCallback, options)
                 .ConfigureAwait(false);
 
             isHost = true;
@@ -93,8 +92,7 @@ namespace Microsoft.Xna.Framework.Net.Android
             lock (gate) { pendingConnections[joinAddress] = connectionTcs; }
 
             await connectionsClient
-                .RequestConnection(gamertag, joinAddress, lifecycleCallback)
-                .AsAsync<Java.Lang.Object>()
+                .RequestConnectionAsync(gamertag, joinAddress, lifecycleCallback)
                 .ConfigureAwait(false);
 
             var success = await connectionTcs.Task.ConfigureAwait(false);
@@ -175,6 +173,21 @@ namespace Microsoft.Xna.Framework.Net.Android
             await Task.CompletedTask;
         }
 
+        public void PromoteToPlayingIfNeeded()
+        {
+            bool raiseStarted;
+            lock (gate)
+            {
+                if (state != NetworkSessionState.Lobby && state != NetworkSessionState.Joining)
+                    return;
+                state = NetworkSessionState.Playing;
+                raiseStarted = true;
+            }
+
+            if (raiseStarted)
+                GameStarted?.Invoke(this, new GameStartedEventArgs());
+        }
+
         public void Dispose()
         {
             if (disposed)
@@ -191,7 +204,7 @@ namespace Microsoft.Xna.Framework.Net.Android
 
             lifecycleCallback = new SessionLifecycleCallback(this);
             payloadCallback = new SessionPayloadCallback(this);
-            connectionsClient = Nearby.GetConnectionsClient(activity);
+            connectionsClient = NearbyClass.GetConnectionsClient(activity);
         }
 
         internal void AddGamer(string endpointId, string gamertag, bool asHost)
@@ -236,7 +249,7 @@ namespace Microsoft.Xna.Framework.Net.Android
 
             try
             {
-                connectionsClient.SendPayload(endpointId, Payload.FromBytes(data));
+                _ = connectionsClient.SendPayloadAsync(endpointId, Payload.FromBytes(data));
             }
             catch (Exception ex)
             {
@@ -266,8 +279,7 @@ namespace Microsoft.Xna.Framework.Net.Android
 
                 // Auto-accept all incoming connections on our service.
                 _ = session.connectionsClient
-                    .AcceptConnection(endpointId, session.payloadCallback)
-                    .AsAsync<Java.Lang.Object>();
+                    .AcceptConnectionAsync(endpointId, session.payloadCallback);
             }
 
             public override void OnConnectionResult(string endpointId, ConnectionResolution resolution)

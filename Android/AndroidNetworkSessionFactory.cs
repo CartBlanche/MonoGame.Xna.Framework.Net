@@ -1,6 +1,5 @@
 using Android.Gms.Nearby;
 using Android.Gms.Nearby.Connection;
-using Android.Gms.Extensions;
 
 namespace Microsoft.Xna.Framework.Net.Android
 {
@@ -32,7 +31,7 @@ namespace Microsoft.Xna.Framework.Net.Android
             if (!AndroidRuntime.IsInitialized || !AndroidRuntime.TryGetActivity(out var activity))
                 return [];
 
-            var connectionsClient = Nearby.GetConnectionsClient(activity);
+            var connectionsClient = NearbyClass.GetConnectionsClient(activity);
             var sessions = new List<SessionInfo>();
 
             var discoveryCallback = new ScanEndpointDiscoveryCallback(
@@ -62,8 +61,7 @@ namespace Microsoft.Xna.Framework.Net.Android
             try
             {
                 await connectionsClient
-                    .StartDiscovery(AndroidNetworkSession.ServiceId, discoveryCallback, options)
-                    .AsAsync<Java.Lang.Object>()
+                    .StartDiscoveryAsync(AndroidNetworkSession.ServiceId, discoveryCallback, options)
                     .ConfigureAwait(false);
 
                 await Task.Delay(DiscoveryScanMs).ConfigureAwait(false);
