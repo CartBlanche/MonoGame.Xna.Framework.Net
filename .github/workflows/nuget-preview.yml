@@ -104,6 +104,7 @@ jobs:
           dotnet restore Steam/MonoGame.Xna.Framework.Net.Steam.csproj
           dotnet restore EOS/MonoGame.Xna.Framework.Net.EOS.csproj
           dotnet restore Tests/Core/MonoGame.Xna.Framework.Net.Tests.csproj
+          dotnet restore Tests/Compat/MonoGame.Xna.Framework.Net.CompatTests.csproj
           dotnet restore Tests/Steam/MonoGame.Xna.Framework.Net.Steam.Tests.csproj
           dotnet restore Tests/EOS/MonoGame.Xna.Framework.Net.EOS.Tests.csproj
           dotnet restore Tests/Android/MonoGame.Xna.Framework.Net.Android.Tests.csproj
@@ -121,6 +122,7 @@ jobs:
           dotnet build Steam/MonoGame.Xna.Framework.Net.Steam.csproj -c Release --no-restore
           dotnet build EOS/MonoGame.Xna.Framework.Net.EOS.csproj -c Release --no-restore
           dotnet build Tests/Core/MonoGame.Xna.Framework.Net.Tests.csproj -c Release --no-restore
+          dotnet build Tests/Compat/MonoGame.Xna.Framework.Net.CompatTests.csproj -c Release --no-restore
           dotnet build Tests/Steam/MonoGame.Xna.Framework.Net.Steam.Tests.csproj -c Release --no-restore
           dotnet build Tests/EOS/MonoGame.Xna.Framework.Net.EOS.Tests.csproj -c Release --no-restore
 
@@ -158,6 +160,7 @@ jobs:
           dotnet restore Steam/MonoGame.Xna.Framework.Net.Steam.csproj
           dotnet restore EOS/MonoGame.Xna.Framework.Net.EOS.csproj
           dotnet restore Tests/Core/MonoGame.Xna.Framework.Net.Tests.csproj
+          dotnet restore Tests/Compat/MonoGame.Xna.Framework.Net.CompatTests.csproj
           dotnet restore Tests/Steam/MonoGame.Xna.Framework.Net.Steam.Tests.csproj
           dotnet restore Tests/EOS/MonoGame.Xna.Framework.Net.EOS.Tests.csproj
 
@@ -167,11 +170,15 @@ jobs:
           dotnet build Steam/MonoGame.Xna.Framework.Net.Steam.csproj -c Release --no-restore
           dotnet build EOS/MonoGame.Xna.Framework.Net.EOS.csproj -c Release --no-restore
           dotnet build Tests/Core/MonoGame.Xna.Framework.Net.Tests.csproj -c Release --no-restore
+          dotnet build Tests/Compat/MonoGame.Xna.Framework.Net.CompatTests.csproj -c Release --no-restore
           dotnet build Tests/Steam/MonoGame.Xna.Framework.Net.Steam.Tests.csproj -c Release --no-restore
           dotnet build Tests/EOS/MonoGame.Xna.Framework.Net.EOS.Tests.csproj -c Release --no-restore
 
       - name: Test Core
         run: dotnet test Tests/Core/MonoGame.Xna.Framework.Net.Tests.csproj -c Release --no-build
+
+      - name: Test XNA compatibility (UDP loopback)
+        run: dotnet test Tests/Compat/MonoGame.Xna.Framework.Net.CompatTests.csproj -c Release --no-build
 
       - name: Test Steam
         run: dotnet test Tests/Steam/MonoGame.Xna.Framework.Net.Steam.Tests.csproj -c Release --no-build

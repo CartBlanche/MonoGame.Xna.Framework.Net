@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    XNA-compatibility tests. These use ONLY the public XNA-shaped API (NetworkSession, NetworkGamer,
+    PacketWriter/PacketReader, events, Update()) over real UDP loopback. This assembly is deliberately
+    NOT listed in Core's InternalsVisibleTo, so nothing here can depend on internals; the internals can
+    be rewritten as long as these stay green.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Core\MonoGame.Xna.Framework.Net.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="NUnitLite" Version="3.13.2" />
+    <PackageReference Include="NUnit3TestAdapter" Version="4.5.0" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.7.2" />
+    <PackageReference Include="MonoGame.Framework.DesktopGL" Version="3.8.*" PrivateAssets="all" />
+  </ItemGroup>
+
+</Project>

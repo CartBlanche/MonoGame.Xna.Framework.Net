@@ -16,6 +16,9 @@
   <Folder Name="/Tests/Android/">
     <Project Path="Tests/Android/MonoGame.Xna.Framework.Net.Android.Tests.csproj" />
   </Folder>
+  <Folder Name="/Tests/Compat/">
+    <Project Path="Tests/Compat/MonoGame.Xna.Framework.Net.CompatTests.csproj" />
+  </Folder>
   <Folder Name="/Tests/EOS/">
     <Project Path="Tests/EOS/MonoGame.Xna.Framework.Net.EOS.Tests.csproj" />
   </Folder>
