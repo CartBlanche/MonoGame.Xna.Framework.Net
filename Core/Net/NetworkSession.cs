@@ -44,6 +44,7 @@ namespace Microsoft.Xna.Framework.Net
 
         // Phase 1 additions
         private ConnectionHealthMonitor connectionMonitor;
+        internal ConnectionHealthMonitor ConnectionMonitor => connectionMonitor;
         private NetworkDiagnostics diagnostics;
         private INetworkLogger logger;
 
@@ -1457,6 +1458,10 @@ namespace Microsoft.Xna.Framework.Net
             {
                 senderGamer = gamers.FirstOrDefault(g => gamerEndpoints.TryGetValue(g.Id, out var ep) && ep.Equals(senderEndpoint));
             }
+
+            // anything from a gamer shows they are still connected
+            if (senderGamer != null)
+                connectionMonitor?.OnPeerActivity(senderGamer.Id);
 
             if (senderGamer != null && ReliableChannel.IsChannelByte(data[0]))
             {

@@ -352,6 +352,32 @@ namespace Microsoft.Xna.Framework.Net.Tests
         }
 
         [Test]
+        public async Task AnyDatagramFromAGamer_CountsAsProofTheyAreStillThere()
+        {
+            var (host, transport, gamer, endpoint) = await HostWithGamer();
+            Thread.Sleep(200);
+            Assert.That(host.ConnectionMonitor.TimeSinceActivity("p2").Value, Is.GreaterThan(TimeSpan.FromMilliseconds(150)));
+
+            // game data, not a heartbeat
+            host.ProcessIncomingDatagram(new byte[] { ReliableChannel.ChannelUnreliable, 0x50, 1 }, endpoint);
+
+            Assert.That(host.ConnectionMonitor.TimeSinceActivity("p2").Value, Is.LessThan(TimeSpan.FromMilliseconds(100)));
+            await host.DisposeAsync();
+        }
+
+        [Test]
+        public async Task DatagramsFromAnUnknownEndpoint_DoNotKeepAGamerAlive()
+        {
+            var (host, transport, gamer, endpoint) = await HostWithGamer();
+            Thread.Sleep(200);
+
+            host.ProcessIncomingDatagram(new byte[] { ReliableChannel.ChannelUnreliable, 0x50, 1 }, new IPEndPoint(IPAddress.Loopback, 54321));
+
+            Assert.That(host.ConnectionMonitor.TimeSinceActivity("p2").Value, Is.GreaterThan(TimeSpan.FromMilliseconds(150)));
+            await host.DisposeAsync();
+        }
+
+        [Test]
         public async Task PlainDatagrams_StillWork_ForTheHandshake()
         {
             // join requests and replies are sent without a channel
