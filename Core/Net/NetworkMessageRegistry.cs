@@ -35,7 +35,6 @@ namespace Microsoft.Xna.Framework.Net
             Register<JoinRequestMessage>(2);
             Register<JoinAcceptedMessage>(3);
             Register<ReadinessUpdateMessage>(4);
-            Register<GameStateChangeMessage>(5);
             Register<JoinRejectedMessage>(6);
             Register<HeartbeatMessage>(7);
             Register<HeartbeatReplyMessage>(8);

@@ -627,7 +627,7 @@ namespace Microsoft.Xna.Framework.Net
 
             var writer = new PacketWriter();
             stateMessage.Serialize(writer);
-            SendToAll(writer, SendDataOptions.Reliable);
+            SendMessageToAll(writer, SendDataOptions.Reliable, null);
         }
 
         /// <summary>
@@ -644,12 +644,6 @@ namespace Microsoft.Xna.Framework.Net
                 if (IsHost)
                 {
                     BroadcastSessionState(NetworkSessionState.Playing, "Host started game");
-                    
-                    // Also send legacy GameStateChangeMessage for backward compatibility
-                    var msg = new GameStateChangeMessage { Kind = GameStateChangeKind.Started };
-                    var writer = new PacketWriter();
-                    msg.Serialize(writer);
-                    SendToAll(writer, SendDataOptions.Reliable);
                 }
             }
         }
@@ -668,12 +662,6 @@ namespace Microsoft.Xna.Framework.Net
                 if (IsHost)
                 {
                     BroadcastSessionState(NetworkSessionState.Lobby, "Game ended");
-                    
-                    // Also send legacy GameStateChangeMessage for backward compatibility
-                    var msg = new GameStateChangeMessage { Kind = GameStateChangeKind.Ended };
-                    var writer = new PacketWriter();
-                    msg.Serialize(writer);
-                    SendToAll(writer, SendDataOptions.Reliable);
                 }
             }
         }
@@ -694,7 +682,7 @@ namespace Microsoft.Xna.Framework.Net
             {
                 // Host applies locally and broadcasts to all others
                 ApplyReadinessUpdate(msg);
-                SendToAll(writer, SendDataOptions.Reliable, gamer);
+                SendMessageToAll(writer, SendDataOptions.Reliable, gamer);
             }
             else
             {
@@ -702,7 +690,7 @@ namespace Microsoft.Xna.Framework.Net
                 var host = gamers.FirstOrDefault(g => g.IsHost);
                 if (host != null)
                 {
-                    SendDataToGamer(host, writer.GetData(), SendDataOptions.Reliable);
+                    SendMessageToGamer(host, writer.GetData(), SendDataOptions.Reliable);
                 }
             }
         }
@@ -886,7 +874,7 @@ namespace Microsoft.Xna.Framework.Net
                     {
                         var writer = new PacketWriter();
                         moveMessage.Serialize(writer);
-                        SendToAll(writer, SendDataOptions.Reliable, sourceGamer);
+                        SendMessageToAll(writer, SendDataOptions.Reliable, sourceGamer);
                     }
                 }
             }
@@ -906,20 +894,7 @@ namespace Microsoft.Xna.Framework.Net
                         if (e.RemoteEndPoint != null)
                             sourceGamer = gamers.FirstOrDefault(g => gamerEndpoints.TryGetValue(g.Id, out var ep) && ep.Equals(e.RemoteEndPoint));
                     }
-                    SendToAll(writer, SendDataOptions.Reliable, sourceGamer);
-                }
-            }
-            else if (e.Message is GameStateChangeMessage stateChange)
-            {
-                if (stateChange.Kind == GameStateChangeKind.Started)
-                {
-                    sessionState = NetworkSessionState.Playing;
-                    OnGameStarted();
-                }
-                else if (stateChange.Kind == GameStateChangeKind.Ended)
-                {
-                    sessionState = NetworkSessionState.Lobby;
-                    OnGameEnded();
+                    SendMessageToAll(writer, SendDataOptions.Reliable, sourceGamer);
                 }
             }
             else if (e.Message is HeartbeatMessage heartbeat)
@@ -1333,17 +1308,64 @@ namespace Microsoft.Xna.Framework.Net
             SendDataToGamer(gamer, data, data?.Length ?? 0, options);
         }
 
+        /// <summary>
+        /// Sends game data (what the game passed to SendData) to a gamer. The framework never looks inside it.
+        /// </summary>
         internal void SendDataToGamer(NetworkGamer gamer, byte[] data, int dataLength, SendDataOptions options)
         {
+            SendPayload(gamer, PayloadKind.Application, data, dataLength, options);
+        }
+
+        /// <summary>
+        /// Sends a serialized INetworkMessage (the framework's own messages, and registered custom ones) to a gamer.
+        /// </summary>
+        internal void SendMessageToGamer(NetworkGamer gamer, byte[] data, SendDataOptions options)
+        {
+            SendPayload(gamer, PayloadKind.Message, data, data?.Length ?? 0, options);
+        }
+
+        /// <summary>
+        /// Sends a serialized INetworkMessage to every remote gamer except one.
+        /// </summary>
+        internal void SendMessageToAll(PacketWriter writer, SendDataOptions options, NetworkGamer except)
+        {
+            if (writer == null)
+                throw new ArgumentNullException(nameof(writer));
+
+            int length;
+            byte[] data = writer.RentData(out length);
+            try
+            {
+                NetworkGamer[] recipients;
+                lock (lockObject)
+                    recipients = gamers.Where(g => g != except && !g.IsLocal).ToArray();
+
+                foreach (NetworkGamer gamer in recipients)
+                    SendPayload(gamer, PayloadKind.Message, data, length, options);
+            }
+            finally
+            {
+                PacketWriter.ReturnRentedData(data);
+            }
+        }
+
+        // The payload starts with its kind, so game data and framework messages can never be mistaken
+        // for each other, whatever the first byte of the game data is.
+        private void SendPayload(NetworkGamer gamer, byte kind, byte[] data, int dataLength, SendDataOptions options)
+        {
             if (gamer == null || data == null) return;
+
+            byte[] payload = new byte[dataLength + 1];
+            payload[0] = kind;
+            Buffer.BlockCopy(data, 0, payload, 1, dataLength);
 
             // UDP gives no delivery guarantees, so the data goes through the gamer's channel, which
             // resends reliable data until it is acknowledged and delivers it once and in order
             ReliableChannel channel = GetReliableChannel(gamer);
             if ((options & SendDataOptions.Reliable) != 0)
-                channel.SendReliable(data, dataLength, ReliableNow);
+                channel.SendReliable(payload, payload.Length, ReliableNow);
             else
-                channel.SendUnreliable(data, dataLength);
+                channel.SendUnreliable(payload, payload.Length);
         }
 
         // sends a datagram as it is, to the endpoint of the gamer with this id
@@ -1445,7 +1467,7 @@ namespace Microsoft.Xna.Framework.Net
 
         /// <summary>
         /// Handles one datagram from the network: unwraps the reliable channel it belongs to, then
-        /// treats what comes out as a framework message or as application data.
+        /// treats what comes out as a framework message or as game data, according to its kind.
         /// </summary>
         internal void ProcessIncomingDatagram(byte[] data, IPEndPoint senderEndpoint)
         {
@@ -1470,52 +1492,69 @@ namespace Microsoft.Xna.Framework.Net
             }
             else
             {
-                // the handshake (join request, acceptance, rejection) is sent as it is
-                ProcessPayload(data, senderEndpoint, senderGamer);
+                // the handshake (join request, acceptance, rejection) and the leave notice are sent
+                // as they are, outside the channel: a registered message and nothing else
+                ProcessMessage(data, 0, senderEndpoint);
             }
         }
 
-        private void ProcessPayload(byte[] data, IPEndPoint senderEndpoint, NetworkGamer senderGamer)
+        private void ProcessPayload(byte[] payload, IPEndPoint senderEndpoint, NetworkGamer senderGamer)
         {
-            // Inspect the first byte to see if this is a registered (framework) message
-            byte typeId = data[0];
-            var registered = NetworkMessageRegistry.CreateMessage(typeId);
+            if (payload.Length == 0)
+                return;
 
-            bool handledFramework = false;
-            if (registered != null)
+            switch (payload[0])
             {
-                // Try to deserialize as a framework message; if it doesn't fully parse,
-                // fall back to treating as application payload.
-                try
-                {
-                    var reader = new PacketReader(data);
-                    reader.ReadByte(); // consume type id
-                    registered.Deserialize(reader);
-                    // Consider it framework only if we've consumed the full payload
-                    if (reader.BytesRemaining == 0)
-                    {
-                        OnMessageReceived(new MessageReceivedEventArgs(registered, senderEndpoint));
-                        handledFramework = true;
-                    }
-                }
-                catch
-                {
-                    handledFramework = false;
-                }
-            }
-
-            if (!handledFramework)
-            {
-                // Application payload. Enqueue for all LocalGamers in this session
-                if (senderGamer != null)
-                {
-                    // Enqueue to all local gamers so they can receive via ReceiveData()
+                case PayloadKind.Application:
+                    // game data, handed to the game as it was sent. Enqueue for all local gamers
+                    // so they can receive it via ReceiveData()
+                    byte[] data = new byte[payload.Length - 1];
+                    Buffer.BlockCopy(payload, 1, data, 0, data.Length);
                     foreach (var localGamer in LocalGamers)
-                    {
                         localGamer.EnqueueIncomingPacket(data, senderGamer);
-                    }
+                    break;
+
+                case PayloadKind.Message:
+                    ProcessMessage(payload, 1, senderEndpoint);
+                    break;
+
+                default:
+                    logger?.LogWarning($"Dropped a packet of unknown kind 0x{payload[0]:X2} from {senderGamer?.Gamertag}");
+                    break;
+            }
+        }
+
+        // a registered message starting at offset: the first byte is its type id and it must use up every byte
+        private void ProcessMessage(byte[] data, int offset, IPEndPoint senderEndpoint)
+        {
+            if (data.Length <= offset)
+                return;
+
+            var message = NetworkMessageRegistry.CreateMessage(data[offset]);
+            if (message == null)
+            {
+                logger?.LogWarning($"Dropped a message of unknown type {data[offset]} from {senderEndpoint}");
+                return;
+            }
+
+            try
+            {
+                var reader = new PacketReader(data);
+                reader.Position = offset + 1;
+                message.Deserialize(reader);
+                if (reader.BytesRemaining != 0)
+                {
+                    logger?.LogWarning($"Dropped a {message.GetType().Name} from {senderEndpoint}: {reader.BytesRemaining} unexpected bytes");
+                    return;
                 }
             }
+            catch (Exception ex)
+            {
+                logger?.LogWarning($"Dropped a malformed {message.GetType().Name} from {senderEndpoint}: {ex.Message}");
+                return;
+            }
+
+            OnMessageReceived(new MessageReceivedEventArgs(message, senderEndpoint));
         }
 
         // Modern async receive loop for SystemLink

@@ -17,7 +17,7 @@ _Last updated: 2026-10-28 (Phase 0 complete; compat suite found 5 known gaps, no
 | Phase | Theme | Status | Tasks done |
 |------:|-------|--------|-----------|
 | 0 | Safety net: CI runs tests, compat suite scaffold | **Done** | 8/8 |
-| 1 | Wire protocol correctness (envelope, InOrder, fragmentation) | In progress | 1/7 |
+| 1 | Wire protocol correctness (envelope, InOrder, fragmentation) | In progress | 3/7 |
 | 2 | Threading and event model (`Update()`-drained events) | Not started | 0/6 |
 | 3 | XNA API parity (gamers, packets, sessions) | Not started | 0/19 |
 | 4 | Backend unification (one public API, peer-id transport) | Not started | 0/6 |
@@ -99,12 +99,12 @@ Problems found by reading `NetworkSession.ProcessPayload` and `ReliableChannel`:
 - No fragmentation: a reliable payload over the MTU is dropped or fragmented by IP unpredictably.
 
 Tasks
-- [x] 1.1 Failing repro exists: `DataTests.GamePackets_ThatStartWithAFrameworkMessageId_AreStillDelivered` (ignored until 1.2). Also seen in the wild: 3 of 300 four-byte ints were lost when their low byte was 2–10
-- [ ] 1.2 Framework/app envelope: framework messages get their own channel byte; app data is never inspected by the registry. Bump the protocol version
+- [x] 1.1 Failing repro exists: `DataTests.GamePackets_ThatStartWithAFrameworkMessageId_AreStillDelivered` (un-ignored and passing since 1.2). Also seen in the wild: 3 of 300 four-byte ints were lost when their low byte was 2–10
+- [x] 1.2 Framework/app envelope: every channel payload starts with a kind byte (`PayloadKind.Application` / `PayloadKind.Message`); game data is never inspected by the registry; unregistered or malformed messages are dropped (no fallback to game data). Protocol version is now 3. Raw (non-channel) datagrams are registered messages only (handshake, leave)
 - [ ] 1.3 `InOrder` without `Reliable`: sequenced unreliable channel (drop stale, deliver newest-in-order)
 - [ ] 1.4 [?] Test `ushort` sequence wrap (send >65 535 reliable packets, with reorder/loss injection via `SimulatedPacketLoss`)
 - [ ] 1.5 Fragmentation and reassembly for payloads > MTU on the reliable channel; enforce a documented max packet size
-- [ ] 1.7 Clients raise `GameStarted`/`GameEnded` twice (`SessionStateMessage` and the legacy `GameStateChangeMessage` both fire it). Remove the legacy message (pulls 8.5 forward); un-ignore `AClientReady_IsSeenByTheHost_AndStartGameReachesEveryone`
+- [x] 1.7 Clients raised `GameStarted`/`GameEnded` twice (`SessionStateMessage` and the legacy `GameStateChangeMessage` both fire it). Remove the legacy message (pulls 8.5 forward). Done: `GameStateChangeMessage` removed; `AClientReady_IsSeenByTheHost_AndStartGameReachesEveryone` un-ignored and passing
 - [ ] 1.6 Congestion/backpressure: bounded pending list per channel; surface "peer not acking" via `UnacknowledgedAge` and timeout
 
 Commit groups

@@ -86,7 +86,6 @@ namespace Microsoft.Xna.Framework.Net.CompatTests
         }
 
         [Test]
-        [Ignore("Known gap, plan task 1.7: clients get GameStarted/GameEnded twice (SessionStateMessage and the legacy GameStateChangeMessage both raise it)")]
         public async Task AClientReady_IsSeenByTheHost_AndStartGameReachesEveryone()
         {
             NetworkSession host = await lan.StartHostAsync();

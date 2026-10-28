@@ -263,7 +263,7 @@ namespace Microsoft.Xna.Framework.Net.Tests
 
             host.SendDataToGamer(gamer, new byte[] { 0x50, 1, 2 }, SendDataOptions.Reliable);
 
-            Assert.That(transport.SentPackets.First().data, Is.EqualTo(new byte[] { ReliableChannel.ChannelReliable, 0, 0, 0x50, 1, 2 }));
+            Assert.That(transport.SentPackets.First().data, Is.EqualTo(new byte[] { ReliableChannel.ChannelReliable, 0, 0, PayloadKind.Application, 0x50, 1, 2 }));
             await host.DisposeAsync();
         }
 
@@ -274,7 +274,7 @@ namespace Microsoft.Xna.Framework.Net.Tests
 
             host.SendDataToGamer(gamer, new byte[] { 0x50, 1, 2 }, SendDataOptions.None);
 
-            Assert.That(transport.SentPackets.Single().data, Is.EqualTo(new byte[] { ReliableChannel.ChannelUnreliable, 0x50, 1, 2 }));
+            Assert.That(transport.SentPackets.Single().data, Is.EqualTo(new byte[] { ReliableChannel.ChannelUnreliable, PayloadKind.Application, 0x50, 1, 2 }));
             await host.DisposeAsync();
         }
 
@@ -304,7 +304,7 @@ namespace Microsoft.Xna.Framework.Net.Tests
         public async Task ReliableData_FromAPeer_IsDeliveredOnceEvenIfDuplicated()
         {
             var (host, transport, gamer, endpoint) = await HostWithGamer();
-            byte[] datagram = { ReliableChannel.ChannelReliable, 0, 0, 0x50, 9, 9 };
+            byte[] datagram = { ReliableChannel.ChannelReliable, 0, 0, PayloadKind.Application, 0x50, 9, 9 };
 
             host.ProcessIncomingDatagram(datagram, endpoint);
             host.ProcessIncomingDatagram(datagram, endpoint);       // the network duplicated it
@@ -324,7 +324,7 @@ namespace Microsoft.Xna.Framework.Net.Tests
         {
             var (host, transport, gamer, endpoint) = await HostWithGamer();
 
-            host.ProcessIncomingDatagram(new byte[] { ReliableChannel.ChannelReliable, 0, 0, 0x50 }, endpoint);
+            host.ProcessIncomingDatagram(new byte[] { ReliableChannel.ChannelReliable, 0, 0, PayloadKind.Application, 0x50 }, endpoint);
             Thread.Sleep(300);          // the resend timer sends the acknowledgement
 
             Assert.That(transport.SentPackets.Any(p => p.data[0] == ReliableChannel.ChannelAck && p.data[1] == 1),
@@ -337,10 +337,10 @@ namespace Microsoft.Xna.Framework.Net.Tests
         {
             var (host, transport, gamer, endpoint) = await HostWithGamer();
 
-            host.ProcessIncomingDatagram(new byte[] { ReliableChannel.ChannelReliable, 1, 0, 0x50, 2 }, endpoint);
+            host.ProcessIncomingDatagram(new byte[] { ReliableChannel.ChannelReliable, 1, 0, PayloadKind.Application, 0x50, 2 }, endpoint);
             Assert.That(host.LocalGamers[0].IsDataAvailable, Is.False, "sequence 1 must wait for sequence 0");
 
-            host.ProcessIncomingDatagram(new byte[] { ReliableChannel.ChannelReliable, 0, 0, 0x50, 1 }, endpoint);
+            host.ProcessIncomingDatagram(new byte[] { ReliableChannel.ChannelReliable, 0, 0, PayloadKind.Application, 0x50, 1 }, endpoint);
 
             var local = host.LocalGamers[0];
             var buffer = new byte[64];
@@ -359,7 +359,7 @@ namespace Microsoft.Xna.Framework.Net.Tests
             Assert.That(host.ConnectionMonitor.TimeSinceActivity("p2").Value, Is.GreaterThan(TimeSpan.FromMilliseconds(150)));
 
             // game data, not a heartbeat
-            host.ProcessIncomingDatagram(new byte[] { ReliableChannel.ChannelUnreliable, 0x50, 1 }, endpoint);
+            host.ProcessIncomingDatagram(new byte[] { ReliableChannel.ChannelUnreliable, PayloadKind.Application, 0x50, 1 }, endpoint);
 
             Assert.That(host.ConnectionMonitor.TimeSinceActivity("p2").Value, Is.LessThan(TimeSpan.FromMilliseconds(100)));
             await host.DisposeAsync();
@@ -371,23 +371,74 @@ namespace Microsoft.Xna.Framework.Net.Tests
             var (host, transport, gamer, endpoint) = await HostWithGamer();
             Thread.Sleep(200);
 
-            host.ProcessIncomingDatagram(new byte[] { ReliableChannel.ChannelUnreliable, 0x50, 1 }, new IPEndPoint(IPAddress.Loopback, 54321));
+            host.ProcessIncomingDatagram(new byte[] { ReliableChannel.ChannelUnreliable, PayloadKind.Application, 0x50, 1 }, new IPEndPoint(IPAddress.Loopback, 54321));
 
             Assert.That(host.ConnectionMonitor.TimeSinceActivity("p2").Value, Is.GreaterThan(TimeSpan.FromMilliseconds(150)));
             await host.DisposeAsync();
         }
 
         [Test]
-        public async Task PlainDatagrams_StillWork_ForTheHandshake()
+        public async Task PlainDatagrams_AreOnlyEverRegisteredMessages_NeverGameData()
         {
-            // join requests and replies are sent without a channel
+            // join requests and replies are sent without a channel, so a plain datagram is a framework
+            // message or nothing: it must never come out as game data
             var (host, transport, gamer, endpoint) = await HostWithGamer();
+            var received = new List<INetworkMessage>();
+            host.MessageReceived += (s, e) => received.Add(e.Message);
 
-            host.ProcessIncomingDatagram(new byte[] { 0x50, 7 }, endpoint);
+            host.ProcessIncomingDatagram(new byte[] { 0x50, 7 }, endpoint);          // unregistered type id
+            var heartbeat = new PacketWriter();
+            new HeartbeatMessage { GamerId = "p2", SequenceNumber = 1, Timestamp = 1 }.Serialize(heartbeat);
+            host.ProcessIncomingDatagram(heartbeat.GetData(), endpoint);             // a registered message
 
-            var buffer = new byte[64];
-            int length = host.LocalGamers[0].ReceiveData(buffer, out _);
-            Assert.That(buffer.Take(length), Is.EqualTo(new byte[] { 0x50, 7 }));
+            Assert.That(host.LocalGamers[0].IsDataAvailable, Is.False);
+            Assert.That(received.Count, Is.EqualTo(1));
+            Assert.That(received[0], Is.InstanceOf<HeartbeatMessage>());
+            await host.DisposeAsync();
+        }
+
+        [Test]
+        public async Task GameData_ThatLooksLikeAFrameworkMessage_IsStillGameData()
+        {
+            var (host, transport, gamer, endpoint) = await HostWithGamer();
+            var received = new List<INetworkMessage>();
+            host.MessageReceived += (s, e) => received.Add(e.Message);
+
+            // every framework message id as the first byte, sized so that some of them would parse
+            for (byte id = 1; id <= 12; id++)
+                host.ProcessIncomingDatagram(
+                    new byte[] { ReliableChannel.ChannelUnreliable, PayloadKind.Application, id, 0, 0, 0 }, endpoint);
+
+            var local = host.LocalGamers[0];
+            var buffer = new byte[16];
+            for (byte id = 1; id <= 12; id++)
+            {
+                Assert.That(local.IsDataAvailable, Is.True, "game packet starting with " + id + " was swallowed");
+                int length = local.ReceiveData(buffer, out _);
+                Assert.That(buffer.Take(length), Is.EqualTo(new byte[] { id, 0, 0, 0 }));
+            }
+            Assert.That(received, Is.Empty, "game data must not be treated as a framework message");
+            await host.DisposeAsync();
+        }
+
+        [Test]
+        public async Task FrameworkMessages_ArriveThroughTheChannel_AsMessages_NotGameData()
+        {
+            var (host, transport, gamer, endpoint) = await HostWithGamer();
+            var received = new List<INetworkMessage>();
+            host.MessageReceived += (s, e) => received.Add(e.Message);
+            var writer = new PacketWriter();
+            new HeartbeatMessage { GamerId = "p2", SequenceNumber = 1, Timestamp = 1 }.Serialize(writer);
+            byte[] message = writer.GetData();
+            byte[] datagram = new byte[message.Length + 2];
+            datagram[0] = ReliableChannel.ChannelUnreliable;
+            datagram[1] = PayloadKind.Message;
+            Buffer.BlockCopy(message, 0, datagram, 2, message.Length);
+
+            host.ProcessIncomingDatagram(datagram, endpoint);
+
+            Assert.That(received.Count, Is.EqualTo(1));
+            Assert.That(host.LocalGamers[0].IsDataAvailable, Is.False);
             await host.DisposeAsync();
         }
 
@@ -396,7 +447,7 @@ namespace Microsoft.Xna.Framework.Net.Tests
         {
             var (host, transport, gamer, endpoint) = await HostWithGamer();
 
-            host.ProcessIncomingDatagram(new byte[] { ReliableChannel.ChannelReliable, 0, 0, 0x50 }, new IPEndPoint(IPAddress.Loopback, 54321));
+            host.ProcessIncomingDatagram(new byte[] { ReliableChannel.ChannelReliable, 0, 0, PayloadKind.Application, 0x50 }, new IPEndPoint(IPAddress.Loopback, 54321));
 
             Assert.That(host.LocalGamers[0].IsDataAvailable, Is.False);
             await host.DisposeAsync();

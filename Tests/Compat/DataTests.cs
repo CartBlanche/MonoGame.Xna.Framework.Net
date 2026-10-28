@@ -104,7 +104,6 @@ namespace Microsoft.Xna.Framework.Net.CompatTests
         }
 
         [Test]
-        [Ignore("Known bug, plan tasks 1.1/1.2: a game packet whose first byte is a framework message id (2-10) and that parses as that message is swallowed")]
         public async Task GamePackets_ThatStartWithAFrameworkMessageId_AreStillDelivered()
         {
             LocalNetworkGamer hostGamer = SessionHarness.LocalOf(host);

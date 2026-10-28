@@ -256,7 +256,7 @@ namespace Microsoft.Xna.Framework.Net
             {
                 var writer = new PacketWriter();
                 message.Serialize(writer);
-                innerSession.SendDataToGamer(networkGamer, writer, SendDataOptions.Reliable);
+                innerSession.SendMessageToGamer(networkGamer, writer.GetData(), SendDataOptions.Reliable);
             }
         }
 
@@ -271,10 +271,10 @@ namespace Microsoft.Xna.Framework.Net
             if (innerSession == null)
                 throw new InvalidOperationException("Session not initialized");
 
-            // Broadcast to all remote gamers using SendToAll
+            // Broadcast to all remote gamers
             var writer = new PacketWriter();
             message.Serialize(writer);
-            innerSession.SendToAll(writer, SendDataOptions.Reliable);
+            innerSession.SendMessageToAll(writer, SendDataOptions.Reliable, null);
         }
 
         /// <summary>

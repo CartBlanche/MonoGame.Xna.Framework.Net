@@ -87,7 +87,7 @@ namespace Microsoft.Xna.Framework.Net
                     session.Logger?.LogInfo($"Sending heartbeat to {remoteGamers.Count} remote gamer(s)");
                     foreach (var gamer in remoteGamers)
                     {
-                        session.SendDataToGamer(gamer, data, SendDataOptions.None);
+                        session.SendMessageToGamer(gamer, data, SendDataOptions.None);
                     }
 
                     // Check for disconnections
@@ -177,7 +177,7 @@ namespace Microsoft.Xna.Framework.Net
             var gamer = session?.AllGamers.FirstOrDefault(g => g.Id == gamerId);
             if (gamer != null)
             {
-                session?.SendDataToGamer(gamer, writer.GetData(), SendDataOptions.None);
+                session?.SendMessageToGamer(gamer, writer.GetData(), SendDataOptions.None);
             }
         }
 
