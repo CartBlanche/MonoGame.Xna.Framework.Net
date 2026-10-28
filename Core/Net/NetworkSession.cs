@@ -260,9 +260,11 @@ namespace Microsoft.Xna.Framework.Net
         }
 
         /// <summary>
-        /// Gets whether the session allows host migration.
+        /// Gets or sets whether the session may pick a new host when the host goes. Host migration is not
+        /// implemented, so whatever this is set to, clients end the session with
+        /// <see cref="NetworkSessionEndReason.HostEndedSession"/> when the host leaves.
         /// </summary>
-        public bool AllowHostMigration { get; set; } = true;
+        public bool AllowHostMigration { get; set; } = false;
 
         /// <summary>
         /// Gets or sets whether the session allows gamers to join during gameplay. When false,
@@ -415,15 +417,34 @@ namespace Microsoft.Xna.Framework.Net
                     // Not implemented
                     throw new NotSupportedException($"SessionType {sessionType} not supported yet.");
             }
+
+            // what the host asked for is what searches see and what joiners get
+            if (sessionProperties != null)
+                foreach (var kvp in sessionProperties)
+                    session.SessionProperties[kvp.Key] = kvp.Value;
             return session;
         }
 
         /// <summary>
         /// Synchronous wrapper for CreateAsync (for XNA compatibility).
         /// </summary>
-        public static NetworkSession Create(NetworkSessionType sessionType, int maxLocalGamers, int maxGamers, int privateGamerSlots, IDictionary<string, object> sessionProperties)
+        public static NetworkSession Create(NetworkSessionType sessionType, int maxLocalGamers, int maxGamers, int privateGamerSlots, NetworkSessionProperties sessionProperties)
         {
-            return CreateAsync(sessionType, maxLocalGamers, maxGamers, privateGamerSlots, sessionProperties).GetAwaiter().GetResult();
+            return CreateAsync(sessionType, maxLocalGamers, maxGamers, privateGamerSlots, sessionProperties?.ToDictionary()).GetAwaiter().GetResult();
+        }
+
+        // A search matches a session that has every property the search sets, with the same value. No
+        // properties (null or empty) matches everything.
+        private static bool MatchesSearch(AvailableNetworkSession session, IDictionary<string, object> search)
+        {
+            if (search == null)
+                return true;
+            foreach (var wanted in search)
+            {
+                if (!session.SessionProperties.TryGetValue(wanted.Key, out var actual) || !Equals(actual, wanted.Value))
+                    return false;
+            }
+            return true;
         }
 
         /// <summary>
@@ -440,11 +461,12 @@ namespace Microsoft.Xna.Framework.Net
                 case NetworkSessionType.Local:
                     await Task.Delay(5, cancellationToken);
                     // Return sessions in local registry
-                    var localSessions = LocalSessionRegistry.FindSessions(maxLocalGamers).ToList();
+                    var localSessions = LocalSessionRegistry.FindSessions(maxLocalGamers).Where(s => MatchesSearch(s, sessionProperties)).ToList();
                     return new AvailableNetworkSessionCollection(localSessions);
                 case NetworkSessionType.SystemLink:
                     // Discover sessions via UDP broadcast
-                    var systemLinkSessions = (await SystemLinkSessionManager.DiscoverSessionsAsync(maxLocalGamers, cancellationToken)).ToList();
+                    var systemLinkSessions = (await SystemLinkSessionManager.DiscoverSessionsAsync(maxLocalGamers, cancellationToken))
+                        .Where(s => MatchesSearch(s, sessionProperties)).ToList();
                     return new AvailableNetworkSessionCollection(systemLinkSessions);
                 default:
                     throw new NotSupportedException($"SessionType {sessionType} not supported yet.");
@@ -454,9 +476,73 @@ namespace Microsoft.Xna.Framework.Net
         /// <summary>
         /// Synchronous wrapper for FindAsync (for XNA compatibility).
         /// </summary>
-        public static AvailableNetworkSessionCollection Find(NetworkSessionType sessionType, int maxLocalGamers, IDictionary<string, object> sessionProperties)
+        public static AvailableNetworkSessionCollection Find(NetworkSessionType sessionType, int maxLocalGamers, NetworkSessionProperties searchProperties)
         {
-            return FindAsync(sessionType, maxLocalGamers, sessionProperties).GetAwaiter().GetResult();
+            return FindAsync(sessionType, maxLocalGamers, searchProperties?.ToDictionary()).GetAwaiter().GetResult();
+        }
+
+        // The XNA way of waiting: Begin returns at once, End collects the result (or rethrows the failure)
+
+        public static IAsyncResult BeginCreate(NetworkSessionType sessionType, int maxLocalGamers, int maxGamers, int privateGamerSlots,
+            NetworkSessionProperties sessionProperties, AsyncCallback callback, object asyncState)
+        {
+            return new AsyncResultWrapper<NetworkSession>(
+                CreateAsync(sessionType, maxLocalGamers, maxGamers, privateGamerSlots, sessionProperties?.ToDictionary()), callback, asyncState);
+        }
+
+        public static IAsyncResult BeginCreate(NetworkSessionType sessionType, IEnumerable<SignedInGamer> localGamers, int maxGamers, int privateGamerSlots,
+            NetworkSessionProperties sessionProperties, AsyncCallback callback, object asyncState)
+        {
+            if (localGamers == null)
+                throw new ArgumentNullException(nameof(localGamers));
+            return BeginCreate(sessionType, localGamers.Count(), maxGamers, privateGamerSlots, sessionProperties, callback, asyncState);
+        }
+
+        public static NetworkSession EndCreate(IAsyncResult result) => End<NetworkSession>(result);
+
+        public static IAsyncResult BeginFind(NetworkSessionType sessionType, int maxLocalGamers, NetworkSessionProperties searchProperties,
+            AsyncCallback callback, object asyncState)
+        {
+            return new AsyncResultWrapper<AvailableNetworkSessionCollection>(
+                FindAsync(sessionType, maxLocalGamers, searchProperties?.ToDictionary()), callback, asyncState);
+        }
+
+        public static IAsyncResult BeginFind(NetworkSessionType sessionType, IEnumerable<SignedInGamer> localGamers, NetworkSessionProperties searchProperties,
+            AsyncCallback callback, object asyncState)
+        {
+            if (localGamers == null)
+                throw new ArgumentNullException(nameof(localGamers));
+            return BeginFind(sessionType, localGamers.Count(), searchProperties, callback, asyncState);
+        }
+
+        public static AvailableNetworkSessionCollection EndFind(IAsyncResult result) => End<AvailableNetworkSessionCollection>(result);
+
+        public static IAsyncResult BeginJoin(AvailableNetworkSession availableSession, AsyncCallback callback, object asyncState)
+        {
+            return new AsyncResultWrapper<NetworkSession>(JoinAsync(availableSession), callback, asyncState);
+        }
+
+        public static NetworkSession EndJoin(IAsyncResult result) => End<NetworkSession>(result);
+
+        public static IAsyncResult BeginJoinInvited(int maxLocalGamers, AsyncCallback callback, object asyncState)
+        {
+            return BeginJoinInvited(new[] { SignedInGamer.Current }, callback, asyncState);
+        }
+
+        public static IAsyncResult BeginJoinInvited(IEnumerable<SignedInGamer> localGamers, AsyncCallback callback, object asyncState)
+        {
+            return new AsyncResultWrapper<NetworkSession>(JoinInvitedAsync(localGamers), callback, asyncState);
+        }
+
+        public static NetworkSession EndJoinInvited(IAsyncResult result) => End<NetworkSession>(result);
+
+        private static T End<T>(IAsyncResult result)
+        {
+            if (result == null)
+                throw new ArgumentNullException(nameof(result));
+            if (!(result is AsyncResultWrapper<T> wrapper))
+                throw new ArgumentException("The result did not come from the matching Begin method.", nameof(result));
+            return wrapper.GetResult();
         }
 
         /// <summary>
@@ -995,6 +1081,14 @@ namespace Microsoft.Xna.Framework.Net
                     logger?.LogWarning($"Received leave notification for unknown gamer {leaveMessage.GamerId}");
                 }
             }
+            else if (e.Message is RemovedFromSessionMessage)
+            {
+                if (!IsHost && IsFromHost(e.RemoteEndPoint))
+                {
+                    logger?.LogWarning("The host removed this machine from the session");
+                    OnSessionEnded(NetworkSessionEndReason.RemovedByHost);
+                }
+            }
             else if (e.Message is SessionStateMessage stateMessage)
             {
                 // Phase 2: Handle session state synchronization from host
@@ -1273,7 +1367,7 @@ namespace Microsoft.Xna.Framework.Net
             AddGamer(gamer);
         }
 
-        internal void EvictGamer(NetworkGamer gamer)
+        internal void EvictGamer(NetworkGamer gamer, NetworkSessionEndReason hostGoneReason = NetworkSessionEndReason.HostEndedSession)
         {
             if (gamer == null)
             {
@@ -1299,7 +1393,28 @@ namespace Microsoft.Xna.Framework.Net
                     logger?.LogWarning("AllowHostMigration is enabled, but host migration is not implemented. Ending session with HostEndedSession.");
                 }
 
-                OnSessionEnded(NetworkSessionEndReason.HostEndedSession);
+                OnSessionEnded(hostGoneReason);
+            }
+        }
+
+        internal void RemoveMachine(NetworkMachine machine)
+        {
+            if (!IsHost)
+                throw new InvalidOperationException("Only the host can remove a machine from the session.");
+            if (machine.IsLocal)
+                throw new InvalidOperationException("The host cannot remove itself; leave the session instead.");
+
+            var removed = new PacketWriter();
+            new RemovedFromSessionMessage { Reason = "Removed by the host" }.Serialize(removed);
+            byte[] notice = removed.GetData();
+
+            foreach (NetworkGamer gamer in machine.Gamers.ToList())
+            {
+                // outside the channel, as a plain datagram, because the channel goes with the gamer.
+                // A few copies, since nothing resends it.
+                for (int i = 0; i < 3; i++)
+                    SendRawToGamer(gamer.GamerId, notice);
+                RemoveGamer(gamer);
             }
         }
 
@@ -1573,7 +1688,7 @@ namespace Microsoft.Xna.Framework.Net
                 return;
 
             logger?.LogWarning($"Removing {gamer.Gamertag}: {reason}");
-            EvictGamer(gamer);
+            EvictGamer(gamer, NetworkSessionEndReason.Disconnected);
         }
 
         private void TickReliableChannels()

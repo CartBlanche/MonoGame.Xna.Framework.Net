@@ -23,13 +23,14 @@ namespace Microsoft.Xna.Framework.Net
 
         public System.Threading.WaitHandle AsyncWaitHandle => ((IAsyncResult)task).AsyncWaitHandle;
 
-        public bool CompletedSynchronously => task.IsCompletedSuccessfully;
+        // the callback always runs on a continuation, never inside Begin
+        public bool CompletedSynchronously => false;
 
         public bool IsCompleted => task.IsCompleted;
 
         public T GetResult()
         {
-            return task.Result;
+            return task.GetAwaiter().GetResult();   // rethrows the original exception, not an AggregateException
         }
     }
 }

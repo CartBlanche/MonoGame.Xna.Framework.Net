@@ -53,6 +53,7 @@ namespace Microsoft.Xna.Framework.Net
             Register<GamerLeavingMessage>(9); // Phase 2: Graceful leave protocol
             Register<SessionStateMessage>(10); // Phase 2: Session state synchronization
             Register<GamerJoinedMessage>(11);
+            Register<RemovedFromSessionMessage>(12);
         }
     }
 }

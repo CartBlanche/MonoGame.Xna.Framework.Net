@@ -133,7 +133,7 @@ namespace Microsoft.Xna.Framework.Net
             // Remove disconnected gamers (outside lock to avoid deadlock)
             foreach (var gamer in disconnected)
             {
-                session.EvictGamer(gamer);
+                session.EvictGamer(gamer, NetworkSessionEndReason.Disconnected);
                 
                 lock (connections)
                 {

@@ -25,6 +25,15 @@ namespace Microsoft.Xna.Framework.Net
             new GamerCollection(session.AllGamers.Where(g => g.Machine == this).ToList());
 
         /// <summary>
+        /// Removes this machine, and so its gamers, from the session. Only the host may, and not from itself.
+        /// The machine's session ends with <see cref="NetworkSessionEndReason.RemovedByHost"/>.
+        /// </summary>
+        public void RemoveFromSession()
+        {
+            session.RemoveMachine(this);
+        }
+
+        /// <summary>
         /// Gets whether this is the machine the code is running on.
         /// </summary>
         internal bool IsLocal => isLocal;

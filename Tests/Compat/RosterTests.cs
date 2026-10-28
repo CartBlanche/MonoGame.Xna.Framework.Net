@@ -101,5 +101,29 @@ namespace Microsoft.Xna.Framework.Net.CompatTests
                 "the other client never heard the gamer had left");
             Assert.That(clientB.AllGamers.Count, Is.EqualTo(2));
         }
+
+        [Test]
+        public async Task TheHost_CanRemoveAMachine_AndItsSessionEndsAsRemovedByHost()
+        {
+            NetworkGamer targetOnHost = host.RemoteGamers.First();
+            NetworkSession removed = targetOnHost.GamerId == SessionHarness.LocalOf(clientA).GamerId ? clientA : clientB;
+            NetworkSession other = removed == clientA ? clientB : clientA;
+            NetworkSessionEndReason? reason = null;
+            removed.SessionEnded += (s, e) => reason = e.EndReason;
+
+            targetOnHost.Machine.RemoveFromSession();
+
+            Assert.That(await lan.WaitUntilAsync(() => reason != null), "the removed machine was never told");
+            Assert.That(reason, Is.EqualTo(NetworkSessionEndReason.RemovedByHost));
+            Assert.That(host.AllGamers.Count, Is.EqualTo(2));
+            Assert.That(await lan.WaitUntilAsync(() => other.AllGamers.Count == 2), "the other client was not told");
+        }
+
+        [Test]
+        public void OnlyTheHost_CanRemoveAMachine_AndNotItself()
+        {
+            Assert.Throws<System.InvalidOperationException>(() => SessionHarness.LocalOf(host).Machine.RemoveFromSession());
+            Assert.Throws<System.InvalidOperationException>(() => clientA.RemoteGamers.First().Machine.RemoveFromSession());
+        }
     }
 }
