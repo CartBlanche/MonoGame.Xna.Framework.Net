@@ -126,18 +126,24 @@ namespace Microsoft.Xna.Framework.Net
                     int receiveAttempts = 0;
                     int packetsReceived = 0;
 
+                    // Only one receive is ever outstanding. Starting a new ReceiveAsync every 100ms and
+                    // abandoning the old one when the timeout wins leaves orphaned receives behind, and
+                    // the next datagram is handed to the oldest orphan, so it is lost.
+                    Task<UdpReceiveResult> pendingReceive = null;
+
                     while (DateTime.UtcNow < endTime && !cancellationToken.IsCancellationRequested)
                     {
                         try
                         {
                             receiveAttempts++;
                             // Try to receive with reduced timeout for faster response
-                            var receiveTask = udpClient.ReceiveAsync();
+                            var receiveTask = pendingReceive ?? (pendingReceive = udpClient.ReceiveAsync());
                             var timeoutTask = Task.Delay(100, cancellationToken);
                             var completedTask = await Task.WhenAny(receiveTask, timeoutTask);
 
                             if (completedTask == receiveTask)
                             {
+                                pendingReceive = null;
                                 var result = await receiveTask;
                                 var buffer = result.Buffer;
                                 packetsReceived++;
@@ -219,6 +225,9 @@ namespace Microsoft.Xna.Framework.Net
                             Debug.WriteLine($"[DISCOVERY] Unexpected error: {ex.GetType().Name} - {ex.Message}");
                         }
                     }
+
+                    // the socket is about to be disposed; the receive still pending on it will fault, so observe that
+                    pendingReceive?.ContinueWith(t => _ = t.Exception, TaskContinuationOptions.OnlyOnFaulted);
 
                     var elapsed = DateTime.UtcNow - startTime;
                     Debug.WriteLine($"[DISCOVERY] Completed after {elapsed.TotalSeconds:F2}s. Attempts: {receiveAttempts}, Packets: {packetsReceived}, Sessions: {sessionsDict.Count}");
