@@ -8,7 +8,7 @@ This file is the single source of truth for progress. Update it in the same comm
 
 Legend: `[ ]` todo · `[~]` in progress · `[x]` done · `[?]` needs verification before work starts · `(!)` decision needed
 
-_Last updated: 2026-10-28 (Phases 0 and 1 complete; 3 compat known gaps remain)_
+_Last updated: 2026-10-28 (Phases 0, 1 and 2 complete; 2 compat known gaps remain)_
 
 ---
 
@@ -18,7 +18,7 @@ _Last updated: 2026-10-28 (Phases 0 and 1 complete; 3 compat known gaps remain)_
 |------:|-------|--------|-----------|
 | 0 | Safety net: CI runs tests, compat suite scaffold | **Done** | 8/8 |
 | 1 | Wire protocol correctness (envelope, InOrder, fragmentation) | **Done** | 7/7 |
-| 2 | Threading and event model (`Update()`-drained events) | Not started | 0/6 |
+| 2 | Threading and event model (`Update()`-drained events) | Done | 6/6 |
 | 3 | XNA API parity (gamers, packets, sessions) | Not started | 0/19 |
 | 4 | Backend unification (one public API, peer-id transport) | Not started | 0/6 |
 | 5 | Online session types, matchmaking, invites | Not started | 0/5 |
@@ -77,7 +77,6 @@ Baseline before this work (Release, macOS, net10.0)
 
 Known gaps found by the compat suite (each is an `[Ignore("...plan task...")]` test; un-ignore it when the task is done)
 - 1.1 / 1.7: game packets starting with a framework message id are swallowed; clients get `GameStarted`/`GameEnded` twice
-- 2.6: graceful host `Leave()` never raises `SessionEnded` on clients
 - 3.13 / 3.15: discovery reports `CurrentGamerCount` as 1; clients don't see each other
 
 Commit groups
@@ -124,12 +123,12 @@ XNA raised them from `NetworkSession.Update()` on the game thread, and games (in
 `NetworkSessionComponent`, which calls `Update()` every frame) rely on it. `Update()` is currently a no-op for UDP sessions.
 
 Tasks
-- [ ] 2.1 (ShipGame already queues events itself in `NetworkManager` and re-raises them from its own update; that code keeps working, and becomes redundant) Internal thread-safe event queue (`System.Threading.Channels`); network threads enqueue, `Update()` drains and raises
-- [ ] 2.2 Keep `NetworkGamer.IsDataAvailable`/`ReceiveData` consistent with the same drain point
-- [ ] 2.3 Replace static `NetworkGamer.LocalGamer` with per-session state (remove the static outright; no shim needed pre-release)
-- [ ] 2.4 Make `NetworkMessageRegistry` thread-safe and reject framework-id collisions
-- [ ] 2.6 Graceful host `Leave()`: clients remove the host gamer (`RemoveGamer`) but never raise `SessionEnded(HostEndedSession)` (only the `EvictGamer` path does). Un-ignore `TheHostLeaving_EndsTheSessionOnClients`
-- [ ] 2.5 Option `NetworkSession.EventDispatchMode` ({`OnUpdate` default, `Immediate`}) for headless servers/tools that never call `Update()` (!) confirm desired
+- [x] 2.1 (ShipGame already queues events itself in `NetworkManager` and re-raises them from its own update; that code keeps working, and becomes redundant) Internal thread-safe event queue (`System.Threading.Channels`); network threads enqueue, `Update()` drains and raises. Implemented with a `ConcurrentQueue<Action>` (no need for Channels); handler exceptions are logged and do not stop the queue; `SessionEnded` is raised at most once, and directly (not queued) when the caller disposes
+- [x] 2.2 Keep `NetworkGamer.IsDataAvailable`/`ReceiveData` consistent with the same drain point
+- [x] 2.3 Replace static `NetworkGamer.LocalGamer` with per-session state (remove the static outright; no shim needed pre-release)
+- [x] 2.4 Make `NetworkMessageRegistry` thread-safe and reject framework-id collisions (the same type may re-register; a different type on a taken id throws)
+- [x] 2.6 Graceful host `Leave()`: clients remove the host gamer (`RemoveGamer`) but never raise `SessionEnded(HostEndedSession)` (only the `EvictGamer` path does). Un-ignore `TheHostLeaving_EndsTheSessionOnClients`
+- [x] 2.5 Option `NetworkSession.EventDispatchMode` ({`OnUpdate` default, `Immediate`}) for headless servers/tools that never call `Update()`
 
 Commit groups
 - A. `net: raise session events from Update()` (2.1, 2.2, 2.5)
@@ -313,6 +312,9 @@ Exit criteria: a containerised server accepts clients from another network and s
 | 2026-10-28 | Unreliable and sequenced data limited to one datagram (1100 bytes); larger data must be sent reliably | IP fragmentation drops the whole datagram if any piece is lost; XNA also limited unreliable packet size. Revisit if ShipGame or a backend needs more |
 | 2026-10-28 | Selective acks added to the channel | Cumulative-only acks plus capped resends stalled under 20% loss; found by the lossy wrap test |
 | 2026-10-28 | Events move to `Update()` | This matches XNA's behaviour, so it is also a compat fix |
+| 2026-10-28 | Phase 2 shipped as one commit, not the two planned (A and B) | The event queue and the per-session local gamer change the same lines of `NetworkSession.cs` |
+| 2026-10-28 | `SessionEnded` is raised at most once per session | Previously a client whose host left, then disposed in the handler, got it twice (HostEndedSession then ClientSignedOut) |
+| 2026-10-28 | Framework state changes stay immediate; only the public events are deferred | Handshake and readiness logic must not wait for the game's `Update()` |
 
 ## Open questions
 0. ~~Self-loopback~~ DECIDED 2026-10-28: no echo. `SendData` never delivers to the sender; drop the `includeSelf` branch in `NetworkGamer.SendDataInternal` (task 3.17). Verify against XNA docs when implementing

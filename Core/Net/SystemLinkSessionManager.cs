@@ -183,7 +183,7 @@ namespace Microsoft.Xna.Framework.Net
                                     Buffer.BlockCopy(buffer, headerEnd, propertiesBytes, 0, propertiesBytes.Length);
 
                                     // Parse session properties without creating a full NetworkSession (avoids resource leaks,
-                                    // port 31338 contention, and static NetworkGamer.LocalGamer overwrite)
+                                    // and port 31338 contention)
                                     var sessionProperties = NetworkSession.DeserializeSessionPropertiesStatic(propertiesBytes);
 
                                     var hostEndpoint = new IPEndPoint(result.RemoteEndPoint.Address, gamePort);
@@ -288,8 +288,7 @@ namespace Microsoft.Xna.Framework.Net
             {
                 Debug.WriteLine($"[JOIN] Sending join request (attempt {attempt + 1}/{MAX_RETRIES})");
 
-                // CRITICAL: Use the session's own local gamer, not the static NetworkGamer.LocalGamer
-                // The static property can be stale when multiple sessions exist (e.g., testing on same machine)
+                // Use the session's own local gamer
                 var localGamer = session.LocalGamers.FirstOrDefault();
                 if (localGamer == null)
                     throw new InvalidOperationException("No local gamer found in session");

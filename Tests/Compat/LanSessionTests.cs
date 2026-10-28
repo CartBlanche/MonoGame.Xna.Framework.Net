@@ -147,7 +147,6 @@ namespace Microsoft.Xna.Framework.Net.CompatTests
         }
 
         [Test]
-        [Ignore("Known gap, plan task 2.6: a graceful host Leave() removes the host gamer on clients but never raises SessionEnded(HostEndedSession)")]
         public async Task TheHostLeaving_EndsTheSessionOnClients()
         {
             NetworkSession host = await lan.StartHostAsync();

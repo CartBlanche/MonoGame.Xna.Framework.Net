@@ -11,7 +11,6 @@ namespace Microsoft.Xna.Framework.Net
     /// </summary>
     public class NetworkGamer : INetworkGamer
     {
-        private static NetworkGamer localGamer;
         private readonly NetworkSession session;
         private readonly string id;
         private readonly bool isLocal;
@@ -321,15 +320,6 @@ namespace Microsoft.Xna.Framework.Net
         public override int GetHashCode()
         {
             return Id.GetHashCode();
-        }
-
-        /// <summary>
-        /// Gets the local gamer.
-        /// </summary>
-        public static NetworkGamer LocalGamer
-        {
-            get => localGamer;
-            internal set => localGamer = value;
         }
 
         /// <summary>

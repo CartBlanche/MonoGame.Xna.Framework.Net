@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Net;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -34,6 +35,7 @@ namespace Microsoft.Xna.Framework.Net
         private const int ReliableTickMilliseconds = 50;
         private readonly object lockObject = new object();
 
+        private LocalNetworkGamer localGamer;
         private INetworkTransport networkTransport;
         internal NetworkSessionState sessionState;
         internal bool disposed;
@@ -47,6 +49,16 @@ namespace Microsoft.Xna.Framework.Net
         internal ConnectionHealthMonitor ConnectionMonitor => connectionMonitor;
         private NetworkDiagnostics diagnostics;
         private INetworkLogger logger;
+
+        // Events raised by the network and timer threads are queued here and raised from Update()
+        private readonly ConcurrentQueue<Action> pendingEvents = new ConcurrentQueue<Action>();
+        private int sessionEndedRaised;
+
+        /// <summary>
+        /// Gets or sets whether events are raised from <see cref="Update"/> (the default, as XNA did) or
+        /// straight away on the thread that produced them.
+        /// </summary>
+        public EventDispatchMode EventDispatchMode { get; set; } = EventDispatchMode.OnUpdate;
 
         // Events
         public event EventHandler<GameStartedEventArgs> GameStarted;
@@ -136,7 +148,7 @@ namespace Microsoft.Xna.Framework.Net
             // Add local gamer
             var gamerGuid = Guid.NewGuid().ToString();
             var localGamer = new LocalNetworkGamer(this, gamerGuid, isHost, $"{SignedInGamer.Current?.Gamertag ?? "Player"}_{gamerGuid.Substring(0, 8)}");
-            NetworkGamer.LocalGamer = localGamer;
+            this.localGamer = localGamer;
             AddGamer(localGamer);
 
             // Start receive loop for SystemLink sessions
@@ -569,6 +581,34 @@ namespace Microsoft.Xna.Framework.Net
             // Process any pending in-memory messages only for Local sessions
             if (sessionType == NetworkSessionType.Local)
                 ProcessIncomingMessages();
+
+            DrainEvents();
+        }
+
+        // Runs what the network threads queued, on the caller's thread. A handler may dispose the
+        // session, so stop as soon as that happens.
+        private void DrainEvents()
+        {
+            while (!disposed && pendingEvents.TryDequeue(out var action))
+            {
+                try
+                {
+                    action();
+                }
+                catch (Exception ex)
+                {
+                    logger?.LogError("A session event handler threw", ex);
+                }
+            }
+        }
+
+        // Queues an event, game data delivery included, for Update(); or runs it now in Immediate mode
+        private void Raise(Action action)
+        {
+            if (EventDispatchMode == EventDispatchMode.Immediate)
+                action();
+            else
+                pendingEvents.Enqueue(action);
         }
 
         /// <summary>
@@ -576,7 +616,7 @@ namespace Microsoft.Xna.Framework.Net
         /// </summary>
         public void SendToAll(PacketWriter writer, SendDataOptions options)
         {
-            SendToAll(writer, options, NetworkGamer.LocalGamer);
+            SendToAll(writer, options, localGamer);
         }
 
         /// <summary>
@@ -926,10 +966,8 @@ namespace Microsoft.Xna.Framework.Net
                 if (leavingGamer != null)
                 {
                     logger?.LogInfo($"Removing {leavingGamer.Gamertag} from session (graceful leave)");
-                    RemoveGamer(leavingGamer);
-                    
-                    // Notify connection monitor (stops tracking this gamer)
-                    connectionMonitor?.OnGamerLeft(leavingGamer);
+                    // EvictGamer also ends the session on a client whose host is the one leaving
+                    EvictGamer(leavingGamer);
                 }
                 else
                 {
@@ -962,35 +1000,42 @@ namespace Microsoft.Xna.Framework.Net
             }
 
             // Raise the MessageReceived event
-            var handler = MessageReceived;
-            if (handler != null)
-                handler(this, e);
+            Raise(() => MessageReceived?.Invoke(this, e));
         }
 
         private void OnGameStarted()
         {
-            GameStarted?.Invoke(this, new GameStartedEventArgs());
+            Raise(() => GameStarted?.Invoke(this, new GameStartedEventArgs()));
         }
 
         private void OnGameEnded()
         {
-            GameEnded?.Invoke(this, new GameEndedEventArgs());
+            Raise(() => GameEnded?.Invoke(this, new GameEndedEventArgs()));
         }
 
         private void OnGamerJoined(NetworkGamer gamer)
         {
-            gamerJoined?.Invoke(this, new GamerJoinedEventArgs(gamer));
+            Raise(() => gamerJoined?.Invoke(this, new GamerJoinedEventArgs(gamer)));
         }
 
         private void OnGamerLeft(NetworkGamer gamer)
         {
-            GamerLeft?.Invoke(this, new GamerLeftEventArgs(gamer));
+            Raise(() => GamerLeft?.Invoke(this, new GamerLeftEventArgs(gamer)));
         }
 
-        private void OnSessionEnded(NetworkSessionEndReason reason)
+        // The session ends once: whichever reason gets here first is the one reported.
+        // A session the caller disposes raises it on their own thread, so it is never queued.
+        private void OnSessionEnded(NetworkSessionEndReason reason, bool callerThread = false)
         {
             sessionState = NetworkSessionState.Ended;
-            SessionEnded?.Invoke(this, new NetworkSessionEndedEventArgs(reason));
+            if (Interlocked.Exchange(ref sessionEndedRaised, 1) != 0)
+                return;
+
+            void Notify() => SessionEnded?.Invoke(this, new NetworkSessionEndedEventArgs(reason));
+            if (callerThread)
+                Notify();
+            else
+                Raise(Notify);
         }
 
         /// <summary>
@@ -1068,7 +1113,7 @@ namespace Microsoft.Xna.Framework.Net
                 try { cancellationTokenSource?.Dispose(); } catch { /* Already disposed */ }
                 
                 // Raise SessionEnded event (may cause re-entrant Dispose call, now safe)
-                OnSessionEnded(NetworkSessionEndReason.ClientSignedOut);
+                OnSessionEnded(NetworkSessionEndReason.ClientSignedOut, callerThread: true);
             }
         }
 
@@ -1098,7 +1143,7 @@ namespace Microsoft.Xna.Framework.Net
                 try { cancellationTokenSource?.Dispose(); } catch { /* Already disposed */ }
                 
                 // Raise SessionEnded event (may cause re-entrant Dispose call, now safe)
-                OnSessionEnded(NetworkSessionEndReason.ClientSignedOut);
+                OnSessionEnded(NetworkSessionEndReason.ClientSignedOut, callerThread: true);
             }
         }
 
@@ -1527,8 +1572,11 @@ namespace Microsoft.Xna.Framework.Net
                     // so they can receive it via ReceiveData()
                     byte[] data = new byte[payload.Length - 1];
                     Buffer.BlockCopy(payload, 1, data, 0, data.Length);
-                    foreach (var localGamer in LocalGamers)
-                        localGamer.EnqueueIncomingPacket(data, senderGamer);
+                    Raise(() =>
+                    {
+                        foreach (var local in LocalGamers)
+                            local.EnqueueIncomingPacket(data, senderGamer);
+                    });
                     break;
 
                 case PayloadKind.Message:

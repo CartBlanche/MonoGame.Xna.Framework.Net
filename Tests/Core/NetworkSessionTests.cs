@@ -113,6 +113,7 @@ namespace Microsoft.Xna.Framework.Net.Tests
                 Timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
             }, null));
 
+            session.Update();
             var result = await tcs.Task;
             Assert.IsNotNull(result);
             Assert.IsInstanceOf<HeartbeatMessage>(result.Message);
@@ -253,6 +254,7 @@ namespace Microsoft.Xna.Framework.Net.Tests
             host.DispatchIncomingMessage(new MessageReceivedEventArgs(JoinRequest("p2"), endpoint));
             transport.SentPackets.Clear();
 
+            host.Update();          // the join's own events are not what these tests are about
             return (host, transport, host.RemoteGamers.Single(g => g.Id == "p2"), endpoint);
         }
 
@@ -303,6 +305,7 @@ namespace Microsoft.Xna.Framework.Net.Tests
             for (int i = 0; i < ReliableChannel.SendWindow + ReliableChannel.MaxQueuedPackets + 10; i++)
                 host.SendDataToGamer(gamer, new byte[] { 0x50 }, SendDataOptions.Reliable);
 
+            host.Update();
             Assert.That(left.Count, Is.EqualTo(1));
             Assert.That(host.RemoteGamers.Count, Is.EqualTo(0));
             await host.DisposeAsync();
@@ -339,6 +342,7 @@ namespace Microsoft.Xna.Framework.Net.Tests
             host.ProcessIncomingDatagram(datagram, endpoint);
             host.ProcessIncomingDatagram(datagram, endpoint);       // the network duplicated it
 
+            host.Update();
             var local = host.LocalGamers[0];
             var buffer = new byte[64];
             Assert.That(local.IsDataAvailable, Is.True);
@@ -372,6 +376,7 @@ namespace Microsoft.Xna.Framework.Net.Tests
 
             host.ProcessIncomingDatagram(new byte[] { ReliableChannel.ChannelReliable, 0, 0, PayloadKind.Application, 0x50, 1 }, endpoint);
 
+            host.Update();
             var local = host.LocalGamers[0];
             var buffer = new byte[64];
             local.ReceiveData(buffer, out _);
@@ -421,6 +426,7 @@ namespace Microsoft.Xna.Framework.Net.Tests
             new HeartbeatMessage { GamerId = "p2", SequenceNumber = 1, Timestamp = 1 }.Serialize(heartbeat);
             host.ProcessIncomingDatagram(heartbeat.GetData(), endpoint);             // a registered message
 
+            host.Update();
             Assert.That(host.LocalGamers[0].IsDataAvailable, Is.False);
             Assert.That(received.Count, Is.EqualTo(1));
             Assert.That(received[0], Is.InstanceOf<HeartbeatMessage>());
@@ -439,6 +445,7 @@ namespace Microsoft.Xna.Framework.Net.Tests
                 host.ProcessIncomingDatagram(
                     new byte[] { ReliableChannel.ChannelUnreliable, PayloadKind.Application, id, 0, 0, 0 }, endpoint);
 
+            host.Update();
             var local = host.LocalGamers[0];
             var buffer = new byte[16];
             for (byte id = 1; id <= 12; id++)
@@ -467,6 +474,7 @@ namespace Microsoft.Xna.Framework.Net.Tests
 
             host.ProcessIncomingDatagram(datagram, endpoint);
 
+            host.Update();
             Assert.That(received.Count, Is.EqualTo(1));
             Assert.That(host.LocalGamers[0].IsDataAvailable, Is.False);
             await host.DisposeAsync();
@@ -543,6 +551,7 @@ namespace Microsoft.Xna.Framework.Net.Tests
             session.EvictGamer(remoteHost);
 
             Assert.That(session.SessionState, Is.EqualTo(NetworkSessionState.Ended));
+            session.Update();
             Assert.That(endReason, Is.EqualTo(NetworkSessionEndReason.HostEndedSession));
 
             await session.DisposeAsync();
