@@ -170,7 +170,7 @@ namespace Microsoft.Xna.Framework.Net.Tests
 
             host.DispatchIncomingMessage(new MessageReceivedEventArgs(JoinRequest("late"), new IPEndPoint(IPAddress.Loopback, 12345)));
 
-            Assert.IsFalse(host.AllGamers.Any(g => g.Id == "late"), "the latecomer must not be added");
+            Assert.IsFalse(host.AllGamers.Any(g => g.GamerId == "late"), "the latecomer must not be added");
             var rejection = LastRejection(transport);
             Assert.IsNotNull(rejection);
             Assert.That(rejection.ErrorCode, Is.EqualTo(NetworkSessionJoinError.SessionNotJoinable));
@@ -187,7 +187,7 @@ namespace Microsoft.Xna.Framework.Net.Tests
 
             host.DispatchIncomingMessage(new MessageReceivedEventArgs(JoinRequest("late"), new IPEndPoint(IPAddress.Loopback, 12345)));
 
-            Assert.IsTrue(host.AllGamers.Any(g => g.Id == "late"));
+            Assert.IsTrue(host.AllGamers.Any(g => g.GamerId == "late"));
             await host.DisposeAsync();
         }
 
@@ -200,7 +200,7 @@ namespace Microsoft.Xna.Framework.Net.Tests
 
             host.DispatchIncomingMessage(new MessageReceivedEventArgs(JoinRequest("early"), new IPEndPoint(IPAddress.Loopback, 12345)));
 
-            Assert.IsTrue(host.AllGamers.Any(g => g.Id == "early"));
+            Assert.IsTrue(host.AllGamers.Any(g => g.GamerId == "early"));
             await host.DisposeAsync();
         }
 
@@ -255,7 +255,7 @@ namespace Microsoft.Xna.Framework.Net.Tests
             transport.SentPackets.Clear();
 
             host.Update();          // the join's own events are not what these tests are about
-            return (host, transport, host.RemoteGamers.Single(g => g.Id == "p2"), endpoint);
+            return (host, transport, host.RemoteGamers.Single(g => g.GamerId == "p2"), endpoint);
         }
 
         [Test]
@@ -312,6 +312,41 @@ namespace Microsoft.Xna.Framework.Net.Tests
         }
 
         [Test]
+        public async Task ADataQueueNobodyReads_IsBoundedAndCountsWhatItDrops()
+        {
+            var (host, transport, gamer, endpoint) = await HostWithGamer();
+            var local = host.LocalGamers[0];
+
+            for (int i = 0; i < NetworkGamer.MaxIncomingPackets + 5; i++)
+                local.EnqueueIncomingPacket(new byte[] { (byte)i }, gamer);
+
+            Assert.That(host.Diagnostics.PacketsDropped, Is.EqualTo(5));
+            int count = 0;
+            var buffer = new byte[4];
+            while (local.IsDataAvailable)
+            {
+                local.ReceiveData(buffer, out _);
+                count++;
+            }
+            Assert.That(count, Is.EqualTo(NetworkGamer.MaxIncomingPackets));
+            await host.DisposeAsync();
+        }
+
+        [Test]
+        public async Task GamerIds_AreBytes_UniqueWithinTheSession_AndStable()
+        {
+            var (host, transport, gamer, endpoint) = await HostWithGamer();
+
+            byte hostId = host.LocalGamers[0].Id;
+            byte peerId = gamer.Id;
+
+            Assert.That(hostId, Is.Not.EqualTo(peerId));
+            Assert.That(gamer.Id, Is.EqualTo(peerId), "an id must not change");
+            Assert.That(host.AllGamers.FindGamerById(peerId), Is.SameAs(gamer));
+            await host.DisposeAsync();
+        }
+
+        [Test]
         public async Task ReliableData_IsResentUntilAcknowledged()
         {
             var (host, transport, gamer, endpoint) = await HostWithGamer();
@@ -348,7 +383,7 @@ namespace Microsoft.Xna.Framework.Net.Tests
             Assert.That(local.IsDataAvailable, Is.True);
             int length = local.ReceiveData(buffer, out NetworkGamer sender);
             Assert.That(buffer.Take(length), Is.EqualTo(new byte[] { 0x50, 9, 9 }));
-            Assert.That(sender.Id, Is.EqualTo("p2"));
+            Assert.That(sender.GamerId, Is.EqualTo("p2"));
             Assert.That(local.IsDataAvailable, Is.False, "the duplicate must not be delivered");
             await host.DisposeAsync();
         }
@@ -503,7 +538,7 @@ namespace Microsoft.Xna.Framework.Net.Tests
                 new JoinRequestMessage { GamerId = "old", Gamertag = "Old", ProtocolVersion = 1 },
                 new IPEndPoint(IPAddress.Loopback, 12345)));
 
-            Assert.IsFalse(host.AllGamers.Any(g => g.Id == "old"));
+            Assert.IsFalse(host.AllGamers.Any(g => g.GamerId == "old"));
             Assert.That(LastRejection(transport).ErrorCode, Is.EqualTo(NetworkSessionJoinError.ProtocolVersionMismatch));
             await host.DisposeAsync();
         }

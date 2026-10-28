@@ -47,6 +47,21 @@ namespace Microsoft.Xna.Framework.Net.CompatTests
         }
 
         [Test]
+        public async Task RoundtripTime_IsMeasuredOnceDataIsFlowing()
+        {
+            NetworkGamer remote = host.RemoteGamers[0];
+            LocalNetworkGamer local = SessionHarness.LocalOf(host);
+
+            // reliable traffic is acknowledged, and the acknowledgements time the link
+            Assert.That(await lan.WaitUntilAsync(() =>
+            {
+                local.SendData(new byte[] { 1 }, SendDataOptions.ReliableInOrder, remote);
+                return remote.RoundtripTime > System.TimeSpan.Zero;
+            }), "no roundtrip time was ever measured");
+            Assert.That(remote.RoundtripTime, Is.LessThan(System.TimeSpan.FromSeconds(1)));
+        }
+
+        [Test]
         public void SignedInGamer_IsOnlyAvailableForLocalGamers()
         {
             Assert.That(SessionHarness.LocalOf(host).SignedInGamer, Is.Not.Null);

@@ -42,7 +42,7 @@ namespace Microsoft.Xna.Framework.Net
             {
                 foreach (var gamer in session.AllGamers.Where(g => !g.IsLocal))
                 {
-                    connections[gamer.Id] = new GamerConnectionState();
+                    connections[gamer.GamerId] = new GamerConnectionState();
                 }
             }
 
@@ -75,7 +75,7 @@ namespace Microsoft.Xna.Framework.Net
                         Timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
                         SequenceNumber = sequenceNumber++,
                         GamerCount = session.AllGamers.Count,
-                        GamerId = localGamer.Id
+                        GamerId = localGamer.GamerId
                     };
 
                     var writer = new PacketWriter();
@@ -120,7 +120,7 @@ namespace Microsoft.Xna.Framework.Net
                     if (timeSinceLastHB > HEARTBEAT_TIMEOUT_MS)
                     {
                         // Mark for removal
-                        var gamer = session.AllGamers.FirstOrDefault(g => g.Id == kvp.Key);
+                        var gamer = session.AllGamers.FirstOrDefault(g => g.GamerId == kvp.Key);
                         if (gamer != null)
                         {
                             disconnected.Add(gamer);
@@ -137,7 +137,7 @@ namespace Microsoft.Xna.Framework.Net
                 
                 lock (connections)
                 {
-                    connections.Remove(gamer.Id);
+                    connections.Remove(gamer.GamerId);
                 }
             }
         }
@@ -167,14 +167,14 @@ namespace Microsoft.Xna.Framework.Net
             {
                 RequestTimestamp = heartbeat.Timestamp,
                 ReplyTimestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
-                GamerId = localGamer?.Id ?? string.Empty
+                GamerId = localGamer?.GamerId ?? string.Empty
             };
 
             var writer = new PacketWriter();
             reply.Serialize(writer);
             
             // Find the gamer and send reply
-            var gamer = session?.AllGamers.FirstOrDefault(g => g.Id == gamerId);
+            var gamer = session?.AllGamers.FirstOrDefault(g => g.GamerId == gamerId);
             if (gamer != null)
             {
                 session?.SendMessageToGamer(gamer, writer.GetData(), SendDataOptions.None);
@@ -195,7 +195,7 @@ namespace Microsoft.Xna.Framework.Net
                     state.LastRtt = rtt;
 
                     // Update gamer's RTT for QoS display
-                    var gamer = session?.AllGamers.FirstOrDefault(g => g.Id == gamerId);
+                    var gamer = session?.AllGamers.FirstOrDefault(g => g.GamerId == gamerId);
                     gamer?.UpdateRoundtripTime(rtt);
                 }
             }
@@ -241,7 +241,7 @@ namespace Microsoft.Xna.Framework.Net
 
             lock (connections)
             {
-                connections[gamer.Id] = new GamerConnectionState();
+                connections[gamer.GamerId] = new GamerConnectionState();
             }
         }
 
@@ -255,7 +255,7 @@ namespace Microsoft.Xna.Framework.Net
 
             lock (connections)
             {
-                connections.Remove(gamer.Id);
+                connections.Remove(gamer.GamerId);
             }
         }
     }

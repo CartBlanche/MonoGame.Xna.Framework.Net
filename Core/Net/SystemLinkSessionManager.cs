@@ -297,7 +297,7 @@ namespace Microsoft.Xna.Framework.Net
 
                 var joinRequest = new JoinRequestMessage
                 {
-                    GamerId = localGamer.Id,
+                    GamerId = localGamer.GamerId,
                     Gamertag = localGamer.Gamertag,
                     ProtocolVersion = JoinRequestMessage.CURRENT_PROTOCOL_VERSION
                 };

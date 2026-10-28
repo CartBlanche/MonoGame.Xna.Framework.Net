@@ -143,12 +143,12 @@ Exit criteria: compat test asserts events fire only inside `Update()` and on the
 Fill every mock/stub so ported code behaves identically.
 
 Gamers
-- [ ] 3.1 `NetworkGamer.Id` as XNA `byte` (keep string id internally as `GamerId`) (XNA-visible, so keep XNA's shape; no legacy string-id shim needed)
+- [x] 3.1 `NetworkGamer.Id` is an XNA `byte`, allocated lazily by the session and unique among the gamers it sees; the string id is `GamerId` (and `INetworkGamer.Id`). `FindGamerById` takes a byte. Not yet identical across machines: the host should assign ids and send them in `JoinAccepted` (do with 3.15/3.16) (XNA-visible, so keep XNA's shape; no legacy string-id shim needed)
 - [x] 3.2 `NetworkGamer.Machine` real: one machine for all local gamers, one per remote gamer, `Gamers` lists the machine's live gamers. `RemoveFromSession()` follows with kick in 3.12
 - [x] 3.3 `NetworkGamer.SignedInGamer` is null for remote gamers (was `SignedInGamer.Current` for everyone). Multiple local gamers sharing one `Current` waits for per-gamer sign-in (Phase 5/identity)
 - [x] 3.4 `LocalNetworkGamer.EnableSendData/IsSendingData` removed: stubs that are not XNA members (XNA has `EnableSendVoice`), unused by ShipGame, and `EnableSendData(SendDataOptions)` has no meaningful semantics. See decision log
-- [ ] 3.5 Bounded incoming queues with drop policy + diagnostics counter; per-local-gamer addressing of incoming packets
-- [ ] 3.6 `RoundtripTime` populated for every transport (not only via the UDP heartbeat)
+- [x] 3.5 Incoming queue bounded at 8192 packets, oldest dropped, counted in `Diagnostics.PacketsDropped`. DEFERRED: per-local-gamer addressing, since the wire carries no recipient and only one local gamer per session exists in practice; revisit with multiple local gamers over the network
+- [x] 3.6 `RoundtripTime` measured by the reliable channel from acknowledgements of packets that were never resent (smoothed), so it works for any transport that uses the channel; the UDP heartbeat still feeds it too
 - [ ] 3.6b Keep `NetworkGamer.UnacknowledgedAge` (non-XNA, used by ShipGame's stall detection) as a supported extension, available on every back-end
 - [ ] 3.6c (!) `ReceiveData(byte[])` silently truncates when the buffer is too small (ShipGame warns about this); decide throw vs truncate
 

@@ -716,7 +716,7 @@ namespace Microsoft.Xna.Framework.Net
             if (gamer == null) return;
 
             // Build message once
-            var msg = new ReadinessUpdateMessage { GamerId = gamer.Id, IsReady = gamer.IsReady };
+            var msg = new ReadinessUpdateMessage { GamerId = gamer.GamerId, IsReady = gamer.IsReady };
             var writer = new PacketWriter();
             msg.Serialize(writer);
 
@@ -740,7 +740,7 @@ namespace Microsoft.Xna.Framework.Net
         private void ApplyReadinessUpdate(ReadinessUpdateMessage update)
         {
             if (update == null) return;
-            var target = gamers.FirstOrDefault(g => g.Id == update.GamerId);
+            var target = gamers.FirstOrDefault(g => g.GamerId == update.GamerId);
             if (target != null)
             {
                 // Set without re-notifying session for remote gamers
@@ -775,7 +775,7 @@ namespace Microsoft.Xna.Framework.Net
                 {
                     bool alreadyJoined;
                     lock (lockObject)
-                        alreadyJoined = gamers.Any(g => g.Id == joinRequest.GamerId);
+                        alreadyJoined = gamers.Any(g => g.GamerId == joinRequest.GamerId);
 
                     if (!alreadyJoined)
                     {
@@ -818,7 +818,7 @@ namespace Microsoft.Xna.Framework.Net
                 
                 lock (lockObject)
                 {
-                    existingGamer = gamers.FirstOrDefault(g => g.Id == joinRequest.GamerId);
+                    existingGamer = gamers.FirstOrDefault(g => g.GamerId == joinRequest.GamerId);
                     
                     if (existingGamer == null)
                     {
@@ -850,7 +850,7 @@ namespace Microsoft.Xna.Framework.Net
                 var joinAccepted = new JoinAcceptedMessage
                 {
                     SessionId = sessionId,
-                    HostGamerId = Host.Id,
+                    HostGamerId = Host.GamerId,
                     HostGamertag = Host.Gamertag
                 };
                 var writer = new PacketWriter();
@@ -866,7 +866,7 @@ namespace Microsoft.Xna.Framework.Net
                     logger?.LogInfo($"Received JoinAcceptedMessage from host {joinAccepted.HostGamertag}");
                     
                     var existingHost = gamers.FirstOrDefault(g => g.IsHost);
-                    if (existingHost != null && existingHost.Id != joinAccepted.HostGamerId)
+                    if (existingHost != null && existingHost.GamerId != joinAccepted.HostGamerId)
                     {
                         // Remove synthetic host
                         RemoveGamer(existingHost);
@@ -903,7 +903,7 @@ namespace Microsoft.Xna.Framework.Net
                 lock (lockObject)
                 {
                     if (e.RemoteEndPoint != null)
-                        sourceGamer = gamers.FirstOrDefault(g => gamerEndpoints.TryGetValue(g.Id, out var ep) && ep.Equals(e.RemoteEndPoint));
+                        sourceGamer = gamers.FirstOrDefault(g => gamerEndpoints.TryGetValue(g.GamerId, out var ep) && ep.Equals(e.RemoteEndPoint));
                 }
 
                 if (sourceGamer != null)
@@ -934,7 +934,7 @@ namespace Microsoft.Xna.Framework.Net
                     lock (lockObject)
                     {
                         if (e.RemoteEndPoint != null)
-                            sourceGamer = gamers.FirstOrDefault(g => gamerEndpoints.TryGetValue(g.Id, out var ep) && ep.Equals(e.RemoteEndPoint));
+                            sourceGamer = gamers.FirstOrDefault(g => gamerEndpoints.TryGetValue(g.GamerId, out var ep) && ep.Equals(e.RemoteEndPoint));
                     }
                     SendMessageToAll(writer, SendDataOptions.Reliable, sourceGamer);
                 }
@@ -962,7 +962,7 @@ namespace Microsoft.Xna.Framework.Net
                 NetworkGamer leavingGamer = null;
                 lock (lockObject)
                 {
-                    leavingGamer = gamers.FirstOrDefault(g => g.Id == leaveMessage.GamerId);
+                    leavingGamer = gamers.FirstOrDefault(g => g.GamerId == leaveMessage.GamerId);
                 }
                 
                 if (leavingGamer != null)
@@ -1058,7 +1058,7 @@ namespace Microsoft.Xna.Framework.Net
             {
                 var leaveMessage = new GamerLeavingMessage
                 {
-                    GamerId = localGamer.Id,
+                    GamerId = localGamer.GamerId,
                     Reason = reason
                 };
 
@@ -1073,7 +1073,7 @@ namespace Microsoft.Xna.Framework.Net
                     {
                         try
                         {
-                            if (gamerEndpoints.TryGetValue(gamer.Id, out var endpoint))
+                            if (gamerEndpoints.TryGetValue(gamer.GamerId, out var endpoint))
                             {
                                 networkTransport.Send(data, endpoint);
                                 logger?.LogInfo($"Sent leave notification to {gamer.Gamertag}");
@@ -1316,6 +1316,22 @@ namespace Microsoft.Xna.Framework.Net
             OnGamerJoined(gamer);
         }
 
+        // The next free byte id: ids are not reused while the gamer holding one is in the session
+        private byte nextGamerId;
+        internal byte AllocateGamerId()
+        {
+            lock (lockObject)
+            {
+                for (int attempts = 0; attempts < 256; attempts++)
+                {
+                    byte candidate = nextGamerId++;
+                    if (!gamers.Any(g => g.HasShortId && g.Id == candidate))
+                        return candidate;
+                }
+                throw new InvalidOperationException("All 256 gamer ids are in use.");
+            }
+        }
+
         // One machine for all the local gamers, and one per remote gamer
         internal NetworkMachine MachineOf(NetworkGamer gamer)
         {
@@ -1323,8 +1339,8 @@ namespace Microsoft.Xna.Framework.Net
             {
                 if (gamer.IsLocal)
                     return localMachine ??= new NetworkMachine(this, isLocal: true);
-                if (!remoteMachines.TryGetValue(gamer.Id, out var machine))
-                    remoteMachines[gamer.Id] = machine = new NetworkMachine(this, isLocal: false);
+                if (!remoteMachines.TryGetValue(gamer.GamerId, out var machine))
+                    remoteMachines[gamer.GamerId] = machine = new NetworkMachine(this, isLocal: false);
                 return machine;
             }
         }
@@ -1335,11 +1351,11 @@ namespace Microsoft.Xna.Framework.Net
             lock (lockObject)
             {
                 gamers.Remove(gamer);
-                gamerEndpoints.Remove(gamer.Id);
-                remoteMachines.Remove(gamer.Id);
+                gamerEndpoints.Remove(gamer.GamerId);
+                remoteMachines.Remove(gamer.GamerId);
             }
             lock (reliableLock)
-                reliableChannels.Remove(gamer.Id);
+                reliableChannels.Remove(gamer.GamerId);
             // Phase 1: Notify connection monitor
             connectionMonitor?.OnGamerLeft(gamer);
             OnGamerLeft(gamer);
@@ -1460,11 +1476,12 @@ namespace Microsoft.Xna.Framework.Net
         {
             lock (reliableLock)
             {
-                if (!reliableChannels.TryGetValue(gamer.Id, out ReliableChannel channel))
+                if (!reliableChannels.TryGetValue(gamer.GamerId, out ReliableChannel channel))
                 {
-                    string id = gamer.Id;
+                    string id = gamer.GamerId;
                     channel = new ReliableChannel(datagram => SendRawToGamer(id, datagram));
                     channel.Faulted += reason => OnChannelFaulted(id, reason);
+                    channel.RoundtripMeasured += seconds => gamer.UpdateRoundtripTime(TimeSpan.FromSeconds(seconds));
                     reliableChannels[id] = channel;
 
                     // resends and acknowledgements need a clock; start it with the first channel
@@ -1481,7 +1498,7 @@ namespace Microsoft.Xna.Framework.Net
         {
             NetworkGamer gamer;
             lock (lockObject)
-                gamer = gamers.FirstOrDefault(g => g.Id == gamerId);
+                gamer = gamers.FirstOrDefault(g => g.GamerId == gamerId);
 
             if (gamer == null || disposed)
                 return;
@@ -1525,7 +1542,7 @@ namespace Microsoft.Xna.Framework.Net
         {
             lock (reliableLock)
             {
-                return reliableChannels.TryGetValue(gamer.Id, out ReliableChannel channel)
+                return reliableChannels.TryGetValue(gamer.GamerId, out ReliableChannel channel)
                     ? TimeSpan.FromSeconds(channel.OldestUnackedAge(ReliableNow))
                     : TimeSpan.Zero;
             }
@@ -1539,7 +1556,7 @@ namespace Microsoft.Xna.Framework.Net
             if (gamer == null || endpoint == null) return;
             lock (lockObject)
             {
-                gamerEndpoints[gamer.Id] = endpoint;
+                gamerEndpoints[gamer.GamerId] = endpoint;
             }
         }
 
@@ -1556,12 +1573,12 @@ namespace Microsoft.Xna.Framework.Net
             NetworkGamer senderGamer = null;
             lock (lockObject)
             {
-                senderGamer = gamers.FirstOrDefault(g => gamerEndpoints.TryGetValue(g.Id, out var ep) && ep.Equals(senderEndpoint));
+                senderGamer = gamers.FirstOrDefault(g => gamerEndpoints.TryGetValue(g.GamerId, out var ep) && ep.Equals(senderEndpoint));
             }
 
             // anything from a gamer shows they are still connected
             if (senderGamer != null)
-                connectionMonitor?.OnPeerActivity(senderGamer.Id);
+                connectionMonitor?.OnPeerActivity(senderGamer.GamerId);
 
             if (senderGamer != null && ReliableChannel.IsChannelByte(data[0]))
             {

@@ -14,7 +14,7 @@ namespace Microsoft.Xna.Framework.Net
         /// </summary>
         /// <param name="gamertag">The gamertag to search for.</param>
         /// <returns>The gamer with the specified gamertag, or null if not found.</returns>
-        public NetworkGamer FindGamerById(string id)
+        public NetworkGamer FindGamerById(byte id)
         {
             foreach (var gamer in this)
             {

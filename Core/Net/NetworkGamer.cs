@@ -13,6 +13,7 @@ namespace Microsoft.Xna.Framework.Net
     {
         private readonly NetworkSession session;
         private readonly string id;
+        private byte? shortId;
         private readonly bool isLocal;
         private readonly bool isHost;
         private string gamertag;
@@ -23,9 +24,27 @@ namespace Microsoft.Xna.Framework.Net
         private TimeSpan roundtripTime = TimeSpan.Zero;
 
         /// <summary>
-        /// Gets the unique identifier for this gamer.
+        /// Gets the identifier for this gamer within the session, as XNA does: a byte, unique among the
+        /// gamers of this session as this machine sees them.
         /// </summary>
-        public string Id => id;
+        public byte Id
+        {
+            get
+            {
+                if (shortId == null)
+                    shortId = session?.AllocateGamerId() ?? 0;
+                return shortId.Value;
+            }
+        }
+
+        /// <summary>
+        /// Gets the globally unique identifier for this gamer, the one that goes on the wire.
+        /// </summary>
+        public string GamerId => id;
+
+        string INetworkGamer.Id => id;
+
+        internal bool HasShortId => shortId != null;
 
         /// <summary>
         /// Gets whether this gamer is the local player.
@@ -314,12 +333,12 @@ namespace Microsoft.Xna.Framework.Net
 
         public override bool Equals(object obj)
         {
-            return obj is NetworkGamer other && Id == other.Id;
+            return obj is NetworkGamer other && GamerId == other.GamerId;
         }
 
         public override int GetHashCode()
         {
-            return Id.GetHashCode();
+            return GamerId.GetHashCode();
         }
 
         /// <summary>
@@ -394,12 +413,26 @@ namespace Microsoft.Xna.Framework.Net
             }
         }
 
+        /// <summary>
+        /// The most packets held for a gamer that never calls ReceiveData. Past this the oldest are dropped.
+        /// </summary>
+        internal const int MaxIncomingPackets = 8192;
+
         internal void EnqueueIncomingPacket(byte[] data, NetworkGamer sender)
         {
+            bool dropped = false;
             lock (incomingPackets)
             {
+                if (incomingPackets.Count >= MaxIncomingPackets)
+                {
+                    incomingPackets.Dequeue();   // the oldest is the least useful to a game that has fallen behind
+                    dropped = true;
+                }
                 incomingPackets.Enqueue((data, sender));
             }
+
+            if (dropped)
+                session?.Diagnostics?.RecordPacketDropped();
         }
 
         private bool TryDequeueIncomingPacket(out (byte[] Data, NetworkGamer Sender) packet)

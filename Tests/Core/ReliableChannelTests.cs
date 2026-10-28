@@ -207,6 +207,28 @@ namespace Microsoft.Xna.Framework.Net.Tests
         }
 
         [Test]
+        public void TheRoundtripTime_IsMeasuredFromAcknowledgements_NotFromResentPackets()
+        {
+            var sent = new List<byte[]>();
+            var channel = new ReliableChannel(sent.Add);
+            var measured = new List<double>();
+            channel.RoundtripMeasured += measured.Add;
+            byte[] ack = { ReliableChannel.ChannelAck, 1, 0 };
+
+            channel.SendReliable(new byte[] { 1 }, 1, 10.0);
+            channel.Receive(ack, ack.Length, 10.080, p => { });
+            Assert.That(measured.Single(), Is.EqualTo(0.080).Within(0.0001));
+
+            // a packet that had to be resent says nothing about the link: the ack could answer either send
+            measured.Clear();
+            channel.SendReliable(new byte[] { 2 }, 1, 20.0);
+            channel.Update(21.0);
+            byte[] ack2 = { ReliableChannel.ChannelAck, 2, 0 };
+            channel.Receive(ack2, ack2.Length, 21.1, p => { });
+            Assert.That(measured, Is.Empty);
+        }
+
+        [Test]
         public void AMessageThatFitsOneDatagram_IsNotFragmented()
         {
             var wire = new List<byte[]>();

@@ -28,6 +28,15 @@ namespace Microsoft.Xna.Framework.Net
         public long BytesReceived { get; set; }
         
         /// <summary>
+        /// Total received game packets discarded because the game was not reading them fast enough.
+        /// </summary>
+        public long PacketsDropped => System.Threading.Interlocked.Read(ref packetsDropped);
+
+        private long packetsDropped;
+
+        internal void RecordPacketDropped() => System.Threading.Interlocked.Increment(ref packetsDropped);
+
+        /// <summary>
         /// Estimated packet loss rate (0.0 to 1.0).
         /// </summary>
         public float PacketLossRate { get; set; }

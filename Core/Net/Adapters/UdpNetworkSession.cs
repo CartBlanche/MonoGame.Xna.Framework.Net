@@ -251,7 +251,7 @@ namespace Microsoft.Xna.Framework.Net
                 throw new InvalidOperationException("Session not initialized");
 
             // Find the underlying NetworkGamer and use session's SendDataToGamer
-            var networkGamer = innerSession.AllGamers.FirstOrDefault(g => g.Id == recipient.Id);
+            var networkGamer = innerSession.AllGamers.FirstOrDefault(g => g.GamerId == recipient.Id);
             if (networkGamer != null)
             {
                 var writer = new PacketWriter();
@@ -319,13 +319,13 @@ namespace Microsoft.Xna.Framework.Net
         {
             if (gamer == null) return null;
 
-            if (!gamerAdapters.TryGetValue(gamer.Id, out var adapter))
+            if (!gamerAdapters.TryGetValue(gamer.GamerId, out var adapter))
             {
                 adapter = gamer.IsLocal
                     ? (INetworkGamer)new LocalNetworkGamerAdapter(gamer as LocalNetworkGamer)
                     : new NetworkGamerAdapter(gamer);
 
-                gamerAdapters[gamer.Id] = adapter;
+                gamerAdapters[gamer.GamerId] = adapter;
             }
 
             return adapter;
@@ -357,7 +357,7 @@ namespace Microsoft.Xna.Framework.Net
             this.innerGamer = gamer ?? throw new ArgumentNullException(nameof(gamer));
         }
 
-        public string Id => innerGamer.Id;
+        public string Id => innerGamer.GamerId;
         public string Gamertag => innerGamer.Gamertag;
         public bool IsLocal => innerGamer.IsLocal;
         public bool IsHost => innerGamer.IsHost;

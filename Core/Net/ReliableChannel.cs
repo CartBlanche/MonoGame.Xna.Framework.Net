@@ -119,6 +119,14 @@ namespace Microsoft.Xna.Framework.Net
         public event Action<string> Faulted;
 
         /// <summary>
+        /// Raised with the smoothed roundtrip time, in seconds, each time an acknowledgement measures one.
+        /// Measured from the data itself, so it works over any transport.
+        /// </summary>
+        public event Action<double> RoundtripMeasured;
+
+        double smoothedRoundtrip;
+
+        /// <summary>
         /// True if a datagram starting with this byte belongs to a channel
         /// </summary>
         public static bool IsChannelByte(byte first)
@@ -254,6 +262,7 @@ namespace Microsoft.Xna.Framework.Net
             List<byte[]> ready = null;
             List<byte[]> toSend = null;
             string fault = null;
+            double rttSample = 0;
 
             lock (sync)
             {
@@ -296,7 +305,7 @@ namespace Microsoft.Xna.Framework.Net
                     case ChannelAck:
                         if (length >= 3)
                         {
-                            ReceiveAck((ushort)(datagram[1] | (datagram[2] << 8)), datagram, 3, Math.Min(length - 3, MaxAckBitmapBytes));
+                            rttSample = ReceiveAck((ushort)(datagram[1] | (datagram[2] << 8)), datagram, 3, Math.Min(length - 3, MaxAckBitmapBytes), now);
                             // the window has room again for what was waiting
                             toSend = Admit(now);
                         }
@@ -306,6 +315,9 @@ namespace Microsoft.Xna.Framework.Net
 
             if (fault != null)
                 RaiseFaulted(fault);
+
+            if (rttSample > 0)
+                RoundtripMeasured?.Invoke(rttSample);
 
             if (toSend != null)
                 foreach (byte[] queued in toSend)
@@ -462,17 +474,33 @@ namespace Microsoft.Xna.Framework.Net
             }
         }
 
-        void ReceiveAck(ushort nextExpected, byte[] datagram, int bitmapStart, int bitmapLength)
+        // Returns the smoothed roundtrip time in seconds if this ack measured one, else 0.
+        // Only a packet that was never resent can be timed: an ack for a resent one could be
+        // answering either send.
+        double ReceiveAck(ushort nextExpected, byte[] datagram, int bitmapStart, int bitmapLength, double now)
         {
+            double sample = -1;
+
             // the peer has everything before nextExpected, and what the bitmap marks after it
             pending.RemoveAll(p =>
             {
-                if (IsBefore(p.Sequence, nextExpected))
-                    return true;
+                bool acked = IsBefore(p.Sequence, nextExpected);
+                if (!acked)
+                {
+                    int bit = (ushort)(p.Sequence - nextExpected) - 1;
+                    acked = bit >= 0 && bit < bitmapLength * 8 && (datagram[bitmapStart + bit / 8] & (1 << (bit % 8))) != 0;
+                }
 
-                int bit = (ushort)(p.Sequence - nextExpected) - 1;
-                return bit >= 0 && bit < bitmapLength * 8 && (datagram[bitmapStart + bit / 8] & (1 << (bit % 8))) != 0;
+                if (acked && p.LastSent == p.FirstSent)
+                    sample = now - p.FirstSent;   // the newest such packet is the freshest measurement
+                return acked;
             });
+
+            if (sample < 0)
+                return 0;
+
+            smoothedRoundtrip = smoothedRoundtrip == 0 ? sample : smoothedRoundtrip * 0.875 + sample * 0.125;
+            return Math.Max(smoothedRoundtrip, double.Epsilon);
         }
 
         // [ack][next expected][which packets after it are held early]. Call with the lock held.

@@ -14,7 +14,7 @@ namespace Microsoft.Xna.Framework.Net
         /// </summary>
         /// <param name="id">The ID to search for.</param>
         /// <returns>The local gamer with the specified ID, or null if not found.</returns>
-        public LocalNetworkGamer FindGamerById(string id)
+        public LocalNetworkGamer FindGamerById(byte id)
         {
             foreach (var gamer in this)
             {
