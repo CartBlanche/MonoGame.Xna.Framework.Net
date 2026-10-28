@@ -202,6 +202,36 @@ namespace Microsoft.Xna.Framework.Net
         }
 
         /// <summary>
+        /// Called when any datagram arrives from a gamer. Traffic is proof that the gamer is still
+        /// there, so it counts like a heartbeat: otherwise a few lost heartbeats would get a gamer
+        /// dropped even while game data keeps flowing.
+        /// </summary>
+        public void OnPeerActivity(string gamerId)
+        {
+            lock (connections)
+            {
+                if (connections.TryGetValue(gamerId, out var state))
+                {
+                    state.LastHeartbeat = DateTime.UtcNow;
+                    state.MissedHeartbeats = 0;
+                }
+            }
+        }
+
+        /// <summary>
+        /// How long since the gamer was last heard from (null if not tracked)
+        /// </summary>
+        internal TimeSpan? TimeSinceActivity(string gamerId)
+        {
+            lock (connections)
+            {
+                return connections.TryGetValue(gamerId, out var state)
+                    ? DateTime.UtcNow - state.LastHeartbeat
+                    : (TimeSpan?)null;
+            }
+        }
+
+        /// <summary>
         /// Called when a new gamer joins to start tracking them.
         /// </summary>
         public void OnGamerJoined(NetworkGamer gamer)

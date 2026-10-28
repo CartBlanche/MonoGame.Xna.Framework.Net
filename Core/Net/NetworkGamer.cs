@@ -294,6 +294,13 @@ namespace Microsoft.Xna.Framework.Net
         public TimeSpan RoundtripTime => roundtripTime;
 
         /// <summary>
+        /// How long the oldest reliable data sent to this gamer has been waiting for an
+        /// acknowledgement (zero when nothing is waiting). A large value means the gamer has
+        /// stopped answering.
+        /// </summary>
+        public TimeSpan UnacknowledgedAge => session.GetUnacknowledgedAge(this);
+
+        /// <summary>
         /// Updates the round-trip time (internal use).
         /// </summary>
         internal void UpdateRoundtripTime(TimeSpan newRoundtripTime)

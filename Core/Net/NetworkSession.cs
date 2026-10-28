@@ -24,6 +24,14 @@ namespace Microsoft.Xna.Framework.Net
         private readonly int maxGamers;
         private readonly int privateGamerSlots;
         private readonly Dictionary<string, IPEndPoint> gamerEndpoints;
+
+        // Reliable delivery over UDP: one channel per remote gamer (see ReliableChannel). Everything sent
+        // to a gamer goes through it, as reliable or unreliable, and is unwrapped again on arrival.
+        private readonly Dictionary<string, ReliableChannel> reliableChannels = new Dictionary<string, ReliableChannel>();
+        private readonly object reliableLock = new object();
+        private readonly Stopwatch reliableClock = Stopwatch.StartNew();
+        private Timer reliableTimer;
+        private const int ReliableTickMilliseconds = 50;
         private readonly object lockObject = new object();
 
         private INetworkTransport networkTransport;
@@ -36,6 +44,7 @@ namespace Microsoft.Xna.Framework.Net
 
         // Phase 1 additions
         private ConnectionHealthMonitor connectionMonitor;
+        internal ConnectionHealthMonitor ConnectionMonitor => connectionMonitor;
         private NetworkDiagnostics diagnostics;
         private INetworkLogger logger;
 
@@ -260,9 +269,15 @@ namespace Microsoft.Xna.Framework.Net
         public bool AllowHostMigration { get; set; } = true;
 
         /// <summary>
-        /// Gets whether the session allows gamers to join during gameplay.
+        /// Gets or sets whether the session allows gamers to join during gameplay. When false,
+        /// the host refuses new gamers once <see cref="StartGame"/> has been called (they fail to
+        /// join with <see cref="NetworkSessionJoinError.SessionNotJoinable"/>). Defaults to true.
         /// </summary>
         public bool AllowJoinInProgress { get; set; } = true;
+
+        // set when the host answers our join request with a rejection (see JoinSessionAsync)
+        internal volatile string joinRejectedReason;
+        internal NetworkSessionJoinError joinRejectedError;
 
         private IDictionary<string, object> sessionProperties = new Dictionary<string, object>();
         /// <summary>
@@ -723,6 +738,31 @@ namespace Microsoft.Xna.Framework.Net
                     return;
                 }
 
+                // The host asked for no new players once the game has started (AllowJoinInProgress).
+                // Somebody who is already in and merely repeats their request (a lost acceptance)
+                // is still let through.
+                if (!AllowJoinInProgress && sessionState == NetworkSessionState.Playing)
+                {
+                    bool alreadyJoined;
+                    lock (lockObject)
+                        alreadyJoined = gamers.Any(g => g.Id == joinRequest.GamerId);
+
+                    if (!alreadyJoined)
+                    {
+                        logger?.LogWarning($"Join request from {joinRequest.Gamertag} rejected: the game has already started");
+
+                        var rejection = new JoinRejectedMessage
+                        {
+                            ErrorCode = NetworkSessionJoinError.SessionNotJoinable,
+                            Reason = "The game has already started"
+                        };
+                        var rejectWriter = new PacketWriter();
+                        rejection.Serialize(rejectWriter);
+                        networkTransport.Send(rejectWriter.GetData(), e.RemoteEndPoint);
+                        return;
+                    }
+                }
+
                 // Phase 1: Check if session is full
                 if (AllGamers.Count >= MaxGamers)
                 {
@@ -817,7 +857,14 @@ namespace Microsoft.Xna.Framework.Net
             {
                 // Phase 1: Handle join rejection
                 logger?.LogError($"Join rejected: {joinRejected.Reason} (Error: {joinRejected.ErrorCode})");
-                // Session state remains in Joining, caller will check this
+
+                // Session state remains in Joining; JoinSessionAsync notices the rejection and
+                // fails with the host's reason instead of waiting for a timeout
+                if (sessionState == NetworkSessionState.Joining)
+                {
+                    joinRejectedError = joinRejected.ErrorCode;
+                    joinRejectedReason = joinRejected.Reason;       // written last: readers check this one
+                }
             }
             else if (e.Message is PlayerMoveMessage moveMessage)
             {
@@ -1036,6 +1083,7 @@ namespace Microsoft.Xna.Framework.Net
                 
                 // Phase 1: Stop connection monitoring
                 connectionMonitor?.StopMonitoring();
+                StopReliableChannels();
                 
                 // Dispose transport first to unblock ReceiveAsync
                 networkTransport?.Dispose();
@@ -1059,6 +1107,7 @@ namespace Microsoft.Xna.Framework.Net
                 
                 // Phase 1: Stop connection monitoring
                 connectionMonitor?.StopMonitoring();
+                StopReliableChannels();
                 
                 // Dispose transport first to unblock any pending ReceiveAsync
                 if (networkTransport is IAsyncDisposable asyncTransport)
@@ -1253,6 +1302,8 @@ namespace Microsoft.Xna.Framework.Net
                 gamers.Remove(gamer);
                 gamerEndpoints.Remove(gamer.Id);
             }
+            lock (reliableLock)
+                reliableChannels.Remove(gamer.Id);
             // Phase 1: Notify connection monitor
             connectionMonitor?.OnGamerLeft(gamer);
             OnGamerLeft(gamer);
@@ -1285,19 +1336,98 @@ namespace Microsoft.Xna.Framework.Net
         internal void SendDataToGamer(NetworkGamer gamer, byte[] data, int dataLength, SendDataOptions options)
         {
             if (gamer == null || data == null) return;
-            if (gamerEndpoints.TryGetValue(gamer.Id, out IPEndPoint endpoint))
+
+            // UDP gives no delivery guarantees, so the data goes through the gamer's channel, which
+            // resends reliable data until it is acknowledged and delivers it once and in order
+            ReliableChannel channel = GetReliableChannel(gamer);
+            if ((options & SendDataOptions.Reliable) != 0)
+                channel.SendReliable(data, dataLength, ReliableNow);
+            else
+                channel.SendUnreliable(data, dataLength);
+        }
+
+        // sends a datagram as it is, to the endpoint of the gamer with this id
+        private void SendRawToGamer(string gamerId, byte[] data)
+        {
+            IPEndPoint endpoint;
+            lock (lockObject)
             {
-                try
+                if (!gamerEndpoints.TryGetValue(gamerId, out endpoint))
+                    return;
+            }
+
+            try
+            {
+                networkTransport.Send(data, data.Length, endpoint);
+                // Phase 1: Record sent packet in diagnostics
+                diagnostics?.RecordPacketSent(data.Length);
+            }
+            catch (Exception ex)
+            {
+                // Phase 1: Use logger
+                logger?.LogError($"Failed to send data to gamer {gamerId}: {ex.Message}", ex);
+            }
+        }
+
+        private double ReliableNow => reliableClock.Elapsed.TotalSeconds;
+
+        private ReliableChannel GetReliableChannel(NetworkGamer gamer)
+        {
+            lock (reliableLock)
+            {
+                if (!reliableChannels.TryGetValue(gamer.Id, out ReliableChannel channel))
                 {
-                    networkTransport.Send(data, dataLength, endpoint);
-                    // Phase 1: Record sent packet in diagnostics
-                    diagnostics?.RecordPacketSent(dataLength);
+                    string id = gamer.Id;
+                    channel = new ReliableChannel(datagram => SendRawToGamer(id, datagram));
+                    reliableChannels[id] = channel;
+
+                    // resends and acknowledgements need a clock; start it with the first channel
+                    if (reliableTimer == null && !disposed)
+                        reliableTimer = new Timer(_ => TickReliableChannels(), null,
+                            ReliableTickMilliseconds, ReliableTickMilliseconds);
                 }
-                catch (Exception ex)
-                {
-                    // Phase 1: Use logger
-                    logger?.LogError($"Failed to send data to {gamer.Gamertag}: {ex.Message}", ex);
-                }
+                return channel;
+            }
+        }
+
+        private void TickReliableChannels()
+        {
+            if (disposed)
+                return;
+
+            ReliableChannel[] channels;
+            lock (reliableLock)
+                channels = reliableChannels.Values.ToArray();
+
+            double now = ReliableNow;
+            foreach (ReliableChannel channel in channels)
+            {
+                try { channel.Update(now); }
+                catch (Exception ex) { logger?.LogError($"Reliable channel update failed: {ex.Message}", ex); }
+            }
+        }
+
+        private void StopReliableChannels()
+        {
+            lock (reliableLock)
+            {
+                reliableTimer?.Dispose();
+                reliableTimer = null;
+                reliableChannels.Clear();
+            }
+        }
+
+        /// <summary>
+        /// How long the oldest reliable data sent to a gamer has been waiting to be acknowledged
+        /// (zero when nothing is waiting). A large value means the gamer has stopped answering.
+        /// </summary>
+        internal TimeSpan GetUnacknowledgedAge(NetworkGamer gamer)
+        {
+            lock (reliableLock)
+            {
+                return reliableChannels.TryGetValue(gamer.Id, out ReliableChannel channel)
+                    ? TimeSpan.FromSeconds(channel.OldestUnackedAge(ReliableNow))
+                    : TimeSpan.Zero;
             }
         }
 
@@ -1310,6 +1440,81 @@ namespace Microsoft.Xna.Framework.Net
             lock (lockObject)
             {
                 gamerEndpoints[gamer.Id] = endpoint;
+            }
+        }
+
+        /// <summary>
+        /// Handles one datagram from the network: unwraps the reliable channel it belongs to, then
+        /// treats what comes out as a framework message or as application data.
+        /// </summary>
+        internal void ProcessIncomingDatagram(byte[] data, IPEndPoint senderEndpoint)
+        {
+            if (data == null || data.Length == 0)
+                return;
+
+            // Identify sender by endpoint mapping
+            NetworkGamer senderGamer = null;
+            lock (lockObject)
+            {
+                senderGamer = gamers.FirstOrDefault(g => gamerEndpoints.TryGetValue(g.Id, out var ep) && ep.Equals(senderEndpoint));
+            }
+
+            // anything from a gamer shows they are still connected
+            if (senderGamer != null)
+                connectionMonitor?.OnPeerActivity(senderGamer.Id);
+
+            if (senderGamer != null && ReliableChannel.IsChannelByte(data[0]))
+            {
+                GetReliableChannel(senderGamer).Receive(data, data.Length, ReliableNow,
+                    payload => ProcessPayload(payload, senderEndpoint, senderGamer));
+            }
+            else
+            {
+                // the handshake (join request, acceptance, rejection) is sent as it is
+                ProcessPayload(data, senderEndpoint, senderGamer);
+            }
+        }
+
+        private void ProcessPayload(byte[] data, IPEndPoint senderEndpoint, NetworkGamer senderGamer)
+        {
+            // Inspect the first byte to see if this is a registered (framework) message
+            byte typeId = data[0];
+            var registered = NetworkMessageRegistry.CreateMessage(typeId);
+
+            bool handledFramework = false;
+            if (registered != null)
+            {
+                // Try to deserialize as a framework message; if it doesn't fully parse,
+                // fall back to treating as application payload.
+                try
+                {
+                    var reader = new PacketReader(data);
+                    reader.ReadByte(); // consume type id
+                    registered.Deserialize(reader);
+                    // Consider it framework only if we've consumed the full payload
+                    if (reader.BytesRemaining == 0)
+                    {
+                        OnMessageReceived(new MessageReceivedEventArgs(registered, senderEndpoint));
+                        handledFramework = true;
+                    }
+                }
+                catch
+                {
+                    handledFramework = false;
+                }
+            }
+
+            if (!handledFramework)
+            {
+                // Application payload. Enqueue for all LocalGamers in this session
+                if (senderGamer != null)
+                {
+                    // Enqueue to all local gamers so they can receive via ReceiveData()
+                    foreach (var localGamer in LocalGamers)
+                    {
+                        localGamer.EnqueueIncomingPacket(data, senderGamer);
+                    }
+                }
             }
         }
 
@@ -1331,53 +1536,8 @@ namespace Microsoft.Xna.Framework.Net
                     {
                         // Phase 1: Record received packet in diagnostics
                         diagnostics?.RecordPacketReceived(data.Length);
-                        
-                        // Identify sender by endpoint mapping
-                        NetworkGamer senderGamer = null;
-                        lock (lockObject)
-                        {
-                            senderGamer = gamers.FirstOrDefault(g => gamerEndpoints.TryGetValue(g.Id, out var ep) && ep.Equals(senderEndpoint));
-                        }
 
-                        // Inspect the first byte to see if this is a registered (framework) message
-                        byte typeId = data[0];
-                        var registered = NetworkMessageRegistry.CreateMessage(typeId);
-
-                        bool handledFramework = false;
-                        if (registered != null)
-                        {
-                            // Try to deserialize as a framework message; if it doesn't fully parse,
-                            // fall back to treating as application payload.
-                            try
-                            {
-                                var reader = new PacketReader(data);
-                                reader.ReadByte(); // consume type id
-                                registered.Deserialize(reader);
-                                // Consider it framework only if we've consumed the full payload
-                                if (reader.BytesRemaining == 0)
-                                {
-                                    OnMessageReceived(new MessageReceivedEventArgs(registered, senderEndpoint));
-                                    handledFramework = true;
-                                }
-                            }
-                            catch
-                            {
-                                handledFramework = false;
-                            }
-                        }
-
-                        if (!handledFramework)
-                        {
-                            // Application payload. Enqueue for all LocalGamers in this session
-                            if (senderGamer != null)
-                            {
-                                // Enqueue to all local gamers so they can receive via ReceiveData()
-                                foreach (var localGamer in LocalGamers)
-                                {
-                                    localGamer.EnqueueIncomingPacket(data, senderGamer);
-                                }
-                            }
-                        }
+                        ProcessIncomingDatagram(data, senderEndpoint);
                     }
                 }
                 catch (ObjectDisposedException) 

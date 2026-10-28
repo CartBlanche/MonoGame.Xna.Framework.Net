@@ -26,6 +26,12 @@ namespace Microsoft.Xna.Framework.Net
                     var broadcastEndpoint = new IPEndPoint(IPAddress.Broadcast, BroadcastPort);
                     var localhostEndpoint = new IPEndPoint(IPAddress.Loopback, BroadcastPort);
 
+                    // 255.255.255.255 only leaves through one network adapter, so the announcement is
+                    // also sent to the broadcast address of every network this machine is on
+                    // (the list is refreshed now and then because adapters come and go)
+                    IReadOnlyList<IPAddress> subnetBroadcasts = LanBroadcast.GetBroadcastAddresses();
+                    var subnetBroadcastsRefreshed = DateTime.UtcNow;
+
                     session.Logger?.LogInfo($"Starting session advertisement on port {BroadcastPort}");
                     int broadcastCount = 0;
 
@@ -51,6 +57,24 @@ namespace Microsoft.Xna.Framework.Net
                         catch (Exception ex)
                         {
                             session.Logger?.LogWarning($"Broadcast advertisement failed: {ex.Message}");
+                        }
+
+                        if (DateTime.UtcNow - subnetBroadcastsRefreshed > TimeSpan.FromSeconds(5))
+                        {
+                            subnetBroadcasts = LanBroadcast.GetBroadcastAddresses();
+                            subnetBroadcastsRefreshed = DateTime.UtcNow;
+                        }
+
+                        foreach (var subnetBroadcast in subnetBroadcasts)
+                        {
+                            try
+                            {
+                                await udpClient.SendAsync(message, message.Length, new IPEndPoint(subnetBroadcast, BroadcastPort));
+                            }
+                            catch (SocketException ex)
+                            {
+                                session.Logger?.LogWarning($"Broadcast to {subnetBroadcast} failed: {ex.Message}");
+                            }
                         }
 
                         // ALSO send to localhost for same-machine testing
@@ -285,8 +309,17 @@ namespace Microsoft.Xna.Framework.Net
                         return session;
                     }
 
-                    // Check if we received rejection (would still be in Joining state but we can check for it)
-                    // For now, just wait
+                    // The host refused us (session full, game already started, wrong version):
+                    // report why straight away instead of retrying until a timeout
+                    if (session.joinRejectedReason != null)
+                    {
+                        var error = session.joinRejectedError;
+                        var reason = session.joinRejectedReason;
+                        Debug.WriteLine($"[JOIN] Rejected by host: {reason} ({error})");
+                        session.Dispose();
+                        throw new NetworkSessionJoinException(reason, error);
+                    }
+
                     await Task.Delay(50, cancellationToken);
                 }
 
