@@ -129,6 +129,71 @@ namespace Microsoft.Xna.Framework.Net.CompatTests
         }
 
         [Test]
+        public async Task ALargeReliableMessage_ArrivesInOnePiece()
+        {
+            LocalNetworkGamer hostGamer = SessionHarness.LocalOf(host);
+            LocalNetworkGamer clientGamer = SessionHarness.LocalOf(client);
+            var big = new byte[200000];
+            new Random(3).NextBytes(big);
+
+            hostGamer.SendData(new byte[] { 1 }, SendDataOptions.ReliableInOrder, host.RemoteGamers[0]);
+            hostGamer.SendData(big, SendDataOptions.ReliableInOrder, host.RemoteGamers[0]);
+            hostGamer.SendData(new byte[] { 2 }, SendDataOptions.ReliableInOrder, host.RemoteGamers[0]);
+
+            var got = new List<(byte[] Data, NetworkGamer Sender)>();
+            var buffer = new byte[big.Length + 16];
+            await lan.WaitUntilAsync(() =>
+            {
+                while (clientGamer.IsDataAvailable)
+                {
+                    int length = clientGamer.ReceiveData(buffer, out NetworkGamer sender);
+                    got.Add((buffer.Take(length).ToArray(), sender));
+                }
+                return got.Count >= 3;
+            });
+
+            Assert.That(got.Count, Is.EqualTo(3));
+            Assert.That(got[0].Data, Is.EqualTo(new byte[] { 1 }));
+            Assert.That(got[1].Data, Is.EqualTo(big));
+            Assert.That(got[2].Data, Is.EqualTo(new byte[] { 2 }));
+        }
+
+        [Test]
+        public async Task InOrderData_WithoutReliable_ArrivesOnALoopbackLan()
+        {
+            LocalNetworkGamer hostGamer = SessionHarness.LocalOf(host);
+            LocalNetworkGamer clientGamer = SessionHarness.LocalOf(client);
+
+            for (int i = 0; i < 20; i++)
+                hostGamer.SendData(Packet(0xBB, i), SendDataOptions.InOrder, host.RemoteGamers[0]);
+
+            var got = new List<(byte[] Data, NetworkGamer Sender)>();
+            await lan.WaitUntilAsync(() =>
+            {
+                got.AddRange(Drain(clientGamer));
+                return got.Count >= 1;
+            });
+            await lan.WaitUntilAsync(() => false, timeoutMs: 300);
+            got.AddRange(Drain(clientGamer));
+
+            // loss is allowed, going backwards is not
+            var values = got.Select(p => BitConverter.ToInt32(p.Data, 1)).ToList();
+            Assert.That(values, Is.Not.Empty);
+            Assert.That(values, Is.Ordered.Ascending);
+        }
+
+        [Test]
+        public void UnreliableData_LargerThanOnePacket_IsRefused_ButReliableIsNot()
+        {
+            LocalNetworkGamer hostGamer = SessionHarness.LocalOf(host);
+
+            Assert.Throws<ArgumentOutOfRangeException>(() =>
+                hostGamer.SendData(new byte[5000], SendDataOptions.None, host.RemoteGamers[0]));
+            Assert.DoesNotThrow(() =>
+                hostGamer.SendData(new byte[5000], SendDataOptions.Reliable, host.RemoteGamers[0]));
+        }
+
+        [Test]
         public async Task PacketWriterAndReader_RoundTripAcrossTheWire()
         {
             LocalNetworkGamer hostGamer = SessionHarness.LocalOf(host);

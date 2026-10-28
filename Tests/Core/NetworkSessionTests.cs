@@ -279,6 +279,36 @@ namespace Microsoft.Xna.Framework.Net.Tests
         }
 
         [Test]
+        public async Task InOrderData_WithoutReliable_IsSentOnTheSequencedChannel()
+        {
+            var (host, transport, gamer, _) = await HostWithGamer();
+
+            host.SendDataToGamer(gamer, new byte[] { 0x50, 1 }, SendDataOptions.InOrder);
+            host.SendDataToGamer(gamer, new byte[] { 0x50, 2 }, SendDataOptions.ReliableInOrder);
+
+            var sent = transport.SentPackets.Select(p => p.data).ToList();
+            Assert.That(sent[0][0], Is.EqualTo(ReliableChannel.ChannelSequenced));
+            Assert.That(sent[1][0], Is.EqualTo(ReliableChannel.ChannelReliable));
+            Assert.That(host.LocalGamers[0].IsDataAvailable, Is.False);
+            await host.DisposeAsync();
+        }
+
+        [Test]
+        public async Task AGamerThatStopsAcknowledging_IsRemovedWhenTheSendQueueOverflows()
+        {
+            var (host, transport, gamer, _) = await HostWithGamer();
+            var left = new List<NetworkGamer>();
+            host.GamerLeft += (s, e) => left.Add((NetworkGamer)e.Gamer);
+
+            for (int i = 0; i < ReliableChannel.SendWindow + ReliableChannel.MaxQueuedPackets + 10; i++)
+                host.SendDataToGamer(gamer, new byte[] { 0x50 }, SendDataOptions.Reliable);
+
+            Assert.That(left.Count, Is.EqualTo(1));
+            Assert.That(host.RemoteGamers.Count, Is.EqualTo(0));
+            await host.DisposeAsync();
+        }
+
+        [Test]
         public async Task ReliableData_IsResentUntilAcknowledged()
         {
             var (host, transport, gamer, endpoint) = await HostWithGamer();

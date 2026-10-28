@@ -1364,6 +1364,8 @@ namespace Microsoft.Xna.Framework.Net
             ReliableChannel channel = GetReliableChannel(gamer);
             if ((options & SendDataOptions.Reliable) != 0)
                 channel.SendReliable(payload, payload.Length, ReliableNow);
+            else if ((options & SendDataOptions.InOrder) != 0)
+                channel.SendSequenced(payload, payload.Length);
             else
                 channel.SendUnreliable(payload, payload.Length);
         }
@@ -1401,6 +1403,7 @@ namespace Microsoft.Xna.Framework.Net
                 {
                     string id = gamer.Id;
                     channel = new ReliableChannel(datagram => SendRawToGamer(id, datagram));
+                    channel.Faulted += reason => OnChannelFaulted(id, reason);
                     reliableChannels[id] = channel;
 
                     // resends and acknowledgements need a clock; start it with the first channel
@@ -1410,6 +1413,20 @@ namespace Microsoft.Xna.Framework.Net
                 }
                 return channel;
             }
+        }
+
+        // the channel gave up on a gamer (stopped acknowledging, or broke the protocol): it is as good as gone
+        private void OnChannelFaulted(string gamerId, string reason)
+        {
+            NetworkGamer gamer;
+            lock (lockObject)
+                gamer = gamers.FirstOrDefault(g => g.Id == gamerId);
+
+            if (gamer == null || disposed)
+                return;
+
+            logger?.LogWarning($"Removing {gamer.Gamertag}: {reason}");
+            EvictGamer(gamer);
         }
 
         private void TickReliableChannels()

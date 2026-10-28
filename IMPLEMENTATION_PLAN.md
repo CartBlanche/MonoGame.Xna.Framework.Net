@@ -8,7 +8,7 @@ This file is the single source of truth for progress. Update it in the same comm
 
 Legend: `[ ]` todo · `[~]` in progress · `[x]` done · `[?]` needs verification before work starts · `(!)` decision needed
 
-_Last updated: 2026-10-28 (Phase 0 complete; compat suite found 5 known gaps, now tracked below)_
+_Last updated: 2026-10-28 (Phases 0 and 1 complete; 3 compat known gaps remain)_
 
 ---
 
@@ -17,7 +17,7 @@ _Last updated: 2026-10-28 (Phase 0 complete; compat suite found 5 known gaps, no
 | Phase | Theme | Status | Tasks done |
 |------:|-------|--------|-----------|
 | 0 | Safety net: CI runs tests, compat suite scaffold | **Done** | 8/8 |
-| 1 | Wire protocol correctness (envelope, InOrder, fragmentation) | In progress | 3/7 |
+| 1 | Wire protocol correctness (envelope, InOrder, fragmentation) | **Done** | 7/7 |
 | 2 | Threading and event model (`Update()`-drained events) | Not started | 0/6 |
 | 3 | XNA API parity (gamers, packets, sessions) | Not started | 0/19 |
 | 4 | Backend unification (one public API, peer-id transport) | Not started | 0/6 |
@@ -101,11 +101,11 @@ Problems found by reading `NetworkSession.ProcessPayload` and `ReliableChannel`:
 Tasks
 - [x] 1.1 Failing repro exists: `DataTests.GamePackets_ThatStartWithAFrameworkMessageId_AreStillDelivered` (un-ignored and passing since 1.2). Also seen in the wild: 3 of 300 four-byte ints were lost when their low byte was 2–10
 - [x] 1.2 Framework/app envelope: every channel payload starts with a kind byte (`PayloadKind.Application` / `PayloadKind.Message`); game data is never inspected by the registry; unregistered or malformed messages are dropped (no fallback to game data). Protocol version is now 3. Raw (non-channel) datagrams are registered messages only (handshake, leave)
-- [ ] 1.3 `InOrder` without `Reliable`: sequenced unreliable channel (drop stale, deliver newest-in-order)
-- [ ] 1.4 [?] Test `ushort` sequence wrap (send >65 535 reliable packets, with reorder/loss injection via `SimulatedPacketLoss`)
-- [ ] 1.5 Fragmentation and reassembly for payloads > MTU on the reliable channel; enforce a documented max packet size
+- [x] 1.3 `InOrder` without `Reliable`: new sequenced channel (`0x24`); the receiver drops anything older than what it already delivered, wrap-safe. `Reliable` alone still delivers in order (a stronger guarantee than XNA's)
+- [x] 1.4 Sequence wrap: a lockstep 70 000-packet test already existed; added the same across the wrap with 20% loss, duplication and reordering, and a sequenced-channel wrap test
+- [x] 1.5 Fragmentation and reassembly on the reliable channel (`0x25`, fragments are consecutive reliable packets, last-fragment flag). Reliable messages up to 1 MiB; unreliable and sequenced are limited to one datagram (1100 bytes, plus the kind byte) and throw `ArgumentOutOfRangeException` beyond that
 - [x] 1.7 Clients raised `GameStarted`/`GameEnded` twice (`SessionStateMessage` and the legacy `GameStateChangeMessage` both fire it). Remove the legacy message (pulls 8.5 forward). Done: `GameStateChangeMessage` removed; `AClientReady_IsSeenByTheHost_AndStartGameReachesEveryone` un-ignored and passing
-- [ ] 1.6 Congestion/backpressure: bounded pending list per channel; surface "peer not acking" via `UnacknowledgedAge` and timeout
+- [x] 1.6 Backpressure: 256-packet send window measured from the oldest unacked packet, bounded queue (8192 packets), resends capped per tick. A peer that overflows the queue, or breaks the fragment protocol, raises `ReliableChannel.Faulted` and the session evicts that gamer. Selective acks (bitmap of what arrived early) added so resends cover only real holes; without them a capped resend collapsed throughput under loss
 
 Commit groups
 - A. `tests: reproduce framework/app byte collision` (1.1)
@@ -113,7 +113,7 @@ Commit groups
 - C. `net: implement InOrder delivery` (1.3, 1.4)
 - D. `net: fragmentation and bounded send queues` (1.5, 1.6)
 
-Exit criteria: compat tests for collision, in-order, wrap, and large payloads pass; protocol version bumped and documented.
+Exit criteria: met. Collision, in-order, wrap and large-payload tests pass at channel level (Tests/Core) and over real UDP (Tests/Compat). Protocol version is 3.
 
 ---
 
@@ -310,6 +310,8 @@ Exit criteria: a containerised server accepts clients from another network and s
 | 2026-10-28 | Phase 0 done. Original claim "CI never runs tests" retracted | CI had a test job; my grep was truncated |
 | 2026-10-28 | Fixed the discovery orphan-receive bug immediately rather than only logging it | The 4-instance compat test cannot pass without it |
 | 2026-10-28 | No `GamerJoined` replay on subscribe; no self-loopback in `SendData` | ShipGame relies on neither; both are inconsistent today |
+| 2026-10-28 | Unreliable and sequenced data limited to one datagram (1100 bytes); larger data must be sent reliably | IP fragmentation drops the whole datagram if any piece is lost; XNA also limited unreliable packet size. Revisit if ShipGame or a backend needs more |
+| 2026-10-28 | Selective acks added to the channel | Cumulative-only acks plus capped resends stalled under 20% loss; found by the lossy wrap test |
 | 2026-10-28 | Events move to `Update()` | This matches XNA's behaviour, so it is also a compat fix |
 
 ## Open questions
