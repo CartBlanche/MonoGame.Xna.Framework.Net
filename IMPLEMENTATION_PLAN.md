@@ -144,9 +144,9 @@ Fill every mock/stub so ported code behaves identically.
 
 Gamers
 - [ ] 3.1 `NetworkGamer.Id` as XNA `byte` (keep string id internally as `GamerId`) (XNA-visible, so keep XNA's shape; no legacy string-id shim needed)
-- [ ] 3.2 `NetworkGamer.Machine` real (`NetworkMachine` with `Gamers`, `RemoveFromSession()`)
-- [ ] 3.3 `SignedInGamer` returns the correct gamer per `NetworkGamer` (null for remote), not `SignedInGamer.Current`
-- [ ] 3.4 `LocalNetworkGamer.EnableSendData/IsSendingData` real; `SendData` honours it
+- [x] 3.2 `NetworkGamer.Machine` real: one machine for all local gamers, one per remote gamer, `Gamers` lists the machine's live gamers. `RemoveFromSession()` follows with kick in 3.12
+- [x] 3.3 `NetworkGamer.SignedInGamer` is null for remote gamers (was `SignedInGamer.Current` for everyone). Multiple local gamers sharing one `Current` waits for per-gamer sign-in (Phase 5/identity)
+- [x] 3.4 `LocalNetworkGamer.EnableSendData/IsSendingData` removed: stubs that are not XNA members (XNA has `EnableSendVoice`), unused by ShipGame, and `EnableSendData(SendDataOptions)` has no meaningful semantics. See decision log
 - [ ] 3.5 Bounded incoming queues with drop policy + diagnostics counter; per-local-gamer addressing of incoming packets
 - [ ] 3.6 `RoundtripTime` populated for every transport (not only via the UDP heartbeat)
 - [ ] 3.6b Keep `NetworkGamer.UnacknowledgedAge` (non-XNA, used by ShipGame's stall detection) as a supported extension, available on every back-end
@@ -311,6 +311,7 @@ Exit criteria: a containerised server accepts clients from another network and s
 | 2026-10-28 | No `GamerJoined` replay on subscribe; no self-loopback in `SendData` | ShipGame relies on neither; both are inconsistent today |
 | 2026-10-28 | Unreliable and sequenced data limited to one datagram (1100 bytes); larger data must be sent reliably | IP fragmentation drops the whole datagram if any piece is lost; XNA also limited unreliable packet size. Revisit if ShipGame or a backend needs more |
 | 2026-10-28 | Selective acks added to the channel | Cumulative-only acks plus capped resends stalled under 20% loss; found by the lossy wrap test |
+| 2026-10-28 | Removed `LocalNetworkGamer.EnableSendData`/`IsSendingData` instead of implementing them | Not XNA members, nothing uses them, and the signature has no sensible meaning; reinstate only if a real need appears |
 | 2026-10-28 | Events move to `Update()` | This matches XNA's behaviour, so it is also a compat fix |
 | 2026-10-28 | Phase 2 shipped as one commit, not the two planned (A and B) | The event queue and the per-session local gamer change the same lines of `NetworkSession.cs` |
 | 2026-10-28 | `SessionEnded` is raised at most once per session | Previously a client whose host left, then disposed in the handler, got it twice (HostEndedSession then ClientSignedOut) |

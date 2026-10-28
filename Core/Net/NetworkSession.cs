@@ -36,6 +36,8 @@ namespace Microsoft.Xna.Framework.Net
         private readonly object lockObject = new object();
 
         private LocalNetworkGamer localGamer;
+        private NetworkMachine localMachine;
+        private readonly Dictionary<string, NetworkMachine> remoteMachines = new Dictionary<string, NetworkMachine>();
         private INetworkTransport networkTransport;
         internal NetworkSessionState sessionState;
         internal bool disposed;
@@ -1314,6 +1316,19 @@ namespace Microsoft.Xna.Framework.Net
             OnGamerJoined(gamer);
         }
 
+        // One machine for all the local gamers, and one per remote gamer
+        internal NetworkMachine MachineOf(NetworkGamer gamer)
+        {
+            lock (lockObject)
+            {
+                if (gamer.IsLocal)
+                    return localMachine ??= new NetworkMachine(this, isLocal: true);
+                if (!remoteMachines.TryGetValue(gamer.Id, out var machine))
+                    remoteMachines[gamer.Id] = machine = new NetworkMachine(this, isLocal: false);
+                return machine;
+            }
+        }
+
         private void RemoveGamer(NetworkGamer gamer)
         {
             if (gamer == null) return;
@@ -1321,6 +1336,7 @@ namespace Microsoft.Xna.Framework.Net
             {
                 gamers.Remove(gamer);
                 gamerEndpoints.Remove(gamer.Id);
+                remoteMachines.Remove(gamer.Id);
             }
             lock (reliableLock)
                 reliableChannels.Remove(gamer.Id);

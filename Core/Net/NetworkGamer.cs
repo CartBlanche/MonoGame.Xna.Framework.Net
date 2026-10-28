@@ -78,7 +78,7 @@ namespace Microsoft.Xna.Framework.Net
         /// <summary>
         /// Gets the machine for this network gamer.
         /// </summary>
-        public NetworkMachine Machine => null; // Mock implementation
+        public NetworkMachine Machine => session?.MachineOf(this);
 
         /// <summary>
         /// Gets whether data is available to be received from this gamer.
@@ -97,7 +97,7 @@ namespace Microsoft.Xna.Framework.Net
         /// <summary>
         /// Gets the SignedInGamer associated with this NetworkGamer.
         /// </summary>
-        public SignedInGamer SignedInGamer => SignedInGamer.Current;
+        public SignedInGamer SignedInGamer => isLocal ? SignedInGamer.Current : null;
 
         /// <summary>
         /// Gets whether this gamer is muted by the local user.
