@@ -451,7 +451,7 @@ namespace Microsoft.Xna.Framework.Net
                     sender = resolvedSender;
                 }
 
-                var args = new MessageReceivedEventArgs(message, null)
+                var args = new MessageReceivedEventArgs(message, default)
                 {
                     Sender = sender
                 };

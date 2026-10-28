@@ -348,7 +348,7 @@ namespace Microsoft.Xna.Framework.Net.Android
                 AndroidNetworkGamer sender;
                 lock (session.gate) { session.gamers.TryGetValue(endpointId, out sender); }
 
-                session.MessageReceived?.Invoke(session, new MessageReceivedEventArgs(msg, null) { Sender = sender });
+                session.MessageReceived?.Invoke(session, new MessageReceivedEventArgs(msg, default) { Sender = sender });
             }
 
             public override void OnPayloadTransferUpdate(string endpointId, PayloadTransferUpdate update)

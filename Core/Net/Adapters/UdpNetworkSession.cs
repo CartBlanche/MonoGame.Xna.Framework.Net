@@ -227,7 +227,7 @@ namespace Microsoft.Xna.Framework.Net
                 sessionProperties: null
             );
 
-            var session = availableSessions.FirstOrDefault(s => s.HostEndpoint?.ToString() == hostAddress);
+            var session = availableSessions.FirstOrDefault(s => UdpTransport.ToEndPoint(s.HostPeer)?.ToString() == hostAddress);
             if (session != null)
             {
                 var newSession = await NetworkSession.JoinAsync(session);

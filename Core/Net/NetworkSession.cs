@@ -24,7 +24,7 @@ namespace Microsoft.Xna.Framework.Net
         private readonly NetworkSessionType sessionType;
         private readonly int maxGamers;
         private readonly int privateGamerSlots;
-        private readonly Dictionary<string, IPEndPoint> gamerEndpoints;
+        private readonly Dictionary<string, PeerId> gamerPeers;
 
         // Reliable delivery over UDP: one channel per remote gamer (see ReliableChannel). Everything sent
         // to a gamer goes through it, as reliable or unreliable, and is unwrapped again on arrival.
@@ -38,7 +38,7 @@ namespace Microsoft.Xna.Framework.Net
         private LocalNetworkGamer localGamer;
         private NetworkMachine localMachine;
         private readonly Dictionary<string, NetworkMachine> remoteMachines = new Dictionary<string, NetworkMachine>();
-        private INetworkTransport networkTransport;
+        private IPeerTransport networkTransport;
         internal NetworkSessionState sessionState;
         internal bool disposed;
         private bool isHost;
@@ -82,7 +82,7 @@ namespace Microsoft.Xna.Framework.Net
         /// <summary>
         /// Allows changing the network transport implementation.
         /// </summary>
-        public INetworkTransport NetworkTransport
+        public IPeerTransport NetworkTransport
         {
             get => networkTransport;
             set => networkTransport = value ?? throw new ArgumentNullException(nameof(value));
@@ -105,7 +105,7 @@ namespace Microsoft.Xna.Framework.Net
         /// <summary>
         /// Initializes a new NetworkSession.
         /// </summary>
-        private NetworkSession(NetworkSessionType sessionType, int maxGamers, int privateGamerSlots, bool isHost, INetworkTransport transport = null)
+        private NetworkSession(NetworkSessionType sessionType, int maxGamers, int privateGamerSlots, bool isHost, IPeerTransport transport = null)
         {
             // Register message types (can be moved to static constructor)
             NetworkMessageRegistry.Register<PlayerMoveMessage>(1);
@@ -119,9 +119,9 @@ namespace Microsoft.Xna.Framework.Net
 
             gamers = new List<NetworkGamer>();
             gamerCollection = new GamerCollection(gamers);
-            gamerEndpoints = new Dictionary<string, IPEndPoint>();
+            gamerPeers = new Dictionary<string, PeerId>();
 
-            networkTransport = transport ?? new UdpTransport();
+            networkTransport = transport ?? new UdpTransport(SystemLinkSessionManager.GamePort);
             cancellationTokenSource = new CancellationTokenSource();
 
             // Phase 1: Initialize diagnostics and logging
@@ -138,28 +138,17 @@ namespace Microsoft.Xna.Framework.Net
             // Start receive loop for SystemLink sessions
             if (sessionType == NetworkSessionType.SystemLink)
             {
-                // Bind immediately so our endpoint is stable and reachable
+                // Bind immediately so our address is stable and reachable
                 if (!networkTransport.IsBound)
                 {
-                    try
-                    {
-                        // Try binding to the well-known game port; fall back to transport default if not UDP.
-                        if (networkTransport is UdpTransport udpTransport)
-                            udpTransport.Bind(31338);
-                        else
-                            networkTransport.Bind();
-                    }
-                    catch
-                    {
-                        try { networkTransport.Bind(); } catch { }
-                    }
+                    try { networkTransport.Bind(); } catch { }
                 }
                 receiveTask = Task.Run(() => ReceiveLoopAsync(cancellationTokenSource.Token));
             }
         }
 
         // Internal constructor for SystemLink join
-        internal NetworkSession(NetworkSessionType sessionType, int maxGamers, int privateGamerSlots, bool isHost, string sessionId, INetworkTransport transport = null)
+        internal NetworkSession(NetworkSessionType sessionType, int maxGamers, int privateGamerSlots, bool isHost, string sessionId, IPeerTransport transport = null)
             : this(sessionType, maxGamers, privateGamerSlots, isHost, transport)
         {
             this.sessionId = sessionId;
@@ -347,7 +336,7 @@ namespace Microsoft.Xna.Framework.Net
             NetworkSessionType sessionType,
             int maxGamers,
             int privateGamerSlots,
-            INetworkTransport transport,
+            IPeerTransport transport,
             bool advertiseOnLan,
             CancellationToken cancellationToken = default)
         {
@@ -372,7 +361,7 @@ namespace Microsoft.Xna.Framework.Net
 
         internal static async Task<NetworkSession> JoinSystemLinkSessionAsync(
             AvailableNetworkSession availableSession,
-            INetworkTransport transport,
+            IPeerTransport transport,
             CancellationToken cancellationToken = default)
         {
             var joinedSession = await SystemLinkSessionManager.JoinSessionAsync(availableSession, transport, cancellationToken);
@@ -769,7 +758,7 @@ namespace Microsoft.Xna.Framework.Net
                     };
                     var rejectWriter = new PacketWriter();
                     rejection.Serialize(rejectWriter);
-                    networkTransport.Send(rejectWriter.GetData(), e.RemoteEndPoint);
+                    SendTo(e.RemotePeer, rejectWriter.GetData());
                     return;
                 }
 
@@ -793,7 +782,7 @@ namespace Microsoft.Xna.Framework.Net
                         };
                         var rejectWriter = new PacketWriter();
                         rejection.Serialize(rejectWriter);
-                        networkTransport.Send(rejectWriter.GetData(), e.RemoteEndPoint);
+                        SendTo(e.RemotePeer, rejectWriter.GetData());
                         return;
                     }
                 }
@@ -810,7 +799,7 @@ namespace Microsoft.Xna.Framework.Net
                     };
                     var rejectWriter = new PacketWriter();
                     rejection.Serialize(rejectWriter);
-                    networkTransport.Send(rejectWriter.GetData(), e.RemoteEndPoint);
+                    SendTo(e.RemotePeer, rejectWriter.GetData());
                     return;
                 }
 
@@ -842,7 +831,7 @@ namespace Microsoft.Xna.Framework.Net
                 }
                 
                 // Register endpoint outside lock (uses its own lock internally)
-                RegisterGamerEndpoint(existingGamer, e.RemoteEndPoint);
+                RegisterGamerEndpoint(existingGamer, e.RemotePeer);
                 
                 // Notify connection monitor for new gamers only
                 if (isNewGamer)
@@ -876,7 +865,7 @@ namespace Microsoft.Xna.Framework.Net
                 }
                 var writer = new PacketWriter();
                 joinAccepted.Serialize(writer);
-                networkTransport.Send(writer.GetData(), e.RemoteEndPoint);
+                SendTo(e.RemotePeer, writer.GetData());
                 logger?.LogInfo($"Sent JoinAcceptedMessage to {joinRequest.Gamertag}");
             }
             else if (e.Message is JoinAcceptedMessage joinAccepted)
@@ -900,7 +889,7 @@ namespace Microsoft.Xna.Framework.Net
                         mine.AssignId(joinAccepted.YourId);
                     if (existingHost == null)
                         AddGamer(host);
-                    RegisterGamerEndpoint(host, e.RemoteEndPoint);
+                    RegisterGamerEndpoint(host, e.RemotePeer);
 
                     foreach (var entry in joinAccepted.Others)
                         AddPeer(entry.Id, entry.GamerId, entry.Gamertag);
@@ -929,8 +918,8 @@ namespace Microsoft.Xna.Framework.Net
                 NetworkGamer sourceGamer = null;
                 lock (lockObject)
                 {
-                    if (e.RemoteEndPoint != null)
-                        sourceGamer = gamers.FirstOrDefault(g => gamerEndpoints.TryGetValue(g.GamerId, out var ep) && ep.Equals(e.RemoteEndPoint));
+                    if (e.RemotePeer.IsValid)
+                        sourceGamer = gamers.FirstOrDefault(g => gamerPeers.TryGetValue(g.GamerId, out var ep) && ep == e.RemotePeer);
                 }
 
                 if (sourceGamer != null)
@@ -960,8 +949,8 @@ namespace Microsoft.Xna.Framework.Net
                     NetworkGamer sourceGamer = null;
                     lock (lockObject)
                     {
-                        if (e.RemoteEndPoint != null)
-                            sourceGamer = gamers.FirstOrDefault(g => gamerEndpoints.TryGetValue(g.GamerId, out var ep) && ep.Equals(e.RemoteEndPoint));
+                        if (e.RemotePeer.IsValid)
+                            sourceGamer = gamers.FirstOrDefault(g => gamerPeers.TryGetValue(g.GamerId, out var ep) && ep == e.RemotePeer);
                     }
                     SendMessageToAll(writer, SendDataOptions.Reliable, sourceGamer);
                 }
@@ -984,7 +973,7 @@ namespace Microsoft.Xna.Framework.Net
             else if (e.Message is GamerJoinedMessage gamerJoined)
             {
                 // the host tells us about a gamer who joined after us
-                if (!IsHost && IsFromHost(e.RemoteEndPoint))
+                if (!IsHost && IsFromHost(e.RemotePeer))
                     AddPeer(gamerJoined.Id, gamerJoined.GamerId, gamerJoined.Gamertag);
             }
             else if (e.Message is GamerLeavingMessage leaveMessage)
@@ -1001,11 +990,11 @@ namespace Microsoft.Xna.Framework.Net
                 // Only a gamer may announce its own departure (to the host), or the host a gamer's (to the
                 // clients): nobody can remove somebody else
                 bool authorised = leavingGamer != null && !leavingGamer.IsLocal &&
-                    (IsHost ? EndpointOf(leavingGamer)?.Equals(e.RemoteEndPoint) == true : IsFromHost(e.RemoteEndPoint));
+                    (IsHost ? PeerOf(leavingGamer) == e.RemotePeer : IsFromHost(e.RemotePeer));
 
                 if (leavingGamer != null && !authorised)
                 {
-                    logger?.LogWarning($"Ignored a leave notice for {leavingGamer.Gamertag} from {e.RemoteEndPoint}");
+                    logger?.LogWarning($"Ignored a leave notice for {leavingGamer.Gamertag} from {e.RemotePeer}");
                 }
                 else if (leavingGamer != null)
                 {
@@ -1020,7 +1009,7 @@ namespace Microsoft.Xna.Framework.Net
             }
             else if (e.Message is RemovedFromSessionMessage)
             {
-                if (!IsHost && IsFromHost(e.RemoteEndPoint))
+                if (!IsHost && IsFromHost(e.RemotePeer))
                 {
                     logger?.LogWarning("The host removed this machine from the session");
                     OnSessionEnded(NetworkSessionEndReason.RemovedByHost);
@@ -1123,9 +1112,9 @@ namespace Microsoft.Xna.Framework.Net
                     {
                         try
                         {
-                            if (gamerEndpoints.TryGetValue(gamer.GamerId, out var endpoint))
+                            if (gamerPeers.TryGetValue(gamer.GamerId, out var endpoint))
                             {
-                                networkTransport.Send(data, endpoint);
+                                SendTo(endpoint, data);
                                 logger?.LogInfo($"Sent leave notification to {gamer.Gamertag}");
                             }
                         }
@@ -1410,7 +1399,7 @@ namespace Microsoft.Xna.Framework.Net
             lock (lockObject)
             {
                 gamers.Remove(gamer);
-                gamerEndpoints.Remove(gamer.GamerId);
+                gamerPeers.Remove(gamer.GamerId);
                 remoteMachines.Remove(gamer.GamerId);
             }
             lock (reliableLock)
@@ -1493,20 +1482,26 @@ namespace Microsoft.Xna.Framework.Net
             }
         }
 
-        private IPEndPoint EndpointOf(NetworkGamer gamer)
+        private PeerId? PeerOf(NetworkGamer gamer)
         {
             lock (lockObject)
-                return gamerEndpoints.TryGetValue(gamer.GamerId, out var endpoint) ? endpoint : null;
+                return gamerPeers.TryGetValue(gamer.GamerId, out var peer) ? peer : (PeerId?)null;
         }
 
-        private bool IsFromHost(IPEndPoint endpoint)
+        // a datagram as it is, outside any channel, to a peer
+        private void SendTo(PeerId peer, byte[] data)
         {
-            if (endpoint == null)
+            networkTransport.Send(peer, data, data.Length);
+        }
+
+        private bool IsFromHost(PeerId endpoint)
+        {
+            if (!endpoint.IsValid)
                 return false;
             NetworkGamer host;
             lock (lockObject)
                 host = gamers.FirstOrDefault(g => g.IsHost && !g.IsLocal);
-            return host != null && EndpointOf(host)?.Equals(endpoint) == true;
+            return host != null && PeerOf(host) == endpoint;
         }
 
         // a gamer the host told us about: not directly connected, reached through the host
@@ -1536,7 +1531,7 @@ namespace Microsoft.Xna.Framework.Net
 
             // A gamer we have no address for is another client, only reachable through the host. Game data
             // is passed on by the host; the framework's own messages are only ever sent to a direct peer.
-            if (!IsHost && !gamer.IsLocal && EndpointOf(gamer) == null)
+            if (!IsHost && !gamer.IsLocal && PeerOf(gamer) == null)
             {
                 NetworkGamer host;
                 lock (lockObject)
@@ -1571,16 +1566,16 @@ namespace Microsoft.Xna.Framework.Net
         // sends a datagram as it is, to the endpoint of the gamer with this id
         private void SendRawToGamer(string gamerId, byte[] data)
         {
-            IPEndPoint endpoint;
+            PeerId endpoint;
             lock (lockObject)
             {
-                if (!gamerEndpoints.TryGetValue(gamerId, out endpoint))
+                if (!gamerPeers.TryGetValue(gamerId, out endpoint))
                     return;
             }
 
             try
             {
-                networkTransport.Send(data, data.Length, endpoint);
+                networkTransport.Send(endpoint, data, data.Length);
                 // Phase 1: Record sent packet in diagnostics
                 diagnostics?.RecordPacketSent(data.Length);
             }
@@ -1672,12 +1667,12 @@ namespace Microsoft.Xna.Framework.Net
         /// <summary>
         /// Internally associates a remote gamer with an endpoint (used by SystemLink join/handshake).
         /// </summary>
-        internal void RegisterGamerEndpoint(NetworkGamer gamer, IPEndPoint endpoint)
+        internal void RegisterGamerEndpoint(NetworkGamer gamer, PeerId endpoint)
         {
-            if (gamer == null || endpoint == null) return;
+            if (gamer == null || !endpoint.IsValid) return;
             lock (lockObject)
             {
-                gamerEndpoints[gamer.GamerId] = endpoint;
+                gamerPeers[gamer.GamerId] = endpoint;
             }
         }
 
@@ -1685,7 +1680,7 @@ namespace Microsoft.Xna.Framework.Net
         /// Handles one datagram from the network: unwraps the reliable channel it belongs to, then
         /// treats what comes out as a framework message or as game data, according to its kind.
         /// </summary>
-        internal void ProcessIncomingDatagram(byte[] data, IPEndPoint senderEndpoint)
+        internal void ProcessIncomingDatagram(byte[] data, PeerId senderEndpoint)
         {
             if (data == null || data.Length == 0)
                 return;
@@ -1694,7 +1689,7 @@ namespace Microsoft.Xna.Framework.Net
             NetworkGamer senderGamer = null;
             lock (lockObject)
             {
-                senderGamer = gamers.FirstOrDefault(g => gamerEndpoints.TryGetValue(g.GamerId, out var ep) && ep.Equals(senderEndpoint));
+                senderGamer = gamers.FirstOrDefault(g => gamerPeers.TryGetValue(g.GamerId, out var ep) && ep == senderEndpoint);
             }
 
             // anything from a gamer shows they are still connected
@@ -1714,7 +1709,7 @@ namespace Microsoft.Xna.Framework.Net
             }
         }
 
-        private void ProcessPayload(byte[] payload, IPEndPoint senderEndpoint, NetworkGamer senderGamer)
+        private void ProcessPayload(byte[] payload, PeerId senderEndpoint, NetworkGamer senderGamer)
         {
             if (payload.Length == 0)
                 return;
@@ -1796,7 +1791,7 @@ namespace Microsoft.Xna.Framework.Net
         }
 
         // a registered message starting at offset: the first byte is its type id and it must use up every byte
-        private void ProcessMessage(byte[] data, int offset, IPEndPoint senderEndpoint)
+        private void ProcessMessage(byte[] data, int offset, PeerId senderEndpoint)
         {
             if (data.Length <= offset)
                 return;

@@ -142,7 +142,7 @@ namespace Microsoft.Xna.Framework.Net
                 sessionType: sessionType,
                 sessionProperties: new Dictionary<string, object>(),
                 sessionId: info.SessionId,
-                hostEndpoint: TryGetHostEndpointFromLobby(info.SessionId)
+                hostPeer: TryGetHostPeerFromLobby(info.SessionId)
             )).ToList();
 
             return new AvailableNetworkSessionCollection(available);
@@ -238,27 +238,27 @@ namespace Microsoft.Xna.Framework.Net
             }
         }
 
-        private IPEndPoint TryGetHostEndpointFromLobby(string sessionId)
+        private PeerId TryGetHostPeerFromLobby(string sessionId)
         {
-            if (!SteamRuntime.IsInitialized) return null;
-            if (!ulong.TryParse(sessionId, out var lobbyIdRaw)) return null;
+            if (!SteamRuntime.IsInitialized) return PeerId.None;
+            if (!ulong.TryParse(sessionId, out var lobbyIdRaw)) return PeerId.None;
             try
             {
                 var lobbyId = new CSteamID(lobbyIdRaw);
                 var lobbyGame = SteamMatchmaking.GetLobbyData(lobbyId, LobbyGameKey);
                 if (!string.Equals(lobbyGame, lobbyGameValue, StringComparison.OrdinalIgnoreCase))
-                    return null;
+                    return PeerId.None;
 
                 var hostSteamId = SteamMatchmaking.GetLobbyOwner(lobbyId);
                 if (hostSteamId.IsValid())
-                    return SteamP2PTransport.ToEndpoint(hostSteamId);
+                    return SteamP2PTransport.ToPeer(hostSteamId);
 
                 var hostSteamIdText = SteamMatchmaking.GetLobbyData(lobbyId, LobbyHostSteamIdKey);
                 if (ulong.TryParse(hostSteamIdText, out var hostSteamIdRaw))
-                    return SteamP2PTransport.ToEndpoint(new CSteamID(hostSteamIdRaw));
+                    return SteamP2PTransport.ToPeer(new CSteamID(hostSteamIdRaw));
             }
             catch { }
-            return null;
+            return PeerId.None;
         }
 
 
@@ -334,7 +334,7 @@ namespace Microsoft.Xna.Framework.Net
             return lanSessions.Select(session => new SessionInfo
             {
                 SessionId = session.SessionId,
-                JoinAddress = session.HostEndpoint?.ToString() ?? string.Empty,
+                JoinAddress = session.HostPeer.ToString(),
                 HostName = session.HostGamertag,
                 CurrentPlayerCount = session.CurrentGamerCount,
                 MaxPlayerCount = session.CurrentGamerCount + session.OpenPublicGamerSlots + session.OpenPrivateGamerSlots,

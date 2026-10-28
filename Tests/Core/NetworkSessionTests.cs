@@ -13,76 +13,48 @@ namespace Microsoft.Xna.Framework.Net.Tests
     [TestFixture]
     public class NetworkSessionTests
     {
-        private sealed class FakeNetworkTransport : INetworkTransport
+        private sealed class FakeNetworkTransport : IPeerTransport
         {
-            private readonly Queue<(byte[] data, IPEndPoint sender)> receiveQueue = new Queue<(byte[] data, IPEndPoint sender)>();
+            private readonly Queue<(byte[] data, PeerId sender)> receiveQueue = new Queue<(byte[] data, PeerId sender)>();
             private readonly object gate = new object();
 
-            public List<(byte[] data, int length, IPEndPoint endpoint)> SentPackets { get; } = new List<(byte[] data, int length, IPEndPoint endpoint)>();
+            public List<(byte[] data, int length, PeerId endpoint)> SentPackets { get; } = new List<(byte[] data, int length, PeerId endpoint)>();
 
             public bool IsBound { get; private set; }
-            public IPEndPoint LocalEndPoint => null; // Not needed for tests
+            public PeerId LocalPeer => PeerId.None; // Not needed for tests
 
             public void Bind()
             {
                 IsBound = true;
             }
 
-            public void Bind(int port)
-            {
-                IsBound = true;
-            }
-
-            public void Send(byte[] data, IPEndPoint endpoint)
-            {
-                Send(data, data.Length, endpoint);
-            }
-
-            public void Send(byte[] data, int length, IPEndPoint endpoint)
+            public void Send(PeerId peer, byte[] data, int length)
             {
                 if (data == null) throw new ArgumentNullException(nameof(data));
-                if (endpoint == null) throw new ArgumentNullException(nameof(endpoint));
+                if (!peer.IsValid) throw new ArgumentException("No peer.", nameof(peer));
                 if (length < 0 || length > data.Length) throw new ArgumentOutOfRangeException(nameof(length));
 
                 var copy = new byte[length];
                 Buffer.BlockCopy(data, 0, copy, 0, length);
                 lock (gate)
                 {
-                    SentPackets.Add((copy, length, endpoint));
+                    SentPackets.Add((copy, length, peer));
                 }
             }
 
-            public Task SendAsync(byte[] data, IPEndPoint endpoint)
-            {
-                Send(data, endpoint);
-                return Task.CompletedTask;
-            }
-
-            public Task SendAsync(byte[] data, int length, IPEndPoint endpoint)
-            {
-                Send(data, length, endpoint);
-                return Task.CompletedTask;
-            }
-
-            public (byte[] data, IPEndPoint sender) Receive()
+            public Task<(byte[] Data, PeerId Sender)> ReceiveAsync()
             {
                 lock (gate)
                 {
                     if (receiveQueue.Count == 0)
-                    {
-                        return (Array.Empty<byte>(), new IPEndPoint(IPAddress.Loopback, 0));
-                    }
+                        return Task.FromResult((Array.Empty<byte>(), Peer(0)));
 
-                    return receiveQueue.Dequeue();
+                    var next = receiveQueue.Dequeue();
+                    return Task.FromResult((next.data, next.sender));
                 }
             }
 
-            public Task<(byte[] data, IPEndPoint sender)> ReceiveAsync()
-            {
-                return Task.FromResult(Receive());
-            }
-
-            public void EnqueueInbound(byte[] data, IPEndPoint sender)
+            public void EnqueueInbound(byte[] data, PeerId sender)
             {
                 lock (gate)
                 {
@@ -94,6 +66,9 @@ namespace Microsoft.Xna.Framework.Net.Tests
             {
             }
         }
+
+        // a UDP peer on loopback: what the tests use for a remote machine
+        private static PeerId Peer(int port) => UdpTransport.ToPeer(new IPEndPoint(IPAddress.Loopback, port));
 
         [Test]
         public async Task MessageReceived_EventIsFired_ThroughDispatch()
@@ -111,7 +86,7 @@ namespace Microsoft.Xna.Framework.Net.Tests
                 GamerId = "remote",
                 SequenceNumber = 1,
                 Timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
-            }, null));
+            }, default));
 
             session.Update();
             var result = await tcs.Task;
@@ -134,7 +109,7 @@ namespace Microsoft.Xna.Framework.Net.Tests
                 Gamertag = "PlayerTwo"
             };
 
-            var remoteEndpoint = new IPEndPoint(IPAddress.Loopback, 12345);
+            var remoteEndpoint = Peer(12345);
             hostSession.DispatchIncomingMessage(new MessageReceivedEventArgs(joinRequest, remoteEndpoint));
 
             Assert.IsTrue(hostSession.AllGamers.Any(g => g.Gamertag == "PlayerTwo"));
@@ -168,7 +143,7 @@ namespace Microsoft.Xna.Framework.Net.Tests
             host.StartGame();
             transport.SentPackets.Clear();
 
-            host.DispatchIncomingMessage(new MessageReceivedEventArgs(JoinRequest("late"), new IPEndPoint(IPAddress.Loopback, 12345)));
+            host.DispatchIncomingMessage(new MessageReceivedEventArgs(JoinRequest("late"), Peer(12345)));
 
             Assert.IsFalse(host.AllGamers.Any(g => g.GamerId == "late"), "the latecomer must not be added");
             var rejection = LastRejection(transport);
@@ -185,7 +160,7 @@ namespace Microsoft.Xna.Framework.Net.Tests
             host.NetworkTransport = new FakeNetworkTransport();
             host.StartGame();
 
-            host.DispatchIncomingMessage(new MessageReceivedEventArgs(JoinRequest("late"), new IPEndPoint(IPAddress.Loopback, 12345)));
+            host.DispatchIncomingMessage(new MessageReceivedEventArgs(JoinRequest("late"), Peer(12345)));
 
             Assert.IsTrue(host.AllGamers.Any(g => g.GamerId == "late"));
             await host.DisposeAsync();
@@ -198,7 +173,7 @@ namespace Microsoft.Xna.Framework.Net.Tests
             host.NetworkTransport = new FakeNetworkTransport();
             host.AllowJoinInProgress = false;
 
-            host.DispatchIncomingMessage(new MessageReceivedEventArgs(JoinRequest("early"), new IPEndPoint(IPAddress.Loopback, 12345)));
+            host.DispatchIncomingMessage(new MessageReceivedEventArgs(JoinRequest("early"), Peer(12345)));
 
             Assert.IsTrue(host.AllGamers.Any(g => g.GamerId == "early"));
             await host.DisposeAsync();
@@ -211,7 +186,7 @@ namespace Microsoft.Xna.Framework.Net.Tests
             var transport = new FakeNetworkTransport();
             host.NetworkTransport = transport;
             host.AllowJoinInProgress = false;
-            var endpoint = new IPEndPoint(IPAddress.Loopback, 12345);
+            var endpoint = Peer(12345);
 
             host.DispatchIncomingMessage(new MessageReceivedEventArgs(JoinRequest("early"), endpoint));
             host.StartGame();
@@ -236,7 +211,7 @@ namespace Microsoft.Xna.Framework.Net.Tests
             {
                 ErrorCode = NetworkSessionJoinError.SessionNotJoinable,
                 Reason = "The game has already started"
-            }, null));
+            }, default));
 
             Assert.That(client.joinRejectedReason, Is.EqualTo("The game has already started"));
             Assert.That(client.joinRejectedError, Is.EqualTo(NetworkSessionJoinError.SessionNotJoinable));
@@ -244,12 +219,12 @@ namespace Microsoft.Xna.Framework.Net.Tests
         }
 
         // a host with one remote gamer ("p2") who has joined from the given endpoint
-        private static async Task<(NetworkSession host, FakeNetworkTransport transport, NetworkGamer gamer, IPEndPoint endpoint)> HostWithGamer()
+        private static async Task<(NetworkSession host, FakeNetworkTransport transport, NetworkGamer gamer, PeerId endpoint)> HostWithGamer()
         {
             var host = await NetworkSession.CreateAsync(NetworkSessionType.Local, 1, 4, 0, new Dictionary<string, object>());
             var transport = new FakeNetworkTransport();
             host.NetworkTransport = transport;
-            var endpoint = new IPEndPoint(IPAddress.Loopback, 12345);
+            var endpoint = Peer(12345);
 
             host.DispatchIncomingMessage(new MessageReceivedEventArgs(JoinRequest("p2"), endpoint));
             transport.SentPackets.Clear();
@@ -353,7 +328,7 @@ namespace Microsoft.Xna.Framework.Net.Tests
         public async Task ALeaveNotice_IsOnlyHonouredFromTheGamerItNamesOrTheHost()
         {
             var (host, transport, p2, p2Endpoint) = await HostWithGamer();
-            var p3Endpoint = new IPEndPoint(IPAddress.Loopback, 12346);
+            var p3Endpoint = Peer(12346);
             host.DispatchIncomingMessage(new MessageReceivedEventArgs(JoinRequest("p3"), p3Endpoint));
             Assert.That(host.RemoteGamers.Count, Is.EqualTo(2));
 
@@ -373,7 +348,7 @@ namespace Microsoft.Xna.Framework.Net.Tests
             var (host, transport, p2, p2Endpoint) = await HostWithGamer();
             transport.SentPackets.Clear();
 
-            host.DispatchIncomingMessage(new MessageReceivedEventArgs(JoinRequest("p3"), new IPEndPoint(IPAddress.Loopback, 12346)));
+            host.DispatchIncomingMessage(new MessageReceivedEventArgs(JoinRequest("p3"), Peer(12346)));
 
             // p2 hears about p3 through its channel
             Assert.That(transport.SentPackets.Any(p => p.endpoint.Equals(p2Endpoint) && p.data[0] == ReliableChannel.ChannelReliable),
@@ -490,7 +465,7 @@ namespace Microsoft.Xna.Framework.Net.Tests
             var (host, transport, gamer, endpoint) = await HostWithGamer();
             Thread.Sleep(200);
 
-            host.ProcessIncomingDatagram(new byte[] { ReliableChannel.ChannelUnreliable, PayloadKind.Application, 0x50, 1 }, new IPEndPoint(IPAddress.Loopback, 54321));
+            host.ProcessIncomingDatagram(new byte[] { ReliableChannel.ChannelUnreliable, PayloadKind.Application, 0x50, 1 }, Peer(54321));
 
             Assert.That(host.ConnectionMonitor.TimeSinceActivity("p2").Value, Is.GreaterThan(TimeSpan.FromMilliseconds(150)));
             await host.DisposeAsync();
@@ -569,7 +544,7 @@ namespace Microsoft.Xna.Framework.Net.Tests
         {
             var (host, transport, gamer, endpoint) = await HostWithGamer();
 
-            host.ProcessIncomingDatagram(new byte[] { ReliableChannel.ChannelReliable, 0, 0, PayloadKind.Application, 0x50 }, new IPEndPoint(IPAddress.Loopback, 54321));
+            host.ProcessIncomingDatagram(new byte[] { ReliableChannel.ChannelReliable, 0, 0, PayloadKind.Application, 0x50 }, Peer(54321));
 
             Assert.That(host.LocalGamers[0].IsDataAvailable, Is.False);
             await host.DisposeAsync();
@@ -585,7 +560,7 @@ namespace Microsoft.Xna.Framework.Net.Tests
             // before the reliable channel existed (version 1) data was not wrapped, so the two cannot talk
             host.DispatchIncomingMessage(new MessageReceivedEventArgs(
                 new JoinRequestMessage { GamerId = "old", Gamertag = "Old", ProtocolVersion = 1 },
-                new IPEndPoint(IPAddress.Loopback, 12345)));
+                Peer(12345)));
 
             Assert.IsFalse(host.AllGamers.Any(g => g.GamerId == "old"));
             Assert.That(LastRejection(transport).ErrorCode, Is.EqualTo(NetworkSessionJoinError.ProtocolVersionMismatch));
@@ -601,7 +576,7 @@ namespace Microsoft.Xna.Framework.Net.Tests
 
             var remote = new NetworkGamer(session, "remote-1", false, false, "RemoteOne");
             session.AcceptGamer(remote);
-            session.RegisterGamerEndpoint(remote, new IPEndPoint(IPAddress.Loopback, 54321));
+            session.RegisterGamerEndpoint(remote, Peer(54321));
 
             var writer = new PacketWriter();
             writer.Write("payload");
@@ -661,7 +636,7 @@ namespace Microsoft.Xna.Framework.Net.Tests
             var ctor = typeof(NetworkSession).GetConstructor(
                 BindingFlags.Instance | BindingFlags.NonPublic,
                 binder: null,
-                types: new[] { typeof(NetworkSessionType), typeof(int), typeof(int), typeof(bool), typeof(INetworkTransport) },
+                types: new[] { typeof(NetworkSessionType), typeof(int), typeof(int), typeof(bool), typeof(IPeerTransport) },
                 modifiers: null);
 
             Assert.That(ctor, Is.Not.Null, "Expected internal NetworkSession constructor for test setup.");

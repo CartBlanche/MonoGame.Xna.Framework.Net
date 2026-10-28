@@ -228,7 +228,7 @@ namespace Microsoft.Xna.Framework.Net.EOS
                 EOSNetworkGamer sender;
                 lock (gate) { gamers.TryGetValue(peerId?.ToString() ?? "", out sender); }
 
-                MessageReceived?.Invoke(this, new MessageReceivedEventArgs(msg, null) { Sender = sender });
+                MessageReceived?.Invoke(this, new MessageReceivedEventArgs(msg, default) { Sender = sender });
             }
         }
 

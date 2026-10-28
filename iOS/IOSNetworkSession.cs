@@ -354,7 +354,7 @@ namespace Microsoft.Xna.Framework.Net.iOS
                 var uid = PlayerUid(player);
                 lock (session.gate) { session.gamers.TryGetValue(uid ?? "", out sender); }
 
-                session.MessageReceived?.Invoke(session, new MessageReceivedEventArgs(msg, null) { Sender = sender });
+                session.MessageReceived?.Invoke(session, new MessageReceivedEventArgs(msg, default) { Sender = sender });
             }
 
             public override void StateChangedForPlayer(GKMatch match, GKPlayer player, GKPlayerConnectionState state)

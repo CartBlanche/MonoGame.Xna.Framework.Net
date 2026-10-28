@@ -9,33 +9,35 @@ using Steamworks;
 namespace Microsoft.Xna.Framework.Net
 {
     /// <summary>
-    /// Steam P2P transport implementation backed by SteamNetworking legacy P2P APIs.
-    /// Uses synthetic IPv6 endpoints to keep compatibility with existing endpoint-based session code.
+    /// Carries datagrams between Steam users over Steam P2P (Steam Datagram Relay under the hood).
+    /// A peer is a SteamID. Reliability is the framework's reliable channel's job, so everything is
+    /// sent unreliably; the one thing Steam adds is NAT traversal and relaying.
     /// </summary>
-    public sealed class SteamP2PTransport : INetworkTransport
+    public sealed class SteamP2PTransport : IPeerTransport
     {
         private const int DefaultChannel = 0;
-        private static readonly byte[] EndpointPrefix = new byte[] { 0xFD, 0x00, 0x4D, 0x47, 0x4E, 0x45, 0x54, 0x00 };
-
-        private readonly ConcurrentDictionary<string, CSteamID> endpointToSteamId = new ConcurrentDictionary<string, CSteamID>();
-        private readonly ConcurrentDictionary<ulong, IPEndPoint> steamIdToEndpoint = new ConcurrentDictionary<ulong, IPEndPoint>();
+        private const string PeerPrefix = "steam:";
 
         private volatile bool disposed;
         private volatile bool isBound;
 
         public bool IsBound => isBound;
 
-        public IPEndPoint LocalEndPoint
-        {
-            get
-            {
-                if (!isBound || !SteamRuntime.IsInitialized)
-                {
-                    return null;
-                }
+        public PeerId LocalPeer => isBound && SteamRuntime.IsInitialized ? ToPeer(SteamUser.GetSteamID()) : PeerId.None;
 
-                return ToEndpoint(SteamUser.GetSteamID());
-            }
+        /// <summary>The peer that stands for a Steam user.</summary>
+        public static PeerId ToPeer(CSteamID steamId) => new PeerId(PeerPrefix + steamId.m_SteamID);
+
+        /// <summary>The Steam user a peer stands for, if it is a Steam peer.</summary>
+        public static bool TryGetSteamId(PeerId peer, out CSteamID steamId)
+        {
+            steamId = default;
+            if (!peer.IsValid || !peer.Value.StartsWith(PeerPrefix, StringComparison.Ordinal))
+                return false;
+            if (!ulong.TryParse(peer.Value.Substring(PeerPrefix.Length), out var raw))
+                return false;
+            steamId = new CSteamID(raw);
+            return steamId.IsValid();
         }
 
         public void Bind()
@@ -44,34 +46,18 @@ namespace Microsoft.Xna.Framework.Net
             isBound = true;
         }
 
-        public void Bind(int port)
-        {
-            ThrowIfDisposed();
-            isBound = true;
-        }
-
-        public void Send(byte[] data, IPEndPoint endpoint)
-        {
-            if (data == null) throw new ArgumentNullException(nameof(data));
-            Send(data, data.Length, endpoint);
-        }
-
-        public void Send(byte[] data, int length, IPEndPoint endpoint)
+        public void Send(PeerId peer, byte[] data, int length)
         {
             ThrowIfDisposed();
 
             if (data == null) throw new ArgumentNullException(nameof(data));
-            if (endpoint == null) throw new ArgumentNullException(nameof(endpoint));
             if (length < 0 || length > data.Length) throw new ArgumentOutOfRangeException(nameof(length));
             if (!SteamRuntime.IsInitialized) throw new InvalidOperationException("Steam runtime is not initialized.");
 
-            if (!TryGetSteamId(endpoint, out var recipient))
-            {
-                throw new InvalidOperationException($"No SteamID mapping for endpoint {endpoint}");
-            }
+            if (!TryGetSteamId(peer, out var recipient))
+                throw new ArgumentException($"{peer} is not a Steam peer.", nameof(peer));
 
-            var localSteamId = SteamUser.GetSteamID();
-            if (recipient == localSteamId)
+            if (recipient == SteamUser.GetSteamID())
             {
                 throw new InvalidOperationException(
                     "Steam P2P recipient resolves to the local SteamID. " +
@@ -79,40 +65,18 @@ namespace Microsoft.Xna.Framework.Net
             }
 
             var payload = length == data.Length ? data : CopyPrefix(data, length);
-            var ok = SteamNetworking.SendP2PPacket(recipient, payload, (uint)payload.Length, EP2PSend.k_EP2PSendReliable, DefaultChannel);
-            if (!ok)
-            {
+            if (!SteamNetworking.SendP2PPacket(recipient, payload, (uint)payload.Length, EP2PSend.k_EP2PSendUnreliable, DefaultChannel))
                 throw new InvalidOperationException($"Steam P2P send failed to recipient {recipient.m_SteamID}");
-            }
         }
 
-        public Task SendAsync(byte[] data, IPEndPoint endpoint)
-        {
-            Send(data, endpoint);
-            return Task.CompletedTask;
-        }
-
-        public Task SendAsync(byte[] data, int length, IPEndPoint endpoint)
-        {
-            Send(data, length, endpoint);
-            return Task.CompletedTask;
-        }
-
-        public (byte[] data, IPEndPoint sender) Receive()
-        {
-            return ReceiveAsync().GetAwaiter().GetResult();
-        }
-
-        public async Task<(byte[] data, IPEndPoint sender)> ReceiveAsync()
+        public async Task<(byte[] Data, PeerId Sender)> ReceiveAsync()
         {
             ThrowIfDisposed();
 
             while (!disposed)
             {
                 if (!isBound)
-                {
                     Bind();
-                }
 
                 if (!SteamRuntime.IsInitialized)
                 {
@@ -126,12 +90,10 @@ namespace Microsoft.Xna.Framework.Net
                     if (SteamNetworking.ReadP2PPacket(buffer, packetSize, out uint bytesRead, out CSteamID remote, DefaultChannel) && bytesRead > 0)
                     {
                         if (bytesRead != packetSize)
-                        {
                             Array.Resize(ref buffer, (int)bytesRead);
-                        }
 
-                        var endpoint = RememberRemoteEndpoint(remote);
-                        return (buffer, endpoint);
+                        // a stranger's first packet is a request to talk: accept it
+                        return (buffer, ToPeer(remote));
                     }
                 }
 
@@ -147,85 +109,6 @@ namespace Microsoft.Xna.Framework.Net
             isBound = false;
         }
 
-        public static IPEndPoint ToEndpoint(CSteamID steamId)
-        {
-            var bytes = new byte[16];
-            Array.Copy(EndpointPrefix, 0, bytes, 0, EndpointPrefix.Length);
-
-            var steamBytes = BitConverter.GetBytes(steamId.m_SteamID);
-            if (BitConverter.IsLittleEndian)
-            {
-                Array.Reverse(steamBytes);
-            }
-
-            Array.Copy(steamBytes, 0, bytes, 8, 8);
-            return new IPEndPoint(new IPAddress(bytes), 31338);
-        }
-
-        public static bool TryParseEndpoint(IPEndPoint endpoint, out CSteamID steamId)
-        {
-            steamId = default;
-            if (endpoint == null || endpoint.AddressFamily != AddressFamily.InterNetworkV6)
-            {
-                return false;
-            }
-
-            var bytes = endpoint.Address.GetAddressBytes();
-            if (bytes.Length != 16)
-            {
-                return false;
-            }
-
-            for (var i = 0; i < EndpointPrefix.Length; i++)
-            {
-                if (bytes[i] != EndpointPrefix[i])
-                {
-                    return false;
-                }
-            }
-
-            var steamBytes = new byte[8];
-            Array.Copy(bytes, 8, steamBytes, 0, 8);
-            if (BitConverter.IsLittleEndian)
-            {
-                Array.Reverse(steamBytes);
-            }
-
-            var steamIdValue = BitConverter.ToUInt64(steamBytes, 0);
-            steamId = new CSteamID(steamIdValue);
-            return steamId.IsValid();
-        }
-
-        private IPEndPoint RememberRemoteEndpoint(CSteamID remote)
-        {
-            if (steamIdToEndpoint.TryGetValue(remote.m_SteamID, out var existing))
-            {
-                return existing;
-            }
-
-            var endpoint = ToEndpoint(remote);
-            steamIdToEndpoint.TryAdd(remote.m_SteamID, endpoint);
-            endpointToSteamId.TryAdd(endpoint.ToString(), remote);
-            return endpoint;
-        }
-
-        private bool TryGetSteamId(IPEndPoint endpoint, out CSteamID steamId)
-        {
-            if (endpointToSteamId.TryGetValue(endpoint.ToString(), out steamId))
-            {
-                return true;
-            }
-
-            if (TryParseEndpoint(endpoint, out steamId))
-            {
-                endpointToSteamId.TryAdd(endpoint.ToString(), steamId);
-                steamIdToEndpoint.TryAdd(steamId.m_SteamID, endpoint);
-                return true;
-            }
-
-            return false;
-        }
-
         private static byte[] CopyPrefix(byte[] source, int length)
         {
             var copy = new byte[length];
@@ -236,9 +119,7 @@ namespace Microsoft.Xna.Framework.Net
         private void ThrowIfDisposed()
         {
             if (disposed)
-            {
                 throw new ObjectDisposedException(nameof(SteamP2PTransport));
-            }
         }
     }
 }

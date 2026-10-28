@@ -1,5 +1,4 @@
 using System;
-using System.Net;
 
 namespace Microsoft.Xna.Framework.Net
 {
@@ -14,9 +13,9 @@ namespace Microsoft.Xna.Framework.Net
         public INetworkMessage Message { get; }
 
         /// <summary>
-        /// Gets the remote endpoint that sent the message.
+        /// Gets the peer that sent the message.
         /// </summary>
-        public IPEndPoint RemoteEndPoint { get; }
+        public PeerId RemotePeer { get; }
 
         /// <summary>
         /// Gets the gamer who sent the message.
@@ -26,10 +25,10 @@ namespace Microsoft.Xna.Framework.Net
         /// <summary>
         /// Initializes a new instance of MessageReceivedEventArgs.
         /// </summary>
-        public MessageReceivedEventArgs(INetworkMessage message, IPEndPoint remoteEndPoint)
+        public MessageReceivedEventArgs(INetworkMessage message, PeerId remotePeer)
         {
             Message = message;
-            RemoteEndPoint = remoteEndPoint;
+            RemotePeer = remotePeer;
             Sender = null;
         }
     }

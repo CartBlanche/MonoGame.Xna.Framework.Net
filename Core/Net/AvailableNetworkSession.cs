@@ -19,7 +19,7 @@ namespace Microsoft.Xna.Framework.Net
             NetworkSessionType sessionType,
             IDictionary<string, object> sessionProperties,
             string sessionId,
-            IPEndPoint hostEndpoint = null)
+            PeerId hostPeer = default)
         {
             SessionName = sessionName;
             HostGamertag = hostGamertag;
@@ -29,7 +29,7 @@ namespace Microsoft.Xna.Framework.Net
             SessionType = sessionType;
             SessionProperties = new Dictionary<string, object>(sessionProperties);
             SessionId = sessionId;
-            HostEndpoint = hostEndpoint;
+            HostPeer = hostPeer;
         }
         /// <summary>
         /// Gets the unique session ID.
@@ -79,6 +79,6 @@ namespace Microsoft.Xna.Framework.Net
     /// <summary>
     /// Gets the host's network endpoint for SystemLink (LAN) sessions.
     /// </summary>
-    public IPEndPoint HostEndpoint { get; }
+    public PeerId HostPeer { get; }
     }
 }

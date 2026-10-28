@@ -47,7 +47,7 @@ namespace Microsoft.Xna.Framework.Net
                     sessions.Add(new SessionInfo
                     {
                         SessionId = session.SessionId,
-                        JoinAddress = session.HostEndpoint?.ToString() ?? "",
+                        JoinAddress = UdpTransport.ToEndPoint(session.HostPeer)?.ToString() ?? "",
                         HostName = session.HostGamertag,
                         CurrentPlayerCount = session.CurrentGamerCount,
                         MaxPlayerCount = session.OpenPublicGamerSlots + session.OpenPrivateGamerSlots,

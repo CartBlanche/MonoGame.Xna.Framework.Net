@@ -8,143 +8,101 @@ namespace Microsoft.Xna.Framework.Net
     /// <summary>
     /// Provides a UDP-based implementation of the <see cref="INetworkTransport"/> interface for sending and receiving network data.
     /// </summary>
-    public class UdpTransport : INetworkTransport
+    /// <summary>
+    /// UDP transport for LAN (SystemLink) play. A peer is an IP address and port.
+    /// </summary>
+    public class UdpTransport : IPeerTransport
     {
+        private const string PeerPrefix = "udp:";
+
         private readonly UdpClient udpClient;
+        private readonly int preferredPort;
         private bool isBound;
 
         /// <summary>
-        /// Initializes a new instance of the <see cref="UdpTransport"/> class.
+        /// Creates a transport that binds an ephemeral port.
         /// </summary>
-        public UdpTransport()
+        public UdpTransport() : this(0)
         {
+        }
+
+        /// <summary>
+        /// Creates a transport that tries to bind <paramref name="preferredPort"/> and takes any free
+        /// port if that is taken (a second instance on the same machine, for instance).
+        /// </summary>
+        public UdpTransport(int preferredPort)
+        {
+            this.preferredPort = preferredPort;
             udpClient = new UdpClient();
         }
 
-        /// <summary>
-        /// Receives data from the network in a blocking manner.
-        /// </summary>
-        /// <returns>A tuple containing the received data and the sender's endpoint.</returns>
-        public (byte[] data, IPEndPoint sender) Receive()
+        /// <summary>The peer that stands for an IP endpoint.</summary>
+        public static PeerId ToPeer(IPEndPoint endpoint)
         {
-            IPEndPoint remoteEndPoint = new IPEndPoint(IPAddress.Any, 0);
-            var data = udpClient.Receive(ref remoteEndPoint);
-            return (data, remoteEndPoint);
+            if (endpoint == null)
+                throw new ArgumentNullException(nameof(endpoint));
+            return new PeerId(PeerPrefix + endpoint);
         }
 
-        /// <summary>
-        /// Receives data from the network asynchronously.
-        /// </summary>
-        /// <returns>A task that represents the asynchronous operation. The result contains the received data and the sender's endpoint.</returns>
-        public async Task<(byte[] data, IPEndPoint sender)> ReceiveAsync()
+        /// <summary>The IP endpoint a peer stands for, or null if it is not a UDP peer.</summary>
+        public static IPEndPoint ToEndPoint(PeerId peer)
         {
-            var result = await udpClient.ReceiveAsync();
-            return (result.Buffer, result.RemoteEndPoint);
+            if (!peer.IsValid || !peer.Value.StartsWith(PeerPrefix, StringComparison.Ordinal))
+                return null;
+            return IPEndPoint.TryParse(peer.Value.Substring(PeerPrefix.Length), out var endpoint) ? endpoint : null;
         }
 
-        /// <summary>
-        /// Sends data to the specified endpoint in a blocking manner.
-        /// </summary>
-        /// <param name="data">The data to send.</param>
-        /// <param name="endpoint">The endpoint to send the data to.</param>
-        public void Send(byte[] data, IPEndPoint endpoint)
+        public void Send(PeerId peer, byte[] data, int length)
         {
             if (data == null)
                 throw new ArgumentNullException(nameof(data));
-            if (endpoint == null)
-                throw new ArgumentNullException(nameof(endpoint));
-
-            udpClient.Send(data, data.Length, endpoint);
-        }
-
-        /// <summary>
-        /// Sends a fixed-length prefix of data to the specified endpoint in a blocking manner.
-        /// </summary>
-        public void Send(byte[] data, int length, IPEndPoint endpoint)
-        {
-            if (data == null)
-                throw new ArgumentNullException(nameof(data));
-            if (endpoint == null)
-                throw new ArgumentNullException(nameof(endpoint));
             if (length < 0 || length > data.Length)
                 throw new ArgumentOutOfRangeException(nameof(length));
+            IPEndPoint endpoint = ToEndPoint(peer) ?? throw new ArgumentException($"{peer} is not a UDP peer.", nameof(peer));
 
             udpClient.Send(data, length, endpoint);
         }
 
-        /// <summary>
-        /// Sends data to the specified endpoint asynchronously.
-        /// </summary>
-        /// <param name="data">The data to send.</param>
-        /// <param name="endpoint">The endpoint to send the data to.</param>
-        /// <returns>A task that represents the asynchronous operation.</returns>
-        public async Task SendAsync(byte[] data, IPEndPoint endpoint)
+        public async Task<(byte[] Data, PeerId Sender)> ReceiveAsync()
         {
-            if (data == null)
-                throw new ArgumentNullException(nameof(data));
-            if (endpoint == null)
-                throw new ArgumentNullException(nameof(endpoint));
-
-            await udpClient.SendAsync(data, data.Length, endpoint);
+            var result = await udpClient.ReceiveAsync();
+            return (result.Buffer, ToPeer(result.RemoteEndPoint));
         }
 
-        /// <summary>
-        /// Sends a fixed-length prefix of data to the specified endpoint asynchronously.
-        /// </summary>
-        public async Task SendAsync(byte[] data, int length, IPEndPoint endpoint)
-        {
-            if (data == null)
-                throw new ArgumentNullException(nameof(data));
-            if (endpoint == null)
-                throw new ArgumentNullException(nameof(endpoint));
-            if (length < 0 || length > data.Length)
-                throw new ArgumentOutOfRangeException(nameof(length));
-
-            await udpClient.SendAsync(data, length, endpoint);
-        }
-
-        /// <summary>
-        /// Releases all resources used by the <see cref="UdpTransport"/> class.
-        /// </summary>
         public void Dispose()
         {
             udpClient?.Close();
             udpClient?.Dispose();
         }
 
-        /// <summary>
-        /// Binds the transport to a local endpoint.
-        /// </summary>
         public void Bind()
         {
-            if (!isBound)
+            if (isBound)
+                return;
+
+            if (preferredPort != 0)
             {
-                udpClient.Client.Bind(new IPEndPoint(IPAddress.Any, 0));
-                isBound = true;
+                try
+                {
+                    udpClient.Client.Bind(new IPEndPoint(IPAddress.Any, preferredPort));
+                    isBound = true;
+                    return;
+                }
+                catch (SocketException)
+                {
+                    // taken: fall through to any free port
+                }
             }
+
+            udpClient.Client.Bind(new IPEndPoint(IPAddress.Any, 0));
+            isBound = true;
         }
 
-        /// <summary>
-        /// Binds the transport to a specific local UDP port.
-        /// </summary>
-        /// <param name="port">Port to bind.</param>
-        public void Bind(int port)
-        {
-            if (!isBound)
-            {
-                udpClient.Client.Bind(new IPEndPoint(IPAddress.Any, port));
-                isBound = true;
-            }
-        }
-
-        /// <summary>
-        /// Gets a value indicating whether the transport is bound to a local endpoint.
-        /// </summary>
         public bool IsBound => isBound;
 
-        /// <summary>
-        /// Gets the local endpoint this transport is bound to, or <c>null</c> if not yet bound.
-        /// </summary>
+        /// <summary>The socket's address, or null before binding.</summary>
         public IPEndPoint LocalEndPoint => isBound ? udpClient.Client.LocalEndPoint as IPEndPoint : null;
+
+        public PeerId LocalPeer => LocalEndPoint is IPEndPoint local ? ToPeer(local) : PeerId.None;
     }
 }

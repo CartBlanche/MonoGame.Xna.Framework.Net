@@ -12,7 +12,7 @@ namespace Microsoft.Xna.Framework.Net
     internal static class SystemLinkSessionManager
     {
         private const int BroadcastPort = 31337;
-        private const int GamePort = 31338; // Port for gameplay UDP traffic
+        internal const int GamePort = 31338; // Port for gameplay UDP traffic
         private static readonly List<AvailableNetworkSession> discoveredSessions = new List<AvailableNetworkSession>();
 
         public static Task AdvertiseSessionAsync(NetworkSession session, CancellationToken cancellationToken)
@@ -199,7 +199,7 @@ namespace Microsoft.Xna.Framework.Net
                                         sessionType: NetworkSessionType.SystemLink,
                                         sessionProperties: sessionProperties,
                                         sessionId: sessionId,
-                                        hostEndpoint: hostEndpoint);
+                                        hostPeer: UdpTransport.ToPeer(hostEndpoint));
 
                                     Debug.WriteLine($"[DISCOVERY] Added session: {hostGamertag} ({sessionId})");
                                 }
@@ -247,7 +247,7 @@ namespace Microsoft.Xna.Framework.Net
             return JoinSessionAsync(availableSession, transport: null, cancellationToken);
         }
 
-        public static async Task<NetworkSession> JoinSessionAsync(AvailableNetworkSession availableSession, INetworkTransport transport, CancellationToken cancellationToken)
+        public static async Task<NetworkSession> JoinSessionAsync(AvailableNetworkSession availableSession, IPeerTransport transport, CancellationToken cancellationToken)
         {
             // Phase 1: Reliable join with timeout and retry
             const int MAX_RETRIES = 3;
@@ -274,7 +274,7 @@ namespace Microsoft.Xna.Framework.Net
                 session.NetworkTransport.Bind();
             }
 
-            if (availableSession.HostEndpoint == null)
+            if (!availableSession.HostPeer.IsValid)
             {
                 throw new NetworkSessionJoinException("Host endpoint is null", NetworkSessionJoinError.SessionNotFound);
             }
@@ -301,7 +301,8 @@ namespace Microsoft.Xna.Framework.Net
                 };
                 var writer = new PacketWriter();
                 joinRequest.Serialize(writer);
-                session.NetworkTransport.Send(writer.GetData(), availableSession.HostEndpoint);
+                var joinBytes = writer.GetData();
+                session.NetworkTransport.Send(availableSession.HostPeer, joinBytes, joinBytes.Length);
 
                 // Wait for response (NetworkSession.OnMessageReceived will update state to Lobby if accepted)
                 var waitStart = DateTime.UtcNow;
