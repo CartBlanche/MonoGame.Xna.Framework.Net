@@ -274,15 +274,12 @@ namespace Microsoft.Xna.Framework.Net
                 session.NetworkTransport.Bind();
             }
 
-            // Create a synthetic remote host gamer and record endpoint so SendToAll can reach host
             if (availableSession.HostEndpoint == null)
             {
                 throw new NetworkSessionJoinException("Host endpoint is null", NetworkSessionJoinError.SessionNotFound);
             }
 
-            var hostGamer = new NetworkGamer(session, Guid.NewGuid().ToString(), isLocal: false, isHost: true, gamertag: availableSession.HostGamertag);
-            session.AcceptGamer(hostGamer);
-            session.RegisterGamerEndpoint(hostGamer, availableSession.HostEndpoint);
+            // The host gamer is added when the host accepts us and says who it is
 
             // Phase 1: Send join request with retry logic
             for (int attempt = 0; attempt < MAX_RETRIES; attempt++)
@@ -294,7 +291,7 @@ namespace Microsoft.Xna.Framework.Net
                 if (localGamer == null)
                     throw new InvalidOperationException("No local gamer found in session");
 
-                Debug.WriteLine($"[JOIN] Sending as gamer: {localGamer.Gamertag} (ID: {localGamer.Id})");
+                Debug.WriteLine($"[JOIN] Sending as gamer: {localGamer.Gamertag} (ID: {localGamer.GamerId})");
 
                 var joinRequest = new JoinRequestMessage
                 {

@@ -12,5 +12,14 @@ namespace Microsoft.Xna.Framework.Net
 
         /// <summary>A serialized <see cref="INetworkMessage"/>: type id, then its fields.</summary>
         public const byte Message = 0x32;
+
+        /// <summary>
+        /// Game data a client asks the host to pass on to another client: options, target id, then the data.
+        /// Clients only talk to the host, so this is how one client's data reaches another.
+        /// </summary>
+        public const byte Relay = 0x33;
+
+        /// <summary>Game data the host passes on to a client: the original sender's id, then the data.</summary>
+        public const byte Forwarded = 0x34;
     }
 }

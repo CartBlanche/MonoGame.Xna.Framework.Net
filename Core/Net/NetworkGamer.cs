@@ -46,6 +46,9 @@ namespace Microsoft.Xna.Framework.Net
 
         internal bool HasShortId => shortId != null;
 
+        // the host decides everyone's id; other machines adopt it
+        internal void AssignId(byte id) => shortId = id;
+
         /// <summary>
         /// Gets whether this gamer is the local player.
         /// </summary>

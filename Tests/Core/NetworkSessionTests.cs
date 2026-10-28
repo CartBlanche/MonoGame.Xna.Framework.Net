@@ -350,6 +350,38 @@ namespace Microsoft.Xna.Framework.Net.Tests
         }
 
         [Test]
+        public async Task ALeaveNotice_IsOnlyHonouredFromTheGamerItNamesOrTheHost()
+        {
+            var (host, transport, p2, p2Endpoint) = await HostWithGamer();
+            var p3Endpoint = new IPEndPoint(IPAddress.Loopback, 12346);
+            host.DispatchIncomingMessage(new MessageReceivedEventArgs(JoinRequest("p3"), p3Endpoint));
+            Assert.That(host.RemoteGamers.Count, Is.EqualTo(2));
+
+            // p2 claims p3 is leaving
+            host.DispatchIncomingMessage(new MessageReceivedEventArgs(new GamerLeavingMessage { GamerId = "p3", Reason = "spoofed" }, p2Endpoint));
+            Assert.That(host.RemoteGamers.Count, Is.EqualTo(2), "one gamer removed another");
+
+            // p3 says it is leaving itself
+            host.DispatchIncomingMessage(new MessageReceivedEventArgs(new GamerLeavingMessage { GamerId = "p3", Reason = "bye" }, p3Endpoint));
+            Assert.That(host.RemoteGamers.Select(g => g.GamerId), Is.EqualTo(new[] { "p2" }));
+            await host.DisposeAsync();
+        }
+
+        [Test]
+        public async Task TheHost_TellsEveryoneElse_WhenAGamerJoins()
+        {
+            var (host, transport, p2, p2Endpoint) = await HostWithGamer();
+            transport.SentPackets.Clear();
+
+            host.DispatchIncomingMessage(new MessageReceivedEventArgs(JoinRequest("p3"), new IPEndPoint(IPAddress.Loopback, 12346)));
+
+            // p2 hears about p3 through its channel
+            Assert.That(transport.SentPackets.Any(p => p.endpoint.Equals(p2Endpoint) && p.data[0] == ReliableChannel.ChannelReliable),
+                "the existing gamer was not told");
+            await host.DisposeAsync();
+        }
+
+        [Test]
         public async Task GamerIds_AreBytes_UniqueWithinTheSession_AndStable()
         {
             var (host, transport, gamer, endpoint) = await HostWithGamer();

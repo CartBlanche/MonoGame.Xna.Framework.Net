@@ -828,13 +828,29 @@ namespace Microsoft.Xna.Framework.Net
                     OnGamerJoined(existingGamer);
                 }
 
-                // Send JoinAcceptedMessage back to the sender (always send, even on retry)
+                // Tell the gamers already here about the newcomer, so every machine knows every gamer
+                if (isNewGamer)
+                {
+                    var announce = new PacketWriter();
+                    new GamerJoinedMessage { Id = existingGamer.Id, GamerId = existingGamer.GamerId, Gamertag = existingGamer.Gamertag }.Serialize(announce);
+                    SendMessageToAll(announce, SendDataOptions.Reliable, existingGamer);
+                }
+
+                // Send JoinAcceptedMessage back to the sender (always send, even on retry), with the
+                // ids the host chose and who else is in the session
                 var joinAccepted = new JoinAcceptedMessage
                 {
                     SessionId = sessionId,
                     HostGamerId = Host.GamerId,
-                    HostGamertag = Host.Gamertag
+                    HostGamertag = Host.Gamertag,
+                    HostId = Host.Id,
+                    YourId = existingGamer.Id
                 };
+                lock (lockObject)
+                {
+                    foreach (var other in gamers.Where(g => !g.IsHost && g != existingGamer))
+                        joinAccepted.Others.Add(new JoinAcceptedMessage.RosterEntry { Id = other.Id, GamerId = other.GamerId, Gamertag = other.Gamertag });
+                }
                 var writer = new PacketWriter();
                 joinAccepted.Serialize(writer);
                 networkTransport.Send(writer.GetData(), e.RemoteEndPoint);
@@ -856,9 +872,15 @@ namespace Microsoft.Xna.Framework.Net
                     }
 
                     var host = existingHost ?? new NetworkGamer(this, joinAccepted.HostGamerId, isLocal: false, isHost: true, gamertag: joinAccepted.HostGamertag);
+                    host.AssignId(joinAccepted.HostId);
+                    foreach (var mine in LocalGamers)
+                        mine.AssignId(joinAccepted.YourId);
                     if (existingHost == null)
                         AddGamer(host);
                     RegisterGamerEndpoint(host, e.RemoteEndPoint);
+
+                    foreach (var entry in joinAccepted.Others)
+                        AddPeer(entry.Id, entry.GamerId, entry.Gamertag);
                     
                     // Phase 1: Transition to Lobby state when join is accepted
                     sessionState = NetworkSessionState.Lobby;
@@ -936,6 +958,12 @@ namespace Microsoft.Xna.Framework.Net
                     DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - heartbeatReply.RequestTimestamp);
                 diagnostics?.RecordRtt(rtt);
             }
+            else if (e.Message is GamerJoinedMessage gamerJoined)
+            {
+                // the host tells us about a gamer who joined after us
+                if (!IsHost && IsFromHost(e.RemoteEndPoint))
+                    AddPeer(gamerJoined.Id, gamerJoined.GamerId, gamerJoined.Gamertag);
+            }
             else if (e.Message is GamerLeavingMessage leaveMessage)
             {
                 // Phase 2: Handle graceful leave - immediate gamer removal
@@ -947,7 +975,16 @@ namespace Microsoft.Xna.Framework.Net
                     leavingGamer = gamers.FirstOrDefault(g => g.GamerId == leaveMessage.GamerId);
                 }
                 
-                if (leavingGamer != null)
+                // Only a gamer may announce its own departure (to the host), or the host a gamer's (to the
+                // clients): nobody can remove somebody else
+                bool authorised = leavingGamer != null && !leavingGamer.IsLocal &&
+                    (IsHost ? EndpointOf(leavingGamer)?.Equals(e.RemoteEndPoint) == true : IsFromHost(e.RemoteEndPoint));
+
+                if (leavingGamer != null && !authorised)
+                {
+                    logger?.LogWarning($"Ignored a leave notice for {leavingGamer.Gamertag} from {e.RemoteEndPoint}");
+                }
+                else if (leavingGamer != null)
                 {
                     logger?.LogInfo($"Removing {leavingGamer.Gamertag} from session (graceful leave)");
                     // EvictGamer also ends the session on a client whose host is the one leaving
@@ -1329,6 +1366,14 @@ namespace Microsoft.Xna.Framework.Net
             // Phase 1: Notify connection monitor
             connectionMonitor?.OnGamerLeft(gamer);
             OnGamerLeft(gamer);
+
+            // the other clients cannot see this gamer's connection drop, so the host tells them
+            if (IsHost && !gamer.IsLocal && !disposed && sessionState != NetworkSessionState.Ended)
+            {
+                var notice = new PacketWriter();
+                new GamerLeavingMessage { GamerId = gamer.GamerId, Reason = "Left the session" }.Serialize(notice);
+                SendMessageToAll(notice, SendDataOptions.Reliable, gamer);
+            }
         }
 
         /// <summary>
@@ -1396,11 +1441,65 @@ namespace Microsoft.Xna.Framework.Net
             }
         }
 
+        private IPEndPoint EndpointOf(NetworkGamer gamer)
+        {
+            lock (lockObject)
+                return gamerEndpoints.TryGetValue(gamer.GamerId, out var endpoint) ? endpoint : null;
+        }
+
+        private bool IsFromHost(IPEndPoint endpoint)
+        {
+            if (endpoint == null)
+                return false;
+            NetworkGamer host;
+            lock (lockObject)
+                host = gamers.FirstOrDefault(g => g.IsHost && !g.IsLocal);
+            return host != null && EndpointOf(host)?.Equals(endpoint) == true;
+        }
+
+        // a gamer the host told us about: not directly connected, reached through the host
+        private void AddPeer(byte id, string gamerId, string gamertag)
+        {
+            NetworkGamer peer;
+            lock (lockObject)
+            {
+                var existing = gamers.FirstOrDefault(g => g.GamerId == gamerId);
+                if (existing != null)
+                {
+                    existing.AssignId(id);
+                    return;
+                }
+                peer = new NetworkGamer(this, gamerId, isLocal: false, isHost: false, gamertag: gamertag);
+                peer.AssignId(id);
+                gamers.Add(peer);
+            }
+            OnGamerJoined(peer);
+        }
+
         // The payload starts with its kind, so game data and framework messages can never be mistaken
         // for each other, whatever the first byte of the game data is.
         private void SendPayload(NetworkGamer gamer, byte kind, byte[] data, int dataLength, SendDataOptions options)
         {
             if (gamer == null || data == null) return;
+
+            // A gamer we have no address for is another client, only reachable through the host. Game data
+            // is passed on by the host; the framework's own messages are only ever sent to a direct peer.
+            if (!IsHost && !gamer.IsLocal && EndpointOf(gamer) == null)
+            {
+                NetworkGamer host;
+                lock (lockObject)
+                    host = gamers.FirstOrDefault(g => g.IsHost && !g.IsLocal);
+
+                if (kind == PayloadKind.Application && host != null)
+                {
+                    byte[] relayed = new byte[dataLength + 2];
+                    relayed[0] = (byte)options;
+                    relayed[1] = gamer.Id;
+                    Buffer.BlockCopy(data, 0, relayed, 2, dataLength);
+                    SendPayload(host, PayloadKind.Relay, relayed, relayed.Length, options);
+                }
+                return;
+            }
 
             byte[] payload = new byte[dataLength + 1];
             payload[0] = kind;
@@ -1586,10 +1685,62 @@ namespace Microsoft.Xna.Framework.Net
                     ProcessMessage(payload, 1, senderEndpoint);
                     break;
 
+                case PayloadKind.Relay:
+                    // a client asks us, the host, to pass data on to another client
+                    if (IsHost && payload.Length >= 3)
+                        RelayToGamer(senderGamer, (SendDataOptions)payload[1], payload[2], payload, 3);
+                    break;
+
+                case PayloadKind.Forwarded:
+                    // the host passes on data from another client
+                    if (!IsHost && senderGamer != null && senderGamer.IsHost && payload.Length >= 2)
+                    {
+                        NetworkGamer from;
+                        lock (lockObject)
+                            from = gamers.FirstOrDefault(g => !g.IsLocal && g.HasShortId && g.Id == payload[1]);
+                        if (from == null)
+                            break;
+                        byte[] forwarded = new byte[payload.Length - 2];
+                        Buffer.BlockCopy(payload, 2, forwarded, 0, forwarded.Length);
+                        Raise(() =>
+                        {
+                            foreach (var local in LocalGamers)
+                                local.EnqueueIncomingPacket(forwarded, from);
+                        });
+                    }
+                    break;
+
                 default:
                     logger?.LogWarning($"Dropped a packet of unknown kind 0x{payload[0]:X2} from {senderGamer?.Gamertag}");
                     break;
             }
+        }
+
+        // The host passes a client's game data on to its target: to a client as Forwarded, or to the host's own gamer
+        private void RelayToGamer(NetworkGamer from, SendDataOptions options, byte targetId, byte[] payload, int offset)
+        {
+            if (from == null || from.IsLocal)
+                return;
+
+            NetworkGamer target;
+            lock (lockObject)
+                target = gamers.FirstOrDefault(g => g.HasShortId && g.Id == targetId);
+            if (target == null || target == from)
+                return;
+
+            int length = payload.Length - offset;
+            if (target.IsLocal)
+            {
+                byte[] copy = new byte[length];
+                Buffer.BlockCopy(payload, offset, copy, 0, length);
+                Raise(() => ((LocalNetworkGamer)target).EnqueueIncomingPacket(copy, from));
+                return;
+            }
+
+            byte[] forward = new byte[length + 1];
+            forward[0] = from.Id;
+            Buffer.BlockCopy(payload, offset, forward, 1, length);
+            SendPayload(target, PayloadKind.Forwarded, forward, forward.Length, options);
         }
 
         // a registered message starting at offset: the first byte is its type id and it must use up every byte

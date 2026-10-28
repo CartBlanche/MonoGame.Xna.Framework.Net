@@ -1,14 +1,32 @@
 using System;
+using System.Collections.Generic;
 using Microsoft.Xna.Framework.Net;
 
 namespace Microsoft.Xna.Framework.Net
 {
     public class JoinAcceptedMessage : INetworkMessage
     {
+        /// <summary>A gamer already in the session, as the joiner needs to know them.</summary>
+        public struct RosterEntry
+        {
+            public byte Id { get; set; }
+            public string GamerId { get; set; }
+            public string Gamertag { get; set; }
+        }
+
         public byte MessageType => 3;
         public string SessionId { get; set; }
         public string HostGamerId { get; set; }
         public string HostGamertag { get; set; }
+
+        /// <summary>The host's <see cref="NetworkGamer.Id"/>: the host decides the ids for everyone.</summary>
+        public byte HostId { get; set; }
+
+        /// <summary>The <see cref="NetworkGamer.Id"/> the host gave the joiner.</summary>
+        public byte YourId { get; set; }
+
+        /// <summary>The other gamers already in the session (not the host, not the joiner).</summary>
+        public List<RosterEntry> Others { get; set; } = new List<RosterEntry>();
 
         public void Serialize(PacketWriter writer)
         {
@@ -16,6 +34,15 @@ namespace Microsoft.Xna.Framework.Net
             writer.Write(SessionId);
             writer.Write(HostGamerId);
             writer.Write(HostGamertag);
+            writer.Write(HostId);
+            writer.Write(YourId);
+            writer.Write((byte)Others.Count);
+            foreach (RosterEntry entry in Others)
+            {
+                writer.Write(entry.Id);
+                writer.Write(entry.GamerId);
+                writer.Write(entry.Gamertag);
+            }
         }
 
         public void Deserialize(PacketReader reader)
@@ -24,6 +51,12 @@ namespace Microsoft.Xna.Framework.Net
             SessionId = reader.ReadString();
             HostGamerId = reader.ReadString();
             HostGamertag = reader.ReadString();
+            HostId = reader.ReadByte();
+            YourId = reader.ReadByte();
+            int count = reader.ReadByte();
+            Others = new List<RosterEntry>(count);
+            for (int i = 0; i < count; i++)
+                Others.Add(new RosterEntry { Id = reader.ReadByte(), GamerId = reader.ReadString(), Gamertag = reader.ReadString() });
         }
     }
 }

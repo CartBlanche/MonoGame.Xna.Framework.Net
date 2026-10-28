@@ -116,7 +116,6 @@ namespace Microsoft.Xna.Framework.Net.CompatTests
         }
 
         [Test]
-        [Ignore("Known gap, plan task 3.15: a client's AllGamers holds only itself and the host, not the other clients")]
         public async Task EveryGamer_CanSeeEveryOtherGamer()
         {
             NetworkSession host = await lan.StartHostAsync(maxGamers: 4);

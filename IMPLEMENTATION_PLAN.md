@@ -8,7 +8,7 @@ This file is the single source of truth for progress. Update it in the same comm
 
 Legend: `[ ]` todo · `[~]` in progress · `[x]` done · `[?]` needs verification before work starts · `(!)` decision needed
 
-_Last updated: 2026-10-28 (Phases 0, 1 and 2 complete; 2 compat known gaps remain)_
+_Last updated: 2026-10-28 (Phases 0-2 complete; Phase 3 in progress: no compat gaps remain; 3.10, 3.11, 3.12 to do)_
 
 ---
 
@@ -19,7 +19,7 @@ _Last updated: 2026-10-28 (Phases 0, 1 and 2 complete; 2 compat known gaps remai
 | 0 | Safety net: CI runs tests, compat suite scaffold | **Done** | 8/8 |
 | 1 | Wire protocol correctness (envelope, InOrder, fragmentation) | **Done** | 7/7 |
 | 2 | Threading and event model (`Update()`-drained events) | Done | 6/6 |
-| 3 | XNA API parity (gamers, packets, sessions) | Not started | 0/19 |
+| 3 | XNA API parity (gamers, packets, sessions) | In progress | 14/19 |
 | 4 | Backend unification (one public API, peer-id transport) | Not started | 0/6 |
 | 5 | Online session types, matchmaking, invites | Not started | 0/5 |
 | 6 | Security and robustness | Not started | 0/5 |
@@ -149,7 +149,7 @@ Gamers
 - [x] 3.4 `LocalNetworkGamer.EnableSendData/IsSendingData` removed: stubs that are not XNA members (XNA has `EnableSendVoice`), unused by ShipGame, and `EnableSendData(SendDataOptions)` has no meaningful semantics. See decision log
 - [x] 3.5 Incoming queue bounded at 8192 packets, oldest dropped, counted in `Diagnostics.PacketsDropped`. DEFERRED: per-local-gamer addressing, since the wire carries no recipient and only one local gamer per session exists in practice; revisit with multiple local gamers over the network
 - [x] 3.6 `RoundtripTime` measured by the reliable channel from acknowledgements of packets that were never resent (smoothed), so it works for any transport that uses the channel; the UDP heartbeat still feeds it too
-- [ ] 3.6b Keep `NetworkGamer.UnacknowledgedAge` (non-XNA, used by ShipGame's stall detection) as a supported extension, available on every back-end
+- [ ] 3.6b Keep `NetworkGamer.UnacknowledgedAge` (non-XNA, used by ShipGame's stall detection) as a supported extension, available on every back-end. Kept on `NetworkGamer` for the UDP path; "every back-end" comes with Phase 4 (the channel moves to Core for all transports)
 - [x] 3.6c `ReceiveData` with a buffer smaller than the packet now throws `ArgumentException` naming the size needed, and leaves the packet queued (it used to truncate silently)
 
 Packets
@@ -162,8 +162,8 @@ Sessions
 - [ ] 3.11 Integer-keyed `NetworkSessionProperties` (XNA: 8 int slots) with filtering in `Find`; keep dictionary overload
 - [x] 3.13 (advertisement now carries the real gamer count; open public slots = max - private - count) Discovery hard-codes `AvailableNetworkSession.CurrentGamerCount = 1` and derives open slots from max; the advertisement must carry the real count. Un-ignore `FindingASession_ReportsTheCurrentGamerCount`
 - [x] 3.14 (!) `GamerJoined` `+=` in the Lobby state re-raises the event for every gamer already in the session (including the local one), and invokes the whole delegate, so earlier subscribers get duplicates too. ShipGame does not rely on it (`LanLobby` adds existing gamers itself and de-duplicates by id). DECIDED 2026-10-28: no replay; only gamers joining after subscription. Done: `GamerJoined` is a plain event; gamers who joined before the first `Update()` (local gamers included) are raised by it, which I believe matches XNA's first-`Update()` behaviour for local gamers (unverified)
-- [ ] 3.15 A client's `AllGamers` holds only itself and the host, not the other clients. Un-ignore `EveryGamer_CanSeeEveryOtherGamer`
-- [ ] 3.16 The host gamer on a client is a synthetic object with a random `Id`, not the host's real id, so the same gamer has different ids on different machines
+- [x] 3.15 Done: the host sends the roster in `JoinAcceptedMessage` and a `GamerJoinedMessage` (id 11) to existing gamers, and tells clients when a gamer leaves. Game data between two clients goes through the host (`Relay`/`Forwarded` payload kinds), so seeing a gamer means you can send to it. Protocol is now v4. A client's `AllGamers` holds only itself and the host, not the other clients. Un-ignore `EveryGamer_CanSeeEveryOtherGamer`
+- [x] 3.16 Done: no synthetic host; the client adds the host gamer, with its real id, when the host accepts. Gamer byte ids are assigned by the host and sent in the roster, so they are the same on every machine (completes 3.1). The host gamer on a client is a synthetic object with a random `Id`, not the host's real id, so the same gamer has different ids on different machines
 - [x] 3.17 Remove the sender self-loopback in `NetworkGamer.SendDataInternal` (SystemLink case) and make the Local case consistent; add a compat test that a sender never receives its own packet
 - [ ] 3.12 Host migration: implement, or set `AllowHostMigration` default to `false` and document. Also `RemoveFromSession`, kick, `SessionState` semantics (`Joining`, locked-when-full), `LocalGamers` cap
 
@@ -312,6 +312,8 @@ Exit criteria: a containerised server accepts clients from another network and s
 | 2026-10-28 | Unreliable and sequenced data limited to one datagram (1100 bytes); larger data must be sent reliably | IP fragmentation drops the whole datagram if any piece is lost; XNA also limited unreliable packet size. Revisit if ShipGame or a backend needs more |
 | 2026-10-28 | Selective acks added to the channel | Cumulative-only acks plus capped resends stalled under 20% loss; found by the lossy wrap test |
 | 2026-10-28 | Removed `LocalNetworkGamer.EnableSendData`/`IsSendingData` instead of implementing them | Not XNA members, nothing uses them, and the signature has no sensible meaning; reinstate only if a real need appears |
+| 2026-10-28 | Client-to-client game data is relayed by the host; the topology stays a star | XNA let any gamer send to any gamer; a mesh needs NAT traversal that LAN/Steam/EOS do not all give us. The cost is one extra hop and ~2 bytes of header |
+| 2026-10-28 | A leave notice is only honoured from the gamer it names (on the host) or from the host (on clients) | Otherwise any peer could remove any other; cheap to close now, the rest of the trust model is Phase 6 |
 | 2026-10-28 | Events move to `Update()` | This matches XNA's behaviour, so it is also a compat fix |
 | 2026-10-28 | Phase 2 shipped as one commit, not the two planned (A and B) | The event queue and the per-session local gamer change the same lines of `NetworkSession.cs` |
 | 2026-10-28 | `SessionEnded` is raised at most once per session | Previously a client whose host left, then disposed in the handler, got it twice (HostEndedSession then ClientSignedOut) |
