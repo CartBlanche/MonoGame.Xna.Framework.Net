@@ -242,6 +242,157 @@ namespace Microsoft.Xna.Framework.Net.Tests
             client.Dispose();
         }
 
+        // a host with one remote gamer ("p2") who has joined from the given endpoint
+        private static async Task<(NetworkSession host, FakeNetworkTransport transport, NetworkGamer gamer, IPEndPoint endpoint)> HostWithGamer()
+        {
+            var host = await NetworkSession.CreateAsync(NetworkSessionType.Local, 1, 4, 0, new Dictionary<string, object>());
+            var transport = new FakeNetworkTransport();
+            host.NetworkTransport = transport;
+            var endpoint = new IPEndPoint(IPAddress.Loopback, 12345);
+
+            host.DispatchIncomingMessage(new MessageReceivedEventArgs(JoinRequest("p2"), endpoint));
+            transport.SentPackets.Clear();
+
+            return (host, transport, host.RemoteGamers.Single(g => g.Id == "p2"), endpoint);
+        }
+
+        [Test]
+        public async Task ReliableData_IsSentOnTheReliableChannel()
+        {
+            var (host, transport, gamer, _) = await HostWithGamer();
+
+            host.SendDataToGamer(gamer, new byte[] { 0x50, 1, 2 }, SendDataOptions.Reliable);
+
+            Assert.That(transport.SentPackets.First().data, Is.EqualTo(new byte[] { ReliableChannel.ChannelReliable, 0, 0, 0x50, 1, 2 }));
+            await host.DisposeAsync();
+        }
+
+        [Test]
+        public async Task UnreliableData_IsSentOnTheUnreliableChannel()
+        {
+            var (host, transport, gamer, _) = await HostWithGamer();
+
+            host.SendDataToGamer(gamer, new byte[] { 0x50, 1, 2 }, SendDataOptions.None);
+
+            Assert.That(transport.SentPackets.Single().data, Is.EqualTo(new byte[] { ReliableChannel.ChannelUnreliable, 0x50, 1, 2 }));
+            await host.DisposeAsync();
+        }
+
+        [Test]
+        public async Task ReliableData_IsResentUntilAcknowledged()
+        {
+            var (host, transport, gamer, endpoint) = await HostWithGamer();
+
+            host.SendDataToGamer(gamer, new byte[] { 0x50 }, SendDataOptions.Reliable);
+            Thread.Sleep(500);          // several resend intervals
+
+            int reliableSends() => transport.SentPackets.Count(p => p.data[0] == ReliableChannel.ChannelReliable);
+            Assert.That(reliableSends(), Is.GreaterThan(1), "it should have been resent");
+            Assert.That(gamer.UnacknowledgedAge, Is.GreaterThan(TimeSpan.Zero));
+
+            // the peer acknowledges: it expects sequence 1 next
+            host.ProcessIncomingDatagram(new byte[] { ReliableChannel.ChannelAck, 1, 0 }, endpoint);
+            int afterAck = reliableSends();
+            Thread.Sleep(300);
+
+            Assert.That(reliableSends(), Is.EqualTo(afterAck), "an acknowledged message is not resent");
+            Assert.That(gamer.UnacknowledgedAge, Is.EqualTo(TimeSpan.Zero));
+            await host.DisposeAsync();
+        }
+
+        [Test]
+        public async Task ReliableData_FromAPeer_IsDeliveredOnceEvenIfDuplicated()
+        {
+            var (host, transport, gamer, endpoint) = await HostWithGamer();
+            byte[] datagram = { ReliableChannel.ChannelReliable, 0, 0, 0x50, 9, 9 };
+
+            host.ProcessIncomingDatagram(datagram, endpoint);
+            host.ProcessIncomingDatagram(datagram, endpoint);       // the network duplicated it
+
+            var local = host.LocalGamers[0];
+            var buffer = new byte[64];
+            Assert.That(local.IsDataAvailable, Is.True);
+            int length = local.ReceiveData(buffer, out NetworkGamer sender);
+            Assert.That(buffer.Take(length), Is.EqualTo(new byte[] { 0x50, 9, 9 }));
+            Assert.That(sender.Id, Is.EqualTo("p2"));
+            Assert.That(local.IsDataAvailable, Is.False, "the duplicate must not be delivered");
+            await host.DisposeAsync();
+        }
+
+        [Test]
+        public async Task ReliableData_FromAPeer_IsAcknowledged()
+        {
+            var (host, transport, gamer, endpoint) = await HostWithGamer();
+
+            host.ProcessIncomingDatagram(new byte[] { ReliableChannel.ChannelReliable, 0, 0, 0x50 }, endpoint);
+            Thread.Sleep(300);          // the resend timer sends the acknowledgement
+
+            Assert.That(transport.SentPackets.Any(p => p.data[0] == ReliableChannel.ChannelAck && p.data[1] == 1),
+                "the peer should be told that sequence 0 arrived and 1 is next");
+            await host.DisposeAsync();
+        }
+
+        [Test]
+        public async Task OutOfOrderReliableData_IsHeldBackUntilTheGapIsFilled()
+        {
+            var (host, transport, gamer, endpoint) = await HostWithGamer();
+
+            host.ProcessIncomingDatagram(new byte[] { ReliableChannel.ChannelReliable, 1, 0, 0x50, 2 }, endpoint);
+            Assert.That(host.LocalGamers[0].IsDataAvailable, Is.False, "sequence 1 must wait for sequence 0");
+
+            host.ProcessIncomingDatagram(new byte[] { ReliableChannel.ChannelReliable, 0, 0, 0x50, 1 }, endpoint);
+
+            var local = host.LocalGamers[0];
+            var buffer = new byte[64];
+            local.ReceiveData(buffer, out _);
+            Assert.That(buffer[1], Is.EqualTo(1));
+            local.ReceiveData(buffer, out _);
+            Assert.That(buffer[1], Is.EqualTo(2));
+            await host.DisposeAsync();
+        }
+
+        [Test]
+        public async Task PlainDatagrams_StillWork_ForTheHandshake()
+        {
+            // join requests and replies are sent without a channel
+            var (host, transport, gamer, endpoint) = await HostWithGamer();
+
+            host.ProcessIncomingDatagram(new byte[] { 0x50, 7 }, endpoint);
+
+            var buffer = new byte[64];
+            int length = host.LocalGamers[0].ReceiveData(buffer, out _);
+            Assert.That(buffer.Take(length), Is.EqualTo(new byte[] { 0x50, 7 }));
+            await host.DisposeAsync();
+        }
+
+        [Test]
+        public async Task ChannelDatagrams_FromAnUnknownSender_AreDropped()
+        {
+            var (host, transport, gamer, endpoint) = await HostWithGamer();
+
+            host.ProcessIncomingDatagram(new byte[] { ReliableChannel.ChannelReliable, 0, 0, 0x50 }, new IPEndPoint(IPAddress.Loopback, 54321));
+
+            Assert.That(host.LocalGamers[0].IsDataAvailable, Is.False);
+            await host.DisposeAsync();
+        }
+
+        [Test]
+        public async Task Host_RejectsAnOlderProtocolVersion()
+        {
+            var host = await NetworkSession.CreateAsync(NetworkSessionType.Local, 1, 4, 0, new Dictionary<string, object>());
+            var transport = new FakeNetworkTransport();
+            host.NetworkTransport = transport;
+
+            // before the reliable channel existed (version 1) data was not wrapped, so the two cannot talk
+            host.DispatchIncomingMessage(new MessageReceivedEventArgs(
+                new JoinRequestMessage { GamerId = "old", Gamertag = "Old", ProtocolVersion = 1 },
+                new IPEndPoint(IPAddress.Loopback, 12345)));
+
+            Assert.IsFalse(host.AllGamers.Any(g => g.Id == "old"));
+            Assert.That(LastRejection(transport).ErrorCode, Is.EqualTo(NetworkSessionJoinError.ProtocolVersionMismatch));
+            await host.DisposeAsync();
+        }
+
         [Test]
         public async Task SendToAll_UsesFakeTransportForRemoteGamers()
         {

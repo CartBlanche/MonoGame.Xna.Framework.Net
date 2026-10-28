@@ -5,7 +5,8 @@ namespace Microsoft.Xna.Framework.Net
 {
     public class JoinRequestMessage : INetworkMessage
     {
-        public const byte CURRENT_PROTOCOL_VERSION = 1;
+        // 2: gamer data is wrapped in reliable/unreliable channels (see ReliableChannel); older peers cannot talk to this one
+        public const byte CURRENT_PROTOCOL_VERSION = 2;
         
         public byte MessageType => 2;
         public byte ProtocolVersion { get; set; } = CURRENT_PROTOCOL_VERSION;
