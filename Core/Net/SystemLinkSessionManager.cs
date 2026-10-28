@@ -309,8 +309,17 @@ namespace Microsoft.Xna.Framework.Net
                         return session;
                     }
 
-                    // Check if we received rejection (would still be in Joining state but we can check for it)
-                    // For now, just wait
+                    // The host refused us (session full, game already started, wrong version):
+                    // report why straight away instead of retrying until a timeout
+                    if (session.joinRejectedReason != null)
+                    {
+                        var error = session.joinRejectedError;
+                        var reason = session.joinRejectedReason;
+                        Debug.WriteLine($"[JOIN] Rejected by host: {reason} ({error})");
+                        session.Dispose();
+                        throw new NetworkSessionJoinException(reason, error);
+                    }
+
                     await Task.Delay(50, cancellationToken);
                 }
 

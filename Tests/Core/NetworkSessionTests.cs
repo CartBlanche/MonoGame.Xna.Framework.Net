@@ -142,6 +142,106 @@ namespace Microsoft.Xna.Framework.Net.Tests
             await hostSession.DisposeAsync();
         }
 
+        static JoinRequestMessage JoinRequest(string id)
+        {
+            return new JoinRequestMessage { GamerId = id, Gamertag = "Player " + id };
+        }
+
+        static JoinRejectedMessage LastRejection(FakeNetworkTransport transport)
+        {
+            // parsed the way the session parses framework messages: type id, then the body
+            var sent = transport.SentPackets.Last().data;
+            var reader = new PacketReader(sent);
+            var message = NetworkMessageRegistry.CreateMessage(reader.ReadByte());
+            message.Deserialize(reader);
+            return message as JoinRejectedMessage;
+        }
+
+        [Test]
+        public async Task Host_RefusesNewPlayers_AfterStart_WhenJoinInProgressIsNotAllowed()
+        {
+            var host = await NetworkSession.CreateAsync(NetworkSessionType.Local, 1, 4, 0, new Dictionary<string, object>());
+            var transport = new FakeNetworkTransport();
+            host.NetworkTransport = transport;
+            host.AllowJoinInProgress = false;
+            host.StartGame();
+            transport.SentPackets.Clear();
+
+            host.DispatchIncomingMessage(new MessageReceivedEventArgs(JoinRequest("late"), new IPEndPoint(IPAddress.Loopback, 12345)));
+
+            Assert.IsFalse(host.AllGamers.Any(g => g.Id == "late"), "the latecomer must not be added");
+            var rejection = LastRejection(transport);
+            Assert.IsNotNull(rejection);
+            Assert.That(rejection.ErrorCode, Is.EqualTo(NetworkSessionJoinError.SessionNotJoinable));
+
+            await host.DisposeAsync();
+        }
+
+        [Test]
+        public async Task Host_AcceptsNewPlayers_AfterStart_ByDefault()
+        {
+            var host = await NetworkSession.CreateAsync(NetworkSessionType.Local, 1, 4, 0, new Dictionary<string, object>());
+            host.NetworkTransport = new FakeNetworkTransport();
+            host.StartGame();
+
+            host.DispatchIncomingMessage(new MessageReceivedEventArgs(JoinRequest("late"), new IPEndPoint(IPAddress.Loopback, 12345)));
+
+            Assert.IsTrue(host.AllGamers.Any(g => g.Id == "late"));
+            await host.DisposeAsync();
+        }
+
+        [Test]
+        public async Task Host_AcceptsNewPlayers_InTheLobby_EvenWhenJoinInProgressIsNotAllowed()
+        {
+            var host = await NetworkSession.CreateAsync(NetworkSessionType.Local, 1, 4, 0, new Dictionary<string, object>());
+            host.NetworkTransport = new FakeNetworkTransport();
+            host.AllowJoinInProgress = false;
+
+            host.DispatchIncomingMessage(new MessageReceivedEventArgs(JoinRequest("early"), new IPEndPoint(IPAddress.Loopback, 12345)));
+
+            Assert.IsTrue(host.AllGamers.Any(g => g.Id == "early"));
+            await host.DisposeAsync();
+        }
+
+        [Test]
+        public async Task Host_StillAnswersARepeatedRequest_FromSomebodyAlreadyIn_AfterStart()
+        {
+            var host = await NetworkSession.CreateAsync(NetworkSessionType.Local, 1, 4, 0, new Dictionary<string, object>());
+            var transport = new FakeNetworkTransport();
+            host.NetworkTransport = transport;
+            host.AllowJoinInProgress = false;
+            var endpoint = new IPEndPoint(IPAddress.Loopback, 12345);
+
+            host.DispatchIncomingMessage(new MessageReceivedEventArgs(JoinRequest("early"), endpoint));
+            host.StartGame();
+            transport.SentPackets.Clear();
+            int gamersBefore = host.AllGamers.Count;
+
+            // the acceptance was lost, so the client asks again
+            host.DispatchIncomingMessage(new MessageReceivedEventArgs(JoinRequest("early"), endpoint));
+
+            Assert.That(host.AllGamers.Count, Is.EqualTo(gamersBefore), "no duplicate gamer");
+            Assert.IsNull(LastRejection(transport), "it must be accepted again, not refused");
+            await host.DisposeAsync();
+        }
+
+        [Test]
+        public void Client_RemembersWhyTheHostRefusedIt_WhileJoining()
+        {
+            var client = new NetworkSession(NetworkSessionType.SystemLink, 4, 0, false, "session", new FakeNetworkTransport());
+            client.sessionState = NetworkSessionState.Joining;
+
+            client.DispatchIncomingMessage(new MessageReceivedEventArgs(new JoinRejectedMessage
+            {
+                ErrorCode = NetworkSessionJoinError.SessionNotJoinable,
+                Reason = "The game has already started"
+            }, null));
+
+            Assert.That(client.joinRejectedReason, Is.EqualTo("The game has already started"));
+            Assert.That(client.joinRejectedError, Is.EqualTo(NetworkSessionJoinError.SessionNotJoinable));
+            client.Dispose();
+        }
+
         [Test]
         public async Task SendToAll_UsesFakeTransportForRemoteGamers()
         {

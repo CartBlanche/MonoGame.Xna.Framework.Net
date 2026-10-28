@@ -260,9 +260,15 @@ namespace Microsoft.Xna.Framework.Net
         public bool AllowHostMigration { get; set; } = true;
 
         /// <summary>
-        /// Gets whether the session allows gamers to join during gameplay.
+        /// Gets or sets whether the session allows gamers to join during gameplay. When false,
+        /// the host refuses new gamers once <see cref="StartGame"/> has been called (they fail to
+        /// join with <see cref="NetworkSessionJoinError.SessionNotJoinable"/>). Defaults to true.
         /// </summary>
         public bool AllowJoinInProgress { get; set; } = true;
+
+        // set when the host answers our join request with a rejection (see JoinSessionAsync)
+        internal volatile string joinRejectedReason;
+        internal NetworkSessionJoinError joinRejectedError;
 
         private IDictionary<string, object> sessionProperties = new Dictionary<string, object>();
         /// <summary>
@@ -723,6 +729,31 @@ namespace Microsoft.Xna.Framework.Net
                     return;
                 }
 
+                // The host asked for no new players once the game has started (AllowJoinInProgress).
+                // Somebody who is already in and merely repeats their request (a lost acceptance)
+                // is still let through.
+                if (!AllowJoinInProgress && sessionState == NetworkSessionState.Playing)
+                {
+                    bool alreadyJoined;
+                    lock (lockObject)
+                        alreadyJoined = gamers.Any(g => g.Id == joinRequest.GamerId);
+
+                    if (!alreadyJoined)
+                    {
+                        logger?.LogWarning($"Join request from {joinRequest.Gamertag} rejected: the game has already started");
+
+                        var rejection = new JoinRejectedMessage
+                        {
+                            ErrorCode = NetworkSessionJoinError.SessionNotJoinable,
+                            Reason = "The game has already started"
+                        };
+                        var rejectWriter = new PacketWriter();
+                        rejection.Serialize(rejectWriter);
+                        networkTransport.Send(rejectWriter.GetData(), e.RemoteEndPoint);
+                        return;
+                    }
+                }
+
                 // Phase 1: Check if session is full
                 if (AllGamers.Count >= MaxGamers)
                 {
@@ -817,7 +848,14 @@ namespace Microsoft.Xna.Framework.Net
             {
                 // Phase 1: Handle join rejection
                 logger?.LogError($"Join rejected: {joinRejected.Reason} (Error: {joinRejected.ErrorCode})");
-                // Session state remains in Joining, caller will check this
+
+                // Session state remains in Joining; JoinSessionAsync notices the rejection and
+                // fails with the host's reason instead of waiting for a timeout
+                if (sessionState == NetworkSessionState.Joining)
+                {
+                    joinRejectedError = joinRejected.ErrorCode;
+                    joinRejectedReason = joinRejected.Reason;       // written last: readers check this one
+                }
             }
             else if (e.Message is PlayerMoveMessage moveMessage)
             {
