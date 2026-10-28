@@ -6,7 +6,7 @@ rewritten freely as long as the compat suite (Phase 0) stays green.
 
 This file is the single source of truth for progress. Update it in the same commit as the work it describes.
 
-Legend: `[ ]` todo · `[~]` in progress · `[x]` done · `[?]` needs verification before work starts · `(!)` decision needed
+Legend: `[-]` dropped · `[ ]` todo · `[~]` in progress · `[x]` done · `[?]` needs verification before work starts · `(!)` decision needed
 
 _Last updated: 2026-10-28 (Phases 0-3 complete; 3.6b and 3.9 deferred; no compat gaps remain)_
 
@@ -19,7 +19,7 @@ _Last updated: 2026-10-28 (Phases 0-3 complete; 3.6b and 3.9 deferred; no compat
 | 0 | Safety net: CI runs tests, compat suite scaffold | **Done** | 8/8 |
 | 1 | Wire protocol correctness (envelope, InOrder, fragmentation) | **Done** | 7/7 |
 | 2 | Threading and event model (`Update()`-drained events) | Done | 6/6 |
-| 3 | XNA API parity (gamers, packets, sessions) | Done (2 deferred) | 17/19 |
+| 3 | XNA API parity (gamers, packets, sessions) | Done (2 deferred, 1 dropped) | 16/19 |
 | 4 | Backend unification (one public API, peer-id transport) | Not started | 0/6 |
 | 5 | Online session types, matchmaking, invites | Not started | 0/5 |
 | 6 | Security and robustness | Not started | 0/5 |
@@ -158,7 +158,7 @@ Packets
 - [ ] 3.9 Allocation reduction: pooled buffers behind `PacketWriter`/`PacketReader` (API unchanged). DEFERRED to Phase 8: no measured problem yet; `RentData` already pools the send path
 
 Sessions
-- [x] 3.10 `Begin*/End*` (APM) for `Create/Find/Join/JoinInvited` in both XNA overload shapes (max local gamers, or a list of signed-in gamers), over the Task APIs. `End*` rethrows the original exception and rejects a result from a different `Begin*`. The sync `Create/Find` now take `NetworkSessionProperties` (XNA's type, so a literal `null` works); the Task APIs keep the dictionary
+- [-] 3.10 DROPPED 2026-10-28: `Begin*/End*` (APM) removed, at the owner's request. `IAsyncResult` is not a modern pattern, and porting XNA code that calls them to `await` is a mechanical rewrite. The blocking `Create`/`Find`/`Join`/`JoinInvited` stay (they wrap the Task APIs); `Create`/`Find` take `NetworkSessionProperties`, so a literal `null` works
 - [x] 3.11 `NetworkSessionProperties` is XNA's 8 nullable-int slots (fixed size, `IList<int?>`). Slots travel as dictionary entries keyed "0"-"7". Found while doing it: `CreateAsync` ignored the properties it was given and `FindAsync` never filtered; both now work (a search matches sessions that have every property it sets, equal). Not done: `AvailableNetworkSession.SessionProperties` is still the dictionary, so an XNA game reading `available.SessionProperties[0]` needs the key "0"
 - [x] 3.13 (advertisement now carries the real gamer count; open public slots = max - private - count) Discovery hard-codes `AvailableNetworkSession.CurrentGamerCount = 1` and derives open slots from max; the advertisement must carry the real count. Un-ignore `FindingASession_ReportsTheCurrentGamerCount`
 - [x] 3.14 (!) `GamerJoined` `+=` in the Lobby state re-raises the event for every gamer already in the session (including the local one), and invokes the whole delegate, so earlier subscribers get duplicates too. ShipGame does not rely on it (`LanLobby` adds existing gamers itself and de-duplicates by id). DECIDED 2026-10-28: no replay; only gamers joining after subscription. Done: `GamerJoined` is a plain event; gamers who joined before the first `Update()` (local gamers included) are raised by it, which I believe matches XNA's first-`Update()` behaviour for local gamers (unverified)
@@ -172,7 +172,7 @@ Commit groups
 - B. `gamers: bounded queues, RTT everywhere, byte Id` (3.1, 3.5, 3.6)
 - C. `packets: XNA parity for byte[] and missing types` (3.7, 3.8)
 - D. `packets: pooled buffers` (3.9)
-- E. `sessions: APM shims, integer properties, filtering` (3.10, 3.11)
+- E. `sessions: integer properties, filtering` (3.11; 3.10 dropped)
 - F. `sessions: host migration / kick / join-state` (3.12)
 
 Exit criteria: no `// Mock implementation` left in `Core/Net`; compat suite covers each member. Met except `HasVoice`/`IsTalking`/`IsMutedByLocalUser`, which stay stubs until Phase 7 (voice), and the Mock stubs in `Core/GamerServices` (Guide, GamerServices), which are outside Core/Net.
@@ -316,6 +316,7 @@ Exit criteria: a containerised server accepts clients from another network and s
 | 2026-10-28 | A leave notice is only honoured from the gamer it names (on the host) or from the host (on clients) | Otherwise any peer could remove any other; cheap to close now, the rest of the trust model is Phase 6 |
 | 2026-10-28 | `AllowHostMigration` defaults to false; migration is not built | Honest default; a real migration needs the host's state (roster, ids, properties) replicated to a successor, which is its own project |
 | 2026-10-28 | Sync `Create`/`Find` take `NetworkSessionProperties`; Task APIs keep `IDictionary<string, object>` | XNA ports pass `null` or a properties object to the sync/Begin methods; two overloads of one method would make a literal `null` ambiguous and break callers such as ShipGame's `FindAsync(..., null)` |
+| 2026-10-28 | Dropped `Begin*/End*` (task 3.10), added then removed | Owner's call: `IAsyncResult` is not modern and the port to `await` is trivial; the blocking calls remain |
 | 2026-10-28 | Events move to `Update()` | This matches XNA's behaviour, so it is also a compat fix |
 | 2026-10-28 | Phase 2 shipped as one commit, not the two planned (A and B) | The event queue and the per-session local gamer change the same lines of `NetworkSession.cs` |
 | 2026-10-28 | `SessionEnded` is raised at most once per session | Previously a client whose host left, then disposed in the handler, got it twice (HostEndedSession then ClientSignedOut) |

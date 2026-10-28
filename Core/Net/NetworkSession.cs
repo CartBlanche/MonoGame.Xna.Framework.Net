@@ -481,69 +481,6 @@ namespace Microsoft.Xna.Framework.Net
             return FindAsync(sessionType, maxLocalGamers, searchProperties?.ToDictionary()).GetAwaiter().GetResult();
         }
 
-        // The XNA way of waiting: Begin returns at once, End collects the result (or rethrows the failure)
-
-        public static IAsyncResult BeginCreate(NetworkSessionType sessionType, int maxLocalGamers, int maxGamers, int privateGamerSlots,
-            NetworkSessionProperties sessionProperties, AsyncCallback callback, object asyncState)
-        {
-            return new AsyncResultWrapper<NetworkSession>(
-                CreateAsync(sessionType, maxLocalGamers, maxGamers, privateGamerSlots, sessionProperties?.ToDictionary()), callback, asyncState);
-        }
-
-        public static IAsyncResult BeginCreate(NetworkSessionType sessionType, IEnumerable<SignedInGamer> localGamers, int maxGamers, int privateGamerSlots,
-            NetworkSessionProperties sessionProperties, AsyncCallback callback, object asyncState)
-        {
-            if (localGamers == null)
-                throw new ArgumentNullException(nameof(localGamers));
-            return BeginCreate(sessionType, localGamers.Count(), maxGamers, privateGamerSlots, sessionProperties, callback, asyncState);
-        }
-
-        public static NetworkSession EndCreate(IAsyncResult result) => End<NetworkSession>(result);
-
-        public static IAsyncResult BeginFind(NetworkSessionType sessionType, int maxLocalGamers, NetworkSessionProperties searchProperties,
-            AsyncCallback callback, object asyncState)
-        {
-            return new AsyncResultWrapper<AvailableNetworkSessionCollection>(
-                FindAsync(sessionType, maxLocalGamers, searchProperties?.ToDictionary()), callback, asyncState);
-        }
-
-        public static IAsyncResult BeginFind(NetworkSessionType sessionType, IEnumerable<SignedInGamer> localGamers, NetworkSessionProperties searchProperties,
-            AsyncCallback callback, object asyncState)
-        {
-            if (localGamers == null)
-                throw new ArgumentNullException(nameof(localGamers));
-            return BeginFind(sessionType, localGamers.Count(), searchProperties, callback, asyncState);
-        }
-
-        public static AvailableNetworkSessionCollection EndFind(IAsyncResult result) => End<AvailableNetworkSessionCollection>(result);
-
-        public static IAsyncResult BeginJoin(AvailableNetworkSession availableSession, AsyncCallback callback, object asyncState)
-        {
-            return new AsyncResultWrapper<NetworkSession>(JoinAsync(availableSession), callback, asyncState);
-        }
-
-        public static NetworkSession EndJoin(IAsyncResult result) => End<NetworkSession>(result);
-
-        public static IAsyncResult BeginJoinInvited(int maxLocalGamers, AsyncCallback callback, object asyncState)
-        {
-            return BeginJoinInvited(new[] { SignedInGamer.Current }, callback, asyncState);
-        }
-
-        public static IAsyncResult BeginJoinInvited(IEnumerable<SignedInGamer> localGamers, AsyncCallback callback, object asyncState)
-        {
-            return new AsyncResultWrapper<NetworkSession>(JoinInvitedAsync(localGamers), callback, asyncState);
-        }
-
-        public static NetworkSession EndJoinInvited(IAsyncResult result) => End<NetworkSession>(result);
-
-        private static T End<T>(IAsyncResult result)
-        {
-            if (result == null)
-                throw new ArgumentNullException(nameof(result));
-            if (!(result is AsyncResultWrapper<T> wrapper))
-                throw new ArgumentException("The result did not come from the matching Begin method.", nameof(result));
-            return wrapper.GetResult();
-        }
 
         /// <summary>
         /// Asynchronously joins an available network session.
