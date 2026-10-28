@@ -160,11 +160,11 @@ Packets
 Sessions
 - [ ] 3.10 `Begin*/End*` (APM) shims for `Create/Find/Join/JoinInvited` over the Task APIs
 - [ ] 3.11 Integer-keyed `NetworkSessionProperties` (XNA: 8 int slots) with filtering in `Find`; keep dictionary overload
-- [ ] 3.13 Discovery hard-codes `AvailableNetworkSession.CurrentGamerCount = 1` and derives open slots from max; the advertisement must carry the real count. Un-ignore `FindingASession_ReportsTheCurrentGamerCount`
-- [ ] 3.14 (!) `GamerJoined` `+=` in the Lobby state re-raises the event for every gamer already in the session (including the local one), and invokes the whole delegate, so earlier subscribers get duplicates too. ShipGame does not rely on it (`LanLobby` adds existing gamers itself and de-duplicates by id). DECIDED 2026-10-28: no replay; only gamers joining after subscription. Still confirm what XNA does for local gamers on the first `Update()`
+- [x] 3.13 (advertisement now carries the real gamer count; open public slots = max - private - count) Discovery hard-codes `AvailableNetworkSession.CurrentGamerCount = 1` and derives open slots from max; the advertisement must carry the real count. Un-ignore `FindingASession_ReportsTheCurrentGamerCount`
+- [x] 3.14 (!) `GamerJoined` `+=` in the Lobby state re-raises the event for every gamer already in the session (including the local one), and invokes the whole delegate, so earlier subscribers get duplicates too. ShipGame does not rely on it (`LanLobby` adds existing gamers itself and de-duplicates by id). DECIDED 2026-10-28: no replay; only gamers joining after subscription. Done: `GamerJoined` is a plain event; gamers who joined before the first `Update()` (local gamers included) are raised by it, which I believe matches XNA's first-`Update()` behaviour for local gamers (unverified)
 - [ ] 3.15 A client's `AllGamers` holds only itself and the host, not the other clients. Un-ignore `EveryGamer_CanSeeEveryOtherGamer`
 - [ ] 3.16 The host gamer on a client is a synthetic object with a random `Id`, not the host's real id, so the same gamer has different ids on different machines
-- [ ] 3.17 Remove the sender self-loopback in `NetworkGamer.SendDataInternal` (SystemLink case) and make the Local case consistent; add a compat test that a sender never receives its own packet
+- [x] 3.17 Remove the sender self-loopback in `NetworkGamer.SendDataInternal` (SystemLink case) and make the Local case consistent; add a compat test that a sender never receives its own packet
 - [ ] 3.12 Host migration: implement, or set `AllowHostMigration` default to `false` and document. Also `RemoveFromSession`, kick, `SessionState` semantics (`Joining`, locked-when-full), `LocalGamers` cap
 
 Commit groups

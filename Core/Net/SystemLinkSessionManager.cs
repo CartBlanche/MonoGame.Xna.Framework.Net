@@ -39,7 +39,7 @@ namespace Microsoft.Xna.Framework.Net
                     {
                         var propertiesBytes = session.SerializeSessionPropertiesBinary();
                         // Include gameplay port in the header so joiners know where to send join requests
-                        var header = $"SESSION:{session.sessionId}:{session.MaxGamers}:{session.PrivateGamerSlots}:{session.Host?.Gamertag ?? "Host"}:{GamePort}:";
+                        var header = $"SESSION:{session.sessionId}:{session.MaxGamers}:{session.PrivateGamerSlots}:{session.AllGamers.Count}:{session.Host?.Gamertag ?? "Host"}:{GamePort}:";
                         var headerBytes = Encoding.UTF8.GetBytes(header);
                         var message = new byte[headerBytes.Length + propertiesBytes.Length];
                         Buffer.BlockCopy(headerBytes, 0, message, 0, headerBytes.Length);
@@ -158,15 +158,15 @@ namespace Microsoft.Xna.Framework.Net
                                     if (buffer[i] == (byte)':')
                                     {
                                         colonCount++;
-                                        if (colonCount == 6)
+                                        if (colonCount == 7)
                                         {
-                                            headerEnd = i + 1; // header ends after 6th colon (includes game port)
+                                            headerEnd = i + 1; // header ends after the 7th colon (includes game port)
                                             break;
                                         }
                                     }
                                 }
 
-                                if (colonCount == 6)
+                                if (colonCount == 7)
                                 {
                                     var headerString = Encoding.UTF8.GetString(buffer, 0, headerEnd);
                                     Debug.WriteLine($"[DISCOVERY] Parsed header: {headerString}");
@@ -175,8 +175,9 @@ namespace Microsoft.Xna.Framework.Net
                                     var sessionId = parts[1];
                                     var maxGamers = int.Parse(parts[2]);
                                     var privateSlots = int.Parse(parts[3]);
-                                    var hostGamertag = parts[4];
-                                    var gamePort = int.Parse(parts[5]);
+                                    var currentGamers = int.Parse(parts[4]);
+                                    var hostGamertag = parts[5];
+                                    var gamePort = int.Parse(parts[6]);
 
                                     // Binary session properties start after headerEnd
                                     var propertiesBytes = new byte[buffer.Length - headerEnd];
@@ -192,8 +193,8 @@ namespace Microsoft.Xna.Framework.Net
                                     sessionsDict[sessionId] = new AvailableNetworkSession(
                                         sessionName: "SystemLinkSession",
                                         hostGamertag: hostGamertag,
-                                        currentGamerCount: 1,
-                                        openPublicGamerSlots: maxGamers - 1,
+                                        currentGamerCount: currentGamers,
+                                        openPublicGamerSlots: Math.Max(0, maxGamers - privateSlots - currentGamers),
                                         openPrivateGamerSlots: privateSlots,
                                         sessionType: NetworkSessionType.SystemLink,
                                         sessionProperties: sessionProperties,
@@ -204,7 +205,7 @@ namespace Microsoft.Xna.Framework.Net
                                 }
                                 else
                                 {
-                                    Debug.WriteLine($"[DISCOVERY] Invalid packet - expected 6 colons, found {colonCount}");
+                                    Debug.WriteLine($"[DISCOVERY] Invalid packet - expected 7 colons, found {colonCount}");
                                 }
                             }
                             // If timeout occurs, continue listening until endTime
@@ -256,7 +257,7 @@ namespace Microsoft.Xna.Framework.Net
 
             // Create client session in Joining state
             var session = new NetworkSession(NetworkSessionType.SystemLink,
-                availableSession.OpenPublicGamerSlots + availableSession.CurrentGamerCount,
+                availableSession.OpenPublicGamerSlots + availableSession.CurrentGamerCount + availableSession.OpenPrivateGamerSlots,
                 availableSession.OpenPrivateGamerSlots,
                 false,
                 availableSession.SessionId,

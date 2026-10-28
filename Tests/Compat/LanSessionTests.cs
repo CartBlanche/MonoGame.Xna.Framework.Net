@@ -163,7 +163,6 @@ namespace Microsoft.Xna.Framework.Net.CompatTests
         }
 
         [Test]
-        [Ignore("Known gap, plan task 3.13: discovery hard-codes CurrentGamerCount to 1; the advertisement does not carry the real count")]
         public async Task FindingASession_ReportsTheCurrentGamerCount()
         {
             NetworkSession host = await lan.StartHostAsync(maxGamers: 4);

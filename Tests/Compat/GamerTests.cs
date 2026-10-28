@@ -62,6 +62,31 @@ namespace Microsoft.Xna.Framework.Net.CompatTests
         }
 
         [Test]
+        public async Task GamerJoined_IsNotReplayedToALateSubscriber()
+        {
+            await lan.WaitUntilAsync(() => false, 500);     // let everything already queued be raised
+            int raised = 0;
+
+            host.GamerJoined += (s, e) => raised++;
+            await lan.WaitUntilAsync(() => false, 500);
+
+            Assert.That(raised, Is.Zero, "gamers already in the session must not be raised again");
+        }
+
+        [Test]
+        public async Task ASender_NeverReceivesItsOwnPackets()
+        {
+            LocalNetworkGamer hostGamer = SessionHarness.LocalOf(host);
+            LocalNetworkGamer clientGamer = SessionHarness.LocalOf(client);
+
+            hostGamer.SendData(new byte[] { 0xAB }, SendDataOptions.ReliableInOrder);   // to everyone, itself included in AllGamers
+
+            Assert.That(await lan.WaitUntilAsync(() => clientGamer.IsDataAvailable), "the client never got it");
+            await lan.WaitUntilAsync(() => false, 500);
+            Assert.That(hostGamer.IsDataAvailable, Is.False, "the sender received its own packet");
+        }
+
+        [Test]
         public void SignedInGamer_IsOnlyAvailableForLocalGamers()
         {
             Assert.That(SessionHarness.LocalOf(host).SignedInGamer, Is.Not.Null);

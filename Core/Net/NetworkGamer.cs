@@ -357,27 +357,12 @@ namespace Microsoft.Xna.Framework.Net
             switch (session.SessionType)
             {
                 case NetworkSessionType.SystemLink:
-                    // Ensure the sender (host) also processes its own outbound packet so
-                    // gameplay code (e.g. WorldSetup) follows the same receive path.
-                    bool includeSelf = false;
-
+                    // Everyone but the sender: a gamer never receives what it sent itself, as in XNA
                     foreach (var recipient in recipients)
                     {
-                        if (recipient == this)
-                        {
-                            includeSelf = true;
+                        if (recipient == null || recipient == this)
                             continue;
-                        }
                         session.SendDataToGamer(recipient, data, dataLength, options);
-                    }
-
-                    // Loopback to self if included in recipients (typical when using session.AllGamers).
-                    if (includeSelf && IsLocal)
-                    {
-                        // Clone to avoid later mutation issues.
-                        var clone = new byte[dataLength];
-                        Buffer.BlockCopy(data, 0, clone, 0, dataLength);
-                        EnqueueIncomingPacket(clone, this);
                     }
                     break;
 
@@ -387,7 +372,7 @@ namespace Microsoft.Xna.Framework.Net
                     var delivered = new HashSet<NetworkGamer>();
                     foreach (var recipient in recipients)
                     {
-                        if (recipient == null || !recipient.IsLocal)
+                        if (recipient == null || recipient == this || !recipient.IsLocal)
                             continue;
                         if (!delivered.Add(recipient))
                             continue; // avoid duplicate enqueue if recipients enumerates same gamer twice

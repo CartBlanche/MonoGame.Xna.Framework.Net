@@ -66,30 +66,12 @@ namespace Microsoft.Xna.Framework.Net
         public event EventHandler<GameStartedEventArgs> GameStarted;
         public event EventHandler<GameEndedEventArgs> GameEnded;
 
-        private event EventHandler<GamerJoinedEventArgs> gamerJoined;
-        private bool isGamerJoinedSubscribed = false;
-        public event EventHandler<GamerJoinedEventArgs> GamerJoined
-        {
-            add
-            {
-                lock (lockObject)
-                {
-                    gamerJoined += value;
-                    isGamerJoinedSubscribed = true;
-
-                    // Notify pending gamers if this is the first subscription
-                    NotifyPendingGamers();
-                }
-            }
-            remove
-            {
-                lock (lockObject)
-                {
-                    gamerJoined -= value;
-                    isGamerJoinedSubscribed = gamerJoined != null;
-                }
-            }
-        }
+        /// <summary>
+        /// Raised, from <see cref="Update"/>, for each gamer that joins. A gamer who joined before
+        /// <see cref="Update"/> first ran, the local gamers included, is raised by that first call; one who
+        /// is already in the session when a handler is added is not raised again.
+        /// </summary>
+        public event EventHandler<GamerJoinedEventArgs> GamerJoined;
 
         public event EventHandler<GamerLeftEventArgs> GamerLeft;
         public event EventHandler<NetworkSessionEndedEventArgs> SessionEnded;
@@ -1017,7 +999,7 @@ namespace Microsoft.Xna.Framework.Net
 
         private void OnGamerJoined(NetworkGamer gamer)
         {
-            Raise(() => gamerJoined?.Invoke(this, new GamerJoinedEventArgs(gamer)));
+            Raise(() => GamerJoined?.Invoke(this, new GamerJoinedEventArgs(gamer)));
         }
 
         private void OnGamerLeft(NetworkGamer gamer)
@@ -1249,18 +1231,6 @@ namespace Microsoft.Xna.Framework.Net
                 }
             }
         }
-        private void NotifyPendingGamers()
-        {
-            if (isGamerJoinedSubscribed && sessionState == NetworkSessionState.Lobby)
-            {
-                // Notify all pending gamers that they can join
-                foreach (var gamer in gamers/*.Where(g => !g.IsLocal && !g.IsReady)*/)
-                {
-                    gamerJoined?.Invoke(this, new GamerJoinedEventArgs(gamer));
-                }
-            }
-        }
-
         internal void AcceptGamer(NetworkGamer gamer)
         {
             AddGamer(gamer);
