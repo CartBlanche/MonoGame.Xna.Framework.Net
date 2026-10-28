@@ -150,12 +150,12 @@ Gamers
 - [x] 3.5 Incoming queue bounded at 8192 packets, oldest dropped, counted in `Diagnostics.PacketsDropped`. DEFERRED: per-local-gamer addressing, since the wire carries no recipient and only one local gamer per session exists in practice; revisit with multiple local gamers over the network
 - [x] 3.6 `RoundtripTime` measured by the reliable channel from acknowledgements of packets that were never resent (smoothed), so it works for any transport that uses the channel; the UDP heartbeat still feeds it too
 - [ ] 3.6b Keep `NetworkGamer.UnacknowledgedAge` (non-XNA, used by ShipGame's stall detection) as a supported extension, available on every back-end
-- [ ] 3.6c (!) `ReceiveData(byte[])` silently truncates when the buffer is too small (ShipGame warns about this); decide throw vs truncate
+- [x] 3.6c `ReceiveData` with a buffer smaller than the packet now throws `ArgumentException` naming the size needed, and leaves the packet queued (it used to truncate silently)
 
 Packets
-- [ ] 3.7 `PacketWriter.Write(byte[])` length-prefixes; XNA writes raw bytes. Fix to XNA behaviour + explicit `WriteLengthPrefixed`/`ReadLengthPrefixedBytes`. ShipGame checked: it never uses `Write(byte[])`/`ReadBytes`, so it is safe for ShipGame
-- [ ] 3.8 Add missing XNA overloads (`Point`, `Rectangle`, `BoundingBox`/`Sphere`, `Plane`, `Ray`, `Int16`/`Byte` array variants, `Seek`) and verify `PacketReader` symmetry
-- [ ] 3.9 Allocation reduction: pooled buffers behind `PacketWriter`/`PacketReader` (API unchanged)
+- [x] 3.7 `PacketWriter.Write(byte[])` length-prefixes; XNA writes raw bytes. Fixed to XNA behaviour + explicit `WriteLengthPrefixed`/`ReadLengthPrefixedBytes` (the parameterless `ReadBytes()` is gone; `ReadBytes(int)` stays). Internal users moved to the prefixed pair, so their wire formats are unchanged. ShipGame checked: it never uses `Write(byte[])`/`ReadBytes`, so it is safe for ShipGame
+- [x] 3.8 Added the `BinaryWriter`/`BinaryReader` members XNA's packets inherit that were missing: `char`, `char[]`, `decimal`, `Seek`, `ReadChar/ReadChars/ReadDecimal`. NOT added: `Point`/`Rectangle`/`BoundingBox`/`BoundingSphere`/`Plane`/`Ray`, which I do not believe XNA's `PacketWriter` has (it has `Vector2/3/4`, `Quaternion`, `Matrix`, `Color`, already present). Add them if ShipGame or another consumer needs them
+- [ ] 3.9 Allocation reduction: pooled buffers behind `PacketWriter`/`PacketReader` (API unchanged). DEFERRED to Phase 8: no measured problem yet; `RentData` already pools the send path
 
 Sessions
 - [ ] 3.10 `Begin*/End*` (APM) shims for `Create/Find/Join/JoinInvited` over the Task APIs

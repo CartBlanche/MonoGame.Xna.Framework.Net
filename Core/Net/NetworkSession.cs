@@ -1226,7 +1226,7 @@ namespace Microsoft.Xna.Framework.Net
             {
                 var writer = new PacketWriter();
                 writer.Write("SessionPropertiesUpdate");
-                writer.Write(SerializeSessionPropertiesBinary());
+                writer.WriteLengthPrefixed(SerializeSessionPropertiesBinary());
                 SendToAll(writer, SendDataOptions.Reliable);
             }
         }
@@ -1243,7 +1243,7 @@ namespace Microsoft.Xna.Framework.Net
                     var messageType = reader.ReadString();
                     if (messageType == "SessionPropertiesUpdate")
                     {
-                        var propertiesData = reader.ReadBytes();
+                        var propertiesData = reader.ReadLengthPrefixedBytes();
                         DeserializeSessionPropertiesBinary(propertiesData);
                     }
                 }

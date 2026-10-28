@@ -333,6 +333,23 @@ namespace Microsoft.Xna.Framework.Net.Tests
         }
 
         [Test]
+        public async Task ReceiveData_WithABufferThatIsTooSmall_ThrowsAndKeepsThePacket()
+        {
+            var (host, transport, gamer, endpoint) = await HostWithGamer();
+            var local = host.LocalGamers[0];
+            local.EnqueueIncomingPacket(new byte[] { 1, 2, 3, 4, 5, 6 }, gamer);
+
+            var ex = Assert.Throws<ArgumentException>(() => local.ReceiveData(new byte[4], out _));
+            Assert.That(ex.Message, Does.Contain("6"));
+            Assert.That(local.IsDataAvailable, Is.True, "the packet must still be there");
+
+            var big = new byte[8];
+            Assert.That(local.ReceiveData(big, out _), Is.EqualTo(6));
+            Assert.That(big.Take(6), Is.EqualTo(new byte[] { 1, 2, 3, 4, 5, 6 }));
+            await host.DisposeAsync();
+        }
+
+        [Test]
         public async Task GamerIds_AreBytes_UniqueWithinTheSession_AndStable()
         {
             var (host, transport, gamer, endpoint) = await HostWithGamer();

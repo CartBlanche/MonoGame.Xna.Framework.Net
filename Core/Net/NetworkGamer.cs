@@ -158,13 +158,12 @@ namespace Microsoft.Xna.Framework.Net
 
             sender = null;
 
-            if (!TryDequeueIncomingPacket(out var packet))
+            if (!TryDequeueIncomingPacket(out var packet, data.Length))
                 return 0;
 
             sender = packet.Sender;
-            int length = Math.Min(data.Length, packet.Data.Length);
-            Array.Copy(packet.Data, data, length);
-            return length;
+            Array.Copy(packet.Data, data, packet.Data.Length);
+            return packet.Data.Length;
         }
 
         public int ReceiveData(byte[] data, int offset, out NetworkGamer sender)
@@ -177,13 +176,12 @@ namespace Microsoft.Xna.Framework.Net
 
             sender = null;
 
-            if (!TryDequeueIncomingPacket(out var packet))
+            if (!TryDequeueIncomingPacket(out var packet, data.Length - offset))
                 return 0;
 
             sender = packet.Sender;
-            int length = Math.Min(data.Length - offset, packet.Data.Length);
-            Array.Copy(packet.Data, 0, data, offset, length);
-            return length;
+            Array.Copy(packet.Data, 0, data, offset, packet.Data.Length);
+            return packet.Data.Length;
         }
 
         /// <summary>
@@ -435,7 +433,9 @@ namespace Microsoft.Xna.Framework.Net
                 session?.Diagnostics?.RecordPacketDropped();
         }
 
-        private bool TryDequeueIncomingPacket(out (byte[] Data, NetworkGamer Sender) packet)
+        // room is how many bytes the caller can take. A packet that does not fit is left in the queue
+        // and an exception says how big a buffer it needs: truncating would hand the game corrupt data.
+        private bool TryDequeueIncomingPacket(out (byte[] Data, NetworkGamer Sender) packet, int room = int.MaxValue)
         {
             lock (incomingPackets)
             {
@@ -444,6 +444,11 @@ namespace Microsoft.Xna.Framework.Net
                     packet = default;
                     return false;
                 }
+
+                int needed = incomingPackets.Peek().Data.Length;
+                if (needed > room)
+                    throw new ArgumentException(
+                        $"The buffer holds {room} bytes but the next packet is {needed} bytes. It stays queued; read it with a larger buffer.");
 
                 packet = incomingPackets.Dequeue();
                 return true;

@@ -214,12 +214,38 @@ namespace Microsoft.Xna.Framework.Net
         }
 
         /// <summary>
-        /// Reads a byte array.
+        /// Reads bytes written with <see cref="PacketWriter.WriteLengthPrefixed"/>.
         /// </summary>
-        public byte[] ReadBytes()
+        public byte[] ReadLengthPrefixedBytes()
         {
             int length = reader.ReadInt32();
+            if (length < 0 || length > BytesRemaining)
+                throw new EndOfStreamException("The length prefix runs past the end of the packet.");
             return reader.ReadBytes(length);
+        }
+
+        /// <summary>
+        /// Reads a character.
+        /// </summary>
+        public char ReadChar()
+        {
+            return reader.ReadChar();
+        }
+
+        /// <summary>
+        /// Reads a number of characters.
+        /// </summary>
+        public char[] ReadChars(int count)
+        {
+            return reader.ReadChars(count);
+        }
+
+        /// <summary>
+        /// Reads a decimal value.
+        /// </summary>
+        public decimal ReadDecimal()
+        {
+            return reader.ReadDecimal();
         }
 
         /// <summary>

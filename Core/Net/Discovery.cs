@@ -149,7 +149,7 @@ namespace Microsoft.Xna.Framework.Net
             writer.Write(PrivateGamerSlots);
             writer.Write(HostGamertag);
             writer.Write(GamePort);
-            writer.Write(SessionProperties);
+            writer.WriteLengthPrefixed(SessionProperties);
             return writer.GetData();
         }
 
@@ -166,7 +166,7 @@ namespace Microsoft.Xna.Framework.Net
                 var privateSlots = reader.ReadInt32();
                 var gamertag = reader.ReadString();
                 var gamePort = reader.ReadInt32();
-                var properties = reader.ReadBytes();
+                var properties = reader.ReadLengthPrefixedBytes();
 
                 payload = new DiscoveryPayload(sessionId, maxGamers, privateSlots, gamertag, gamePort, properties);
                 return true;

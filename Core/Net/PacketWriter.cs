@@ -200,9 +200,30 @@ namespace Microsoft.Xna.Framework.Net
         }
 
         /// <summary>
-        /// Writes raw byte data.
+        /// Writes the bytes as they are, with no length. As in XNA, the reader must know how many to read;
+        /// use <see cref="WriteLengthPrefixed"/> when it does not.
         /// </summary>
         public void Write(byte[] buffer)
+        {
+            if (buffer == null)
+                throw new ArgumentNullException(nameof(buffer));
+            writer.Write(buffer);
+        }
+
+        /// <summary>
+        /// Writes a portion of a byte array as it is, with no length.
+        /// </summary>
+        public void Write(byte[] buffer, int offset, int count)
+        {
+            if (buffer == null)
+                throw new ArgumentNullException(nameof(buffer));
+            writer.Write(buffer, offset, count);
+        }
+
+        /// <summary>
+        /// Writes the bytes preceded by their length, for <see cref="PacketReader.ReadLengthPrefixedBytes"/>.
+        /// </summary>
+        public void WriteLengthPrefixed(byte[] buffer)
         {
             if (buffer == null)
                 throw new ArgumentNullException(nameof(buffer));
@@ -211,14 +232,48 @@ namespace Microsoft.Xna.Framework.Net
         }
 
         /// <summary>
-        /// Writes a portion of a byte array.
+        /// Writes a character.
         /// </summary>
-        public void Write(byte[] buffer, int offset, int count)
+        public void Write(char value)
         {
-            if (buffer == null)
-                throw new ArgumentNullException(nameof(buffer));
-            writer.Write(count);
-            writer.Write(buffer, offset, count);
+            writer.Write(value);
+        }
+
+        /// <summary>
+        /// Writes an array of characters.
+        /// </summary>
+        public void Write(char[] chars)
+        {
+            if (chars == null)
+                throw new ArgumentNullException(nameof(chars));
+            writer.Write(chars);
+        }
+
+        /// <summary>
+        /// Writes part of an array of characters.
+        /// </summary>
+        public void Write(char[] chars, int index, int count)
+        {
+            if (chars == null)
+                throw new ArgumentNullException(nameof(chars));
+            writer.Write(chars, index, count);
+        }
+
+        /// <summary>
+        /// Writes a decimal value.
+        /// </summary>
+        public void Write(decimal value)
+        {
+            writer.Write(value);
+        }
+
+        /// <summary>
+        /// Moves the write position.
+        /// </summary>
+        public long Seek(int offset, SeekOrigin origin)
+        {
+            writer.Flush();
+            return stream.Seek(offset, origin);
         }
 
         /// <summary>
