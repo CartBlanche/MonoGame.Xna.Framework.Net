@@ -15,7 +15,7 @@ namespace Microsoft.Xna.Framework.Net
     /// <summary>
     /// Represents a network session for multiplayer gaming.
     /// </summary>
-    public class NetworkSession : IDisposable, IAsyncDisposable
+    public class NetworkSession : IDisposable, IAsyncDisposable, ISessionAdvertiser
     {
         // Event for received messages
         public event EventHandler<MessageReceivedEventArgs> MessageReceived;
@@ -318,68 +318,12 @@ namespace Microsoft.Xna.Framework.Net
         /// <summary>
         /// Asynchronously creates a new network session.
         /// </summary>
-        /// <summary>
-        /// Creates a SystemLink (UDP) session directly, bypassing factory delegation.
-        /// Intended for use by <see cref="INetworkSessionProvider"/> implementations that
-        /// want to layer additional discovery (e.g. Steam lobbies) on top of UDP transport.
-        /// </summary>
-        public static Task<NetworkSession> CreateSystemLinkSessionAsync(
-            NetworkSessionType sessionType,
-            int maxGamers,
-            int privateGamerSlots,
-            CancellationToken cancellationToken = default)
-        {
-            return CreateSystemLinkSessionAsync(sessionType, maxGamers, privateGamerSlots, transport: null, advertiseOnLan: true, cancellationToken);
-        }
-
-        internal static Task<NetworkSession> CreateSystemLinkSessionAsync(
-            NetworkSessionType sessionType,
-            int maxGamers,
-            int privateGamerSlots,
-            IPeerTransport transport,
-            bool advertiseOnLan,
-            CancellationToken cancellationToken = default)
-        {
-            var session = new NetworkSession(sessionType, maxGamers, privateGamerSlots, isHost: true, transport);
-            session.sessionState = NetworkSessionState.Lobby;
-            session.StartConnectionMonitoring();
-            if (advertiseOnLan)
-                _ = SystemLinkSessionManager.AdvertiseSessionAsync(session, session.cancellationTokenSource.Token);
-            return Task.FromResult(session);
-        }
-
-        /// <summary>
-        /// Joins a SystemLink (UDP) session directly, bypassing factory delegation.
-        /// Intended for use by <see cref="INetworkSessionProvider"/> implementations.
-        /// </summary>
-        public static async Task<NetworkSession> JoinSystemLinkSessionAsync(
-            AvailableNetworkSession availableSession,
-            CancellationToken cancellationToken = default)
-        {
-            return await JoinSystemLinkSessionAsync(availableSession, transport: null, cancellationToken);
-        }
-
-        internal static async Task<NetworkSession> JoinSystemLinkSessionAsync(
-            AvailableNetworkSession availableSession,
-            IPeerTransport transport,
-            CancellationToken cancellationToken = default)
-        {
-            var joinedSession = await SystemLinkSessionManager.JoinSessionAsync(availableSession, transport, cancellationToken);
-            if (joinedSession == null)
-                throw new NetworkSessionJoinException(NetworkSessionJoinError.SessionNotFound);
-            return joinedSession;
-        }
-
         public static async Task<NetworkSession> CreateAsync(NetworkSessionType sessionType, int maxLocalGamers, int maxGamers, int privateGamerSlots, IDictionary<string, object> sessionProperties, CancellationToken cancellationToken = default)
         {
             if (maxLocalGamers < 1 || maxLocalGamers > 4)
                 throw new ArgumentOutOfRangeException(nameof(maxLocalGamers));
             if (privateGamerSlots < 0 || privateGamerSlots > maxGamers)
                 throw new ArgumentOutOfRangeException(nameof(privateGamerSlots));
-
-            // Delegate to the configured back-end when one is set.
-            if (NetworkServiceProvider.IsConfigured && NetworkServiceProvider.SessionFactory is INetworkSessionProvider provider)
-                return await provider.CreateSessionAsync(sessionType, maxLocalGamers, maxGamers, privateGamerSlots, sessionProperties, cancellationToken);
 
             NetworkSession session = null;
             switch (sessionType)
@@ -393,14 +337,28 @@ namespace Microsoft.Xna.Framework.Net
                     LocalSessionRegistry.RegisterSession(session);
                     break;
                 case NetworkSessionType.SystemLink:
-                    // SystemLink: start UDP listener and broadcast session
-                    session = new NetworkSession(sessionType, maxGamers, privateGamerSlots, true);
+                    // The back-end supplies the transport and makes the session discoverable
+                    var backend = NetworkServiceProvider.Backend;
+                    session = new NetworkSession(sessionType, maxGamers, privateGamerSlots, true, backend.CreateTransport());
                     session.sessionState = NetworkSessionState.Lobby;
-                    // Phase 1: Start connection monitoring for SystemLink sessions
                     session.StartConnectionMonitoring();
                     session.logger?.LogInfo($"Started connection monitoring for session {session.sessionId}");
-                    // Use the session's own cancellation token, not the CreateAsync parameter
-                    _ = SystemLinkSessionManager.AdvertiseSessionAsync(session, session.cancellationTokenSource.Token); // Fire-and-forget
+
+                    // what the host asked for is what searches see and what joiners get
+                    if (sessionProperties != null)
+                        foreach (var kvp in sessionProperties)
+                            session.SessionProperties[kvp.Key] = kvp.Value;
+
+                    try
+                    {
+                        // the session's own token, so advertising stops when the session does
+                        await backend.AdvertiseAsync(session, session.cancellationTokenSource.Token).ConfigureAwait(false);
+                    }
+                    catch
+                    {
+                        session.Dispose();
+                        throw;
+                    }
                     break;
                 default:
                     // Not implemented
@@ -441,10 +399,6 @@ namespace Microsoft.Xna.Framework.Net
         /// </summary>
         public static async Task<AvailableNetworkSessionCollection> FindAsync(NetworkSessionType sessionType, int maxLocalGamers, IDictionary<string, object> sessionProperties, CancellationToken cancellationToken = default)
         {
-            // Delegate to the configured back-end when one is set.
-            if (NetworkServiceProvider.IsConfigured && NetworkServiceProvider.SessionFactory is INetworkSessionProvider provider)
-                return await provider.FindSessionsAsync(sessionType, maxLocalGamers, sessionProperties, cancellationToken);
-
             switch (sessionType)
             {
                 case NetworkSessionType.Local:
@@ -454,8 +408,8 @@ namespace Microsoft.Xna.Framework.Net
                     return new AvailableNetworkSessionCollection(localSessions);
                 case NetworkSessionType.SystemLink:
                     // Discover sessions via UDP broadcast
-                    var systemLinkSessions = (await SystemLinkSessionManager.DiscoverSessionsAsync(maxLocalGamers, cancellationToken))
-                        .Where(s => MatchesSearch(s, sessionProperties)).ToList();
+                    var found = await NetworkServiceProvider.Backend.FindAsync(sessionType, maxLocalGamers, cancellationToken).ConfigureAwait(false);
+                    var systemLinkSessions = found.Where(s => MatchesSearch(s, sessionProperties)).ToList();
                     return new AvailableNetworkSessionCollection(systemLinkSessions);
                 default:
                     throw new NotSupportedException($"SessionType {sessionType} not supported yet.");
@@ -476,10 +430,6 @@ namespace Microsoft.Xna.Framework.Net
         /// </summary>
         public static async Task<NetworkSession> JoinAsync(AvailableNetworkSession availableSession, CancellationToken cancellationToken = default)
         {
-            // Delegate to the configured back-end when one is set.
-            if (NetworkServiceProvider.IsConfigured && NetworkServiceProvider.SessionFactory is INetworkSessionProvider provider)
-                return await provider.JoinSessionAsync(availableSession, cancellationToken);
-
             switch (availableSession.SessionType)
             {
                 case NetworkSessionType.Local:
@@ -494,7 +444,9 @@ namespace Microsoft.Xna.Framework.Net
                     return localSession;
                 case NetworkSessionType.SystemLink:
                     // Connect to host via network
-                    var joinedSession = await SystemLinkSessionManager.JoinSessionAsync(availableSession, cancellationToken);
+                    var backend = NetworkServiceProvider.Backend;
+                    await backend.PrepareJoinAsync(availableSession, cancellationToken).ConfigureAwait(false);
+                    var joinedSession = await SystemLinkSessionManager.JoinSessionAsync(availableSession, backend.CreateTransport(), cancellationToken);
                     if (joinedSession == null)
                         throw new NetworkSessionJoinException(NetworkSessionJoinError.SessionNotFound);
 
@@ -1188,13 +1140,16 @@ namespace Microsoft.Xna.Framework.Net
             }
         }
 
-        internal byte[] SerializeSessionPropertiesBinary()
+        internal byte[] SerializeSessionPropertiesBinary() => SerializePropertiesBinary(SessionProperties);
+
+        internal static byte[] SerializePropertiesBinary(IEnumerable<KeyValuePair<string, object>> properties)
         {
+            var list = properties.ToList();
             using (var ms = new MemoryStream())
             using (var writer = new BinaryWriter(ms))
             {
-                writer.Write(SessionProperties.Count);
-                foreach (var kvp in SessionProperties)
+                writer.Write(list.Count);
+                foreach (var kvp in list)
                 {
                     writer.Write(kvp.Key);
                     // Write type info and value
@@ -1342,6 +1297,33 @@ namespace Microsoft.Xna.Framework.Net
                     SendRawToGamer(gamer.GamerId, notice);
                 RemoveGamer(gamer);
             }
+        }
+
+        /// <summary>
+        /// What a back-end advertising this session needs to tell the world.
+        /// </summary>
+        SessionAdvertisement ISessionAdvertiser.GetAdvertisement()
+        {
+            int count;
+            string hostName;
+            lock (lockObject)
+            {
+                count = gamers.Count;
+                hostName = gamers.FirstOrDefault(g => g.IsHost)?.Gamertag;
+            }
+
+            return new SessionAdvertisement
+            {
+                SessionId = sessionId,
+                SessionType = sessionType,
+                HostGamertag = hostName,
+                MaxGamers = maxGamers,
+                PrivateGamerSlots = privateGamerSlots,
+                CurrentGamerCount = count,
+                Properties = new Dictionary<string, object>(SessionProperties),
+                // a full session stops being advertised, as does one that has ended
+                IsClosed = disposed || sessionState == NetworkSessionState.Ended || count >= maxGamers
+            };
         }
 
         internal void StartConnectionMonitoring()

@@ -21,7 +21,8 @@ namespace Microsoft.Xna.Framework.Net.Android
             Func<IAchievementProvider> achievementLiveProviderFactoryOverride = null,
             Func<IAchievementMediaProvider> achievementMediaLiveProviderFactoryOverride = null,
             IEnumerable<AchievementDefinition> achievementDefinitions = null,
-            AndroidFallbackMode fallbackMode = AndroidFallbackMode.PreferFallback)
+            AndroidFallbackMode fallbackMode = AndroidFallbackMode.PreferFallback,
+            INetworkBackend backend = null)
         {
             if (!string.IsNullOrWhiteSpace(gameName))
             {
@@ -38,6 +39,7 @@ namespace Microsoft.Xna.Framework.Net.Android
 
             Guide.SignInProvider = signInProvider ?? new AndroidSignInProvider();
             NetworkServiceProvider.SetSessionFactory(sessionFactory ?? new AndroidNetworkSessionFactory(fallbackMode));
+            NetworkServiceProvider.SetBackend(backend ?? new AndroidBackend(fallbackMode));
 
             lock (Gate)
             {

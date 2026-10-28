@@ -23,7 +23,7 @@ namespace Microsoft.Xna.Framework.Net.Steam
         public static void Configure(
             string gameName,
             IGuideSignInProvider signInProvider = null,
-            INetworkSessionFactory sessionFactory = null,
+            INetworkBackend backend = null,
             Func<ILeaderboardProvider> liveProviderFactoryOverride = null,
             Func<IAchievementProvider> achievementLiveProviderFactoryOverride = null,
             Func<IAchievementMediaProvider> achievementMediaLiveProviderFactoryOverride = null,
@@ -44,7 +44,7 @@ namespace Microsoft.Xna.Framework.Net.Steam
             }
 
             Guide.SignInProvider = signInProvider ?? new SteamSignInProvider();
-            NetworkServiceProvider.SetSessionFactory(sessionFactory ?? new SteamNetworkSessionFactory(gameName, fallbackMode));
+            NetworkServiceProvider.SetBackend(backend ?? new SteamBackend(gameName, fallbackMode));
 
             lock (Gate)
             {

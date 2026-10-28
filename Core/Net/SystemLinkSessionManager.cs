@@ -15,7 +15,7 @@ namespace Microsoft.Xna.Framework.Net
         internal const int GamePort = 31338; // Port for gameplay UDP traffic
         private static readonly List<AvailableNetworkSession> discoveredSessions = new List<AvailableNetworkSession>();
 
-        public static Task AdvertiseSessionAsync(NetworkSession session, CancellationToken cancellationToken)
+        public static Task AdvertiseSessionAsync(ISessionAdvertiser session, CancellationToken cancellationToken)
         {
             // Periodically broadcast session info on LAN until session is full or ended
             return Task.Run(async () =>
@@ -32,14 +32,15 @@ namespace Microsoft.Xna.Framework.Net
                     IReadOnlyList<IPAddress> subnetBroadcasts = LanBroadcast.GetBroadcastAddresses();
                     var subnetBroadcastsRefreshed = DateTime.UtcNow;
 
-                    session.Logger?.LogInfo($"Starting session advertisement on port {BroadcastPort}");
+                    Debug.WriteLine("[LAN] " + $"Starting session advertisement on port {BroadcastPort}");
                     int broadcastCount = 0;
 
-                    while (!cancellationToken.IsCancellationRequested && session.AllGamers.Count < session.MaxGamers && session.sessionState != NetworkSessionState.Ended)
+                    SessionAdvertisement ad;
+                    while (!cancellationToken.IsCancellationRequested && !(ad = session.GetAdvertisement()).IsClosed)
                     {
-                        var propertiesBytes = session.SerializeSessionPropertiesBinary();
+                        var propertiesBytes = NetworkSession.SerializePropertiesBinary(ad.Properties);
                         // Include gameplay port in the header so joiners know where to send join requests
-                        var header = $"SESSION:{session.sessionId}:{session.MaxGamers}:{session.PrivateGamerSlots}:{session.AllGamers.Count}:{session.Host?.Gamertag ?? "Host"}:{GamePort}:";
+                        var header = $"SESSION:{ad.SessionId}:{ad.MaxGamers}:{ad.PrivateGamerSlots}:{ad.CurrentGamerCount}:{ad.HostGamertag ?? "Host"}:{GamePort}:";
                         var headerBytes = Encoding.UTF8.GetBytes(header);
                         var message = new byte[headerBytes.Length + propertiesBytes.Length];
                         Buffer.BlockCopy(headerBytes, 0, message, 0, headerBytes.Length);
@@ -52,11 +53,11 @@ namespace Microsoft.Xna.Framework.Net
                         }
                         catch (SocketException ex)
                         {
-                            session.Logger?.LogWarning($"Broadcast advertisement send failed: {ex.Message}");
+                            Debug.WriteLine("[LAN] " + $"Broadcast advertisement send failed: {ex.Message}");
                         }
                         catch (Exception ex)
                         {
-                            session.Logger?.LogWarning($"Broadcast advertisement failed: {ex.Message}");
+                            Debug.WriteLine("[LAN] " + $"Broadcast advertisement failed: {ex.Message}");
                         }
 
                         if (DateTime.UtcNow - subnetBroadcastsRefreshed > TimeSpan.FromSeconds(5))
@@ -73,7 +74,7 @@ namespace Microsoft.Xna.Framework.Net
                             }
                             catch (SocketException ex)
                             {
-                                session.Logger?.LogWarning($"Broadcast to {subnetBroadcast} failed: {ex.Message}");
+                                Debug.WriteLine("[LAN] " + $"Broadcast to {subnetBroadcast} failed: {ex.Message}");
                             }
                         }
 
@@ -81,20 +82,20 @@ namespace Microsoft.Xna.Framework.Net
                         try
                         {
                             await udpClient.SendAsync(message, message.Length, localhostEndpoint);
-                            session.Logger?.LogInfo($"Also sent advertisement to localhost (127.0.0.1:{BroadcastPort})");
+                            Debug.WriteLine("[LAN] " + $"Also sent advertisement to localhost (127.0.0.1:{BroadcastPort})");
                         }
                         catch (SocketException ex)
                         {
-                            session.Logger?.LogWarning($"Localhost advertisement send failed: {ex.Message}");
+                            Debug.WriteLine("[LAN] " + $"Localhost advertisement send failed: {ex.Message}");
                         }
 
                         broadcastCount++;
-                        session.Logger?.LogInfo($"Sent broadcast #{broadcastCount} - SessionID: {session.sessionId}, Gamers: {session.AllGamers.Count}/{session.MaxGamers}");
+                        Debug.WriteLine("[LAN] " + $"Sent broadcast #{broadcastCount} - SessionID: {ad.SessionId}, Gamers: {ad.CurrentGamerCount}/{ad.MaxGamers}");
 
                         await Task.Delay(750, cancellationToken); // Broadcast every 750ms for faster discovery
                     }
 
-                    session.Logger?.LogInfo($"Stopped broadcasting. Reason: Cancelled={cancellationToken.IsCancellationRequested}, Full={session.AllGamers.Count >= session.MaxGamers}, Ended={session.sessionState == NetworkSessionState.Ended}");
+                    Debug.WriteLine("[LAN] " + "Stopped broadcasting. Cancelled=" + cancellationToken.IsCancellationRequested);
                 }
             }, cancellationToken);
         }

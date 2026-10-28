@@ -6,9 +6,7 @@ This package keeps the same shared networking API as the core library, while con
 
 ## What this package provides
 
-- SteamNetworkSessionFactory
-- SteamNetworkSession
-- SteamNetworkGamer
+- SteamBackend: Steam lobbies for discovery, `SteamP2PTransport` for gameplay
 - SteamPlatformBootstrap
 - SteamRuntime
 
@@ -53,9 +51,12 @@ Use this package in your Steam build to select the Steam back-end during startup
 using Microsoft.Xna.Framework.Net;
 using Microsoft.Xna.Framework.Net.Steam;
 
+// Configure also selects the Steam back-end
 SteamPlatformBootstrap.Configure(gameName: "MyGame");
-NetworkServiceProvider.SetSessionFactory(new SteamNetworkSessionFactory());
 ```
+
+From then on, `NetworkSession.CreateAsync`, `FindAsync` and `JoinAsync` use Steam. Without a running Steam
+client the back-end falls back to the LAN (or throws, with `SteamFallbackMode.Strict`).
 
 ## Typical app integration
 
@@ -68,13 +69,11 @@ using Microsoft.Xna.Framework.Net.Steam;
 public static void ConfigureNetworking()
 {
 	SteamPlatformBootstrap.Configure(gameName: "MyGame");
-	NetworkServiceProvider.SetSessionFactory(new SteamNetworkSessionFactory());
 }
 
-public static async Task CreateSessionAsync()
+public static async Task<NetworkSession> HostAsync()
 {
-	var session = NetworkServiceProvider.SessionFactory.CreateSession();
-	await session.CreateAsync(sessionProperties: null, maxGamers: 4).ConfigureAwait(false);
+	return await NetworkSession.CreateAsync(NetworkSessionType.PlayerMatch, 1, 4, 0, null);
 }
 ```
 

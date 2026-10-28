@@ -8,7 +8,7 @@ This file is the single source of truth for progress. Update it in the same comm
 
 Legend: `[-]` dropped · `[ ]` todo · `[~]` in progress · `[x]` done · `[?]` needs verification before work starts · `(!)` decision needed
 
-_Last updated: 2026-10-28 (Phases 0-3 complete; 3.6b and 3.9 deferred; no compat gaps remain)_
+_Last updated: 2026-10-28 (Phases 0-3 complete; Phase 4 in progress: seam and Steam done; 4.1 removal, 4.4, 4.6 to do)_
 
 ---
 
@@ -20,7 +20,7 @@ _Last updated: 2026-10-28 (Phases 0-3 complete; 3.6b and 3.9 deferred; no compat
 | 1 | Wire protocol correctness (envelope, InOrder, fragmentation) | **Done** | 7/7 |
 | 2 | Threading and event model (`Update()`-drained events) | Done | 6/6 |
 | 3 | XNA API parity (gamers, packets, sessions) | Done (2 deferred, 1 dropped) | 16/19 |
-| 4 | Backend unification (one public API, peer-id transport) | Not started | 0/6 |
+| 4 | Backend unification (one public API, peer-id transport) | In progress | 3/6 |
 | 5 | Online session types, matchmaking, invites | Not started | 0/5 |
 | 6 | Security and robustness | Not started | 0/5 |
 | 7 | Voice (pluggable) | Not started | 0/7 |
@@ -190,9 +190,9 @@ Tasks
 - [ ] 4.1 DECIDED 2026-10-28: option 1 (remove or internalise `INetworkSession`). Plugin seam below. Recommendation: plugins supply a transport (`PeerId`-based), discovery/matchmaking and optional capabilities (voice, invites, identity); Core's `NetworkSession` composes them, so plugins never re-implement lobby/ready/reliability. Options:
       (1) remove or internalise `INetworkSession` (recommended); (2) keep it public as a game-facing read-only interface that `NetworkSession` implements, for mocking/DI in game tests; (3) keep it as a full plugin seam, only worthwhile if a back-end must own session semantics itself (service-owned lobby/authority such as Nakama or Photon)
 - [x] 4.2 DONE for Core and Steam: `PeerId` and `IPeerTransport` (`Bind`, `Send(peer, data, length)`, `ReceiveAsync`) replace `INetworkTransport`; `UdpTransport` maps peers to endpoints and takes a preferred port with fallback; `NetworkSession`, `MessageReceivedEventArgs.RemotePeer` and `AvailableNetworkSession.HostPeer` use peers. Peer-id based transport abstraction (`PeerId` instead of `IPEndPoint`); UDP maps endpoint↔PeerId internally. Replace `INetworkTransport` outright (no adapter needed pre-release); all four plugins move in the same phase
-- [~] 4.3 `SteamP2PTransport` ported: peers are real SteamIDs (the fake IPv6 endpoints are gone) and it sends unreliably, since the channel supplies reliability. STILL TO DO: delete the Steam in-memory slice or move it to Tests
+- [x] 4.3 Steam ported: `SteamP2PTransport` uses real SteamIDs as peers (the fake IPv6 endpoints are gone) and sends unreliably, since the channel supplies reliability. `SteamBackend` does lobby discovery and the LAN fallback. The Steam in-memory slice (`SteamNetworkSession`, `SteamNetworkGamer`, `SteamNetworkSessionFactory`, `SteamSessionDirectory`) is deleted and its tests replaced by `SteamBackendTests`
 - [ ] 4.4 Port EOS (P2P), then Android/iOS (Game Center / Play Games match data)
-- [ ] 4.5 Public constructor/factory path so third-party backends can create sessions without `internal` access
+- [x] 4.5 Public seam: `INetworkBackend` (transport factory, advertise, find, prepare-join) + `ISessionAdvertiser`/`SessionAdvertisement`, selected with `NetworkServiceProvider.SetBackend`. `UdpBackend` is the default. `NetworkSession.CreateAsync/FindAsync/JoinAsync` compose it, and no back-end needs `internal` access. `INetworkSessionProvider` and the public `CreateSystemLinkSessionAsync`/`JoinSystemLinkSessionAsync` are gone
 - [ ] 4.6 Backend conformance test suite (one set of tests run against every back-end)
 
 Commit groups
@@ -317,6 +317,8 @@ Exit criteria: a containerised server accepts clients from another network and s
 | 2026-10-28 | `AllowHostMigration` defaults to false; migration is not built | Honest default; a real migration needs the host's state (roster, ids, properties) replicated to a successor, which is its own project |
 | 2026-10-28 | Sync `Create`/`Find` take `NetworkSessionProperties`; Task APIs keep `IDictionary<string, object>` | XNA ports pass `null` or a properties object to the sync/Begin methods; two overloads of one method would make a literal `null` ambiguous and break callers such as ShipGame's `FindAsync(..., null)` |
 | 2026-10-28 | Dropped `Begin*/End*` (task 3.10), added then removed | Owner's call: `IAsyncResult` is not modern and the port to `await` is trivial; the blocking calls remain |
+| 2026-10-28 | EOS, Android and iOS get `*Backend` classes that run over the LAN (UDP) for now, with strict-mode checks | That is all their old provider path did: their real behaviour (Nearby, EOS sessions, Game Center) only existed in the `INetworkSession` slices. A genuine transport per platform is task 4.4 and cannot be verified without devices/credentials |
+| 2026-10-28 | `INetworkBackend.AdvertiseAsync` completes once advertising has started and then runs until the session's token is cancelled | Lets a strict back-end (Steam) fail session creation by throwing, while LAN advertising keeps its endless loop |
 | 2026-10-28 | Events move to `Update()` | This matches XNA's behaviour, so it is also a compat fix |
 | 2026-10-28 | Phase 2 shipped as one commit, not the two planned (A and B) | The event queue and the per-session local gamer change the same lines of `NetworkSession.cs` |
 | 2026-10-28 | `SessionEnded` is raised at most once per session | Previously a client whose host left, then disposed in the handler, got it twice (HostEndedSession then ClientSignedOut) |

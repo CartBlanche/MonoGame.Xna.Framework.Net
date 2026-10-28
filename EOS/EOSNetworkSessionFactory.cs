@@ -7,7 +7,7 @@ namespace Microsoft.Xna.Framework.Net.EOS
     /// Factory and provider for EOS-backed sessions.
     /// The initial slice reuses SystemLink networking while preserving backend routing seams.
     /// </summary>
-    public sealed class EOSNetworkSessionFactory : INetworkSessionFactory, INetworkSessionProvider
+    public sealed class EOSNetworkSessionFactory : INetworkSessionFactory
     {
         private readonly EOSFallbackMode fallbackMode;
 
@@ -106,58 +106,6 @@ namespace Microsoft.Xna.Framework.Net.EOS
             {
                 search.Release();
             }
-        }
-
-        public async Task<NetworkSession> CreateSessionAsync(
-            NetworkSessionType sessionType,
-            int maxLocalGamers,
-            int maxGamers,
-            int privateGamerSlots,
-            IDictionary<string, object> sessionProperties,
-            CancellationToken cancellationToken = default)
-        {
-            if (IsStrict && !EOSRuntime.IsInitialized)
-                throw new InvalidOperationException("EOS runtime is not initialized for strict session creation.");
-
-            var session = await NetworkSession.CreateSystemLinkSessionAsync(
-                sessionType,
-                maxGamers,
-                privateGamerSlots,
-                cancellationToken).ConfigureAwait(false);
-
-            session.AllowHostMigration = false;
-            return session;
-        }
-
-        public async Task<AvailableNetworkSessionCollection> FindSessionsAsync(
-            NetworkSessionType sessionType,
-            int maxLocalGamers,
-            IDictionary<string, object> sessionProperties,
-            CancellationToken cancellationToken = default)
-        {
-            if (IsStrict && !EOSRuntime.IsInitialized)
-                throw new InvalidOperationException("EOS runtime is not initialized for strict session discovery.");
-
-            var discovered = (await SystemLinkSessionManager
-                .DiscoverSessionsAsync(maxLocalGamers, cancellationToken)
-                .ConfigureAwait(false))
-                .Where(x => x.SessionType == sessionType)
-                .ToList();
-
-            return new AvailableNetworkSessionCollection(discovered);
-        }
-
-        public async Task<NetworkSession> JoinSessionAsync(AvailableNetworkSession availableSession, CancellationToken cancellationToken = default)
-        {
-            if (availableSession == null)
-                throw new ArgumentNullException(nameof(availableSession));
-
-            if (IsStrict && !EOSRuntime.IsInitialized)
-                throw new InvalidOperationException("EOS runtime is not initialized for strict session join.");
-
-            var joined = await NetworkSession.JoinSystemLinkSessionAsync(availableSession, cancellationToken).ConfigureAwait(false);
-            joined.AllowHostMigration = false;
-            return joined;
         }
     }
 }

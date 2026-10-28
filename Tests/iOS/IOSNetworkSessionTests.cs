@@ -110,17 +110,19 @@ namespace Microsoft.Xna.Framework.Net.Tests
         [Test]
         public void IOSFactory_StrictMode_CreateSessionWithoutRuntime_Throws()
         {
-            var factory = new IOSNetworkSessionFactory(fallbackMode: IOSFallbackMode.Strict);
+            NetworkServiceProvider.SetBackend(new IOSBackend(IOSFallbackMode.Strict));
 
-            Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            try
             {
-                await factory.CreateSessionAsync(
-                    NetworkSessionType.SystemLink,
-                    maxLocalGamers: 1,
-                    maxGamers: 4,
-                    privateGamerSlots: 0,
-                    sessionProperties: null);
-            });
+                Assert.ThrowsAsync<InvalidOperationException>(async () =>
+                {
+                    await NetworkSession.CreateAsync(NetworkSessionType.SystemLink, 1, 4, 0, null);
+                });
+            }
+            finally
+            {
+                NetworkServiceProvider.SetBackend(new UdpBackend());
+            }
         }
 
         [Test]
@@ -207,22 +209,19 @@ namespace Microsoft.Xna.Framework.Net.Tests
         [Test]
         public async Task IOSProvider_CreateSession_DisablesHostMigration()
         {
-            var factory = new IOSNetworkSessionFactory();
+            NetworkServiceProvider.SetBackend(new IOSBackend());
 
-            var session = await factory.CreateSessionAsync(
-                NetworkSessionType.SystemLink,
-                maxLocalGamers: 1,
-                maxGamers: 4,
-                privateGamerSlots: 0,
-                sessionProperties: null);
-
+            NetworkSession session = null;
             try
             {
+                session = await NetworkSession.CreateAsync(NetworkSessionType.SystemLink, 1, 4, 0, null);
                 Assert.That(session.AllowHostMigration, Is.False);
             }
             finally
             {
-                await session.DisposeAsync();
+                if (session != null)
+                    await session.DisposeAsync();
+                NetworkServiceProvider.SetBackend(new UdpBackend());
             }
         }
 

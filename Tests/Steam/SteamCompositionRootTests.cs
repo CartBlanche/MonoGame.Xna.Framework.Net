@@ -22,8 +22,7 @@ namespace Microsoft.Xna.Framework.Net.Tests
         private IAchievementProvider originalAchievementLocalProvider;
         private IAchievementMediaProvider originalAchievementMediaLiveProvider;
         private IAchievementMediaProvider originalAchievementMediaLocalProvider;
-        private INetworkSessionFactory originalSessionFactory;
-        private bool hadSessionFactory;
+        private INetworkBackend originalBackend;
 
         private sealed class TestReliableMessage : INetworkMessage
         {
@@ -119,11 +118,7 @@ namespace Microsoft.Xna.Framework.Net.Tests
             originalAchievementLocalProvider = AchievementService.LocalProvider;
             originalAchievementMediaLiveProvider = AchievementMediaService.LiveProvider;
             originalAchievementMediaLocalProvider = AchievementMediaService.LocalProvider;
-            hadSessionFactory = NetworkServiceProvider.IsConfigured;
-            if (hadSessionFactory)
-            {
-                originalSessionFactory = NetworkServiceProvider.SessionFactory;
-            }
+            originalBackend = NetworkServiceProvider.Backend;
 
             SignedInGamer.Current.SetSignedInToLive(false);
             LeaderboardService.LiveProvider = null;
@@ -143,14 +138,7 @@ namespace Microsoft.Xna.Framework.Net.Tests
             AchievementMediaService.LiveProvider = originalAchievementMediaLiveProvider;
             AchievementMediaService.LocalProvider = originalAchievementMediaLocalProvider;
 
-            if (hadSessionFactory && originalSessionFactory != null)
-            {
-                NetworkServiceProvider.SetSessionFactory(originalSessionFactory);
-            }
-            else
-            {
-                NetworkServiceProvider.ResetToDefault();
-            }
+            NetworkServiceProvider.SetBackend(originalBackend);
 
             SignedInGamer.Current.SetSignedInToLive(false);
             AchievementCatalog.Clear();
@@ -171,7 +159,7 @@ namespace Microsoft.Xna.Framework.Net.Tests
             SteamPlatformBootstrap.Configure(
                 gameName: "CompositionRootTests",
                 signInProvider: stubSignIn,
-                sessionFactory: new SteamNetworkSessionFactory(),
+                backend: new SteamBackend(),
                 liveProviderFactoryOverride: () => recordingLive,
                 achievementLiveProviderFactoryOverride: () => recordingAchievementLive,
                 achievementMediaLiveProviderFactoryOverride: () => recordingAchievementMediaLive,
@@ -185,7 +173,7 @@ namespace Microsoft.Xna.Framework.Net.Tests
             Assert.That(LeaderboardService.LiveProvider, Is.SameAs(recordingLive));
             Assert.That(AchievementService.LiveProvider, Is.SameAs(recordingAchievementLive));
             Assert.That(AchievementMediaService.LiveProvider, Is.SameAs(recordingAchievementMediaLive));
-            Assert.That(NetworkServiceProvider.SessionFactory, Is.TypeOf<SteamNetworkSessionFactory>());
+            Assert.That(NetworkServiceProvider.Backend, Is.TypeOf<SteamBackend>());
             Assert.That(AchievementCatalog.Get("composition-e2e-achievement"), Is.Not.Null);
 
             var leaderboard = new LeaderboardIdentity("composition-e2e");
@@ -202,33 +190,45 @@ namespace Microsoft.Xna.Framework.Net.Tests
             await SignedInGamer.Current.GetAchievementIconAsync("composition-e2e-achievement");
             Assert.That(recordingAchievementMediaLive.GetIconCalled, Is.True);
 
-            var host = NetworkServiceProvider.SessionFactory.CreateSession();
-            var client = NetworkServiceProvider.SessionFactory.CreateSession();
-
+            // with Steam not running the back-end falls back to the LAN, so this is a real session over loopback
+            var host = await NetworkSession.CreateAsync(NetworkSessionType.SystemLink, 1, 2, 0, null);
+            NetworkSession client = null;
             try
             {
-                await host.CreateAsync(NetworkSessionType.PlayerMatch, maxGamers: 2, privateGamerSlots: 0);
-                var sessions = (await NetworkServiceProvider.SessionFactory.FindSessionsAsync(NetworkSessionType.PlayerMatch)).ToList();
-                await client.JoinAsync(sessions[0].JoinAddress);
-
-                string received = null;
-                client.MessageReceived += (_, args) =>
+                AvailableNetworkSession target = null;
+                for (int attempt = 0; attempt < 10 && target == null; attempt++)
                 {
-                    if (args.Message is TestReliableMessage msg)
-                    {
-                        received = msg.Payload;
-                    }
-                };
+                    using var found = await NetworkSession.FindAsync(NetworkSessionType.SystemLink, 1, null);
+                    target = found.FirstOrDefault(s => s.HostGamertag == host.LocalGamers[0].Gamertag);
+                }
+                Assert.That(target, Is.Not.Null, "the host was not found");
+                client = await NetworkSession.JoinAsync(target);
 
-                host.BroadcastMessage(new TestReliableMessage { Payload = "composition-e2e" });
-                client.Update(new GameTime());
+                for (int i = 0; i < 200 && host.AllGamers.Count < 2; i++)
+                {
+                    host.Update();
+                    await Task.Delay(10);
+                }
 
-                Assert.That(received, Is.EqualTo("composition-e2e"));
+                host.LocalGamers[0].SendData(new byte[] { 1, 2, 3 }, SendDataOptions.ReliableInOrder);
+
+                var buffer = new byte[16];
+                int length = 0;
+                for (int i = 0; i < 300 && length == 0; i++)
+                {
+                    client.Update();
+                    if (client.LocalGamers[0].IsDataAvailable)
+                        length = client.LocalGamers[0].ReceiveData(buffer, out _);
+                    else
+                        await Task.Delay(10);
+                }
+
+                Assert.That(buffer.Take(length), Is.EqualTo(new byte[] { 1, 2, 3 }));
             }
             finally
             {
-                await client.CloseAsync();
-                await host.CloseAsync();
+                client?.Dispose();
+                host.Dispose();
             }
         }
     }

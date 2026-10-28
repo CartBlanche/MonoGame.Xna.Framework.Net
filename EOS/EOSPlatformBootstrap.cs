@@ -22,7 +22,8 @@ namespace Microsoft.Xna.Framework.Net.EOS
             Func<IAchievementProvider> achievementLiveProviderFactoryOverride = null,
             Func<IAchievementMediaProvider> achievementMediaLiveProviderFactoryOverride = null,
             IEnumerable<AchievementDefinition> achievementDefinitions = null,
-            EOSFallbackMode fallbackMode = EOSFallbackMode.PreferFallback)
+            EOSFallbackMode fallbackMode = EOSFallbackMode.PreferFallback,
+            INetworkBackend backend = null)
         {
             if (credentials != null)
             {
@@ -44,6 +45,7 @@ namespace Microsoft.Xna.Framework.Net.EOS
 
             Guide.SignInProvider = signInProvider ?? new EOSSignInProvider();
             NetworkServiceProvider.SetSessionFactory(sessionFactory ?? new EOSNetworkSessionFactory(fallbackMode));
+            NetworkServiceProvider.SetBackend(backend ?? new EOSBackend(fallbackMode));
 
             lock (Gate)
             {

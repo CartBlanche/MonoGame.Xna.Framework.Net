@@ -21,7 +21,8 @@ namespace Microsoft.Xna.Framework.Net.iOS
             Func<IAchievementProvider> achievementLiveProviderFactoryOverride = null,
             Func<IAchievementMediaProvider> achievementMediaLiveProviderFactoryOverride = null,
             IEnumerable<AchievementDefinition> achievementDefinitions = null,
-            IOSFallbackMode fallbackMode = IOSFallbackMode.PreferFallback)
+            IOSFallbackMode fallbackMode = IOSFallbackMode.PreferFallback,
+            INetworkBackend backend = null)
         {
             if (!string.IsNullOrWhiteSpace(gameName))
             {
@@ -38,6 +39,7 @@ namespace Microsoft.Xna.Framework.Net.iOS
 
             Guide.SignInProvider = signInProvider ?? new IOSSignInProvider();
             NetworkServiceProvider.SetSessionFactory(sessionFactory ?? new IOSNetworkSessionFactory(fallbackMode));
+            NetworkServiceProvider.SetBackend(backend ?? new IOSBackend(fallbackMode));
 
             lock (Gate)
             {
