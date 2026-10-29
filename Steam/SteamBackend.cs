@@ -81,7 +81,7 @@ namespace Microsoft.Xna.Framework.Net
         }
 
         // an invitation names a lobby: join it so Steam gives us its data, then describe it as a session
-        private async Task RaiseInviteAsync(CSteamID lobbyId)
+        internal async Task RaiseInviteAsync(CSteamID lobbyId)
         {
             try
             {

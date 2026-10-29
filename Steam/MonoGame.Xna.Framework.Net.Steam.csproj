@@ -30,6 +30,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="MonoGame.Xna.Framework.Net.Steam.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="MonoGame.Framework.DesktopGL" Version="3.8.*" PrivateAssets="all" />
     <PackageReference Include="Steamworks.NET.MonoGame" Version="2026.5.6" />
   </ItemGroup>
