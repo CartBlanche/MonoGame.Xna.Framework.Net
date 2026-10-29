@@ -1,0 +1,45 @@
+sealed class Net.Steam.SteamAchievementMediaProvider : GamerServices.IAchievementMediaProvider
+    GetIconAsync(GamerServices.SignedInGamer gamer, String achievementKey, Threading.CancellationToken cancellationToken = null) : Threading.Tasks.Task<GamerServices.AchievementIcon>
+    ctor()
+sealed class Net.Steam.SteamAchievementProvider : GamerServices.IAchievementProvider
+    GetAchievementsAsync(GamerServices.SignedInGamer gamer, Threading.CancellationToken cancellationToken = null) : Threading.Tasks.Task<GamerServices.AchievementCollection>
+    SetProgressAsync(GamerServices.SignedInGamer gamer, String achievementKey, Single percentComplete, Threading.CancellationToken cancellationToken = null) : Threading.Tasks.Task
+    UnlockAsync(GamerServices.SignedInGamer gamer, String achievementKey, Threading.CancellationToken cancellationToken = null) : Threading.Tasks.Task
+    ctor()
+sealed class Net.Steam.SteamBackend : Net.INetworkBackend
+    AdvertiseAsync(Net.ISessionAdvertiser session, Net.IPeerTransport transport, Threading.CancellationToken stopToken) : Threading.Tasks.Task
+    CreateTransport() : Net.IPeerTransport
+    FindAsync(Net.NetworkSessionType sessionType, Int32 maxLocalGamers, Threading.CancellationToken cancellationToken) : Threading.Tasks.Task<Collections.Generic.IReadOnlyList<Net.AvailableNetworkSession>>
+    PrepareJoinAsync(Net.AvailableNetworkSession session, Net.IPeerTransport transport, Threading.CancellationToken cancellationToken) : Threading.Tasks.Task<IDisposable>
+    SupportsSessionType(Net.NetworkSessionType sessionType) : Boolean
+    ctor(String gameTag = null, Net.Steam.SteamFallbackMode fallbackMode = PreferFallback)
+    event InviteReceived : EventHandler<Net.InviteReceivedEventArgs>
+    prop Name : String { get }
+enum Net.Steam.SteamFallbackMode
+    PreferFallback = 0
+    Strict = 1
+sealed class Net.Steam.SteamLeaderboardProvider : GamerServices.ILeaderboardProvider
+    ReadAsync(GamerServices.LeaderboardIdentity identity, Int32 pageStart, Int32 pageSize, GamerServices.SignedInGamer pivotGamer = null, Threading.CancellationToken cancellationToken = null) : Threading.Tasks.Task<GamerServices.LeaderboardReader>
+    SubmitAsync(GamerServices.LeaderboardWriter writer, Threading.CancellationToken cancellationToken = null) : Threading.Tasks.Task
+    ctor()
+sealed class Net.Steam.SteamP2PTransport : IDisposable, Net.IPeerTransport
+    Bind() : Void
+    Dispose() : Void
+    ReceiveAsync() : Threading.Tasks.Task<ValueTuple<Byte[], Net.PeerId>>
+    Send(Net.PeerId peer, Byte[] data, Int32 length) : Void
+    ctor()
+    prop IsBound : Boolean { get }
+    prop LocalPeer : Net.PeerId { get }
+    static ToPeer(Steamworks.CSteamID steamId) : Net.PeerId
+    static TryGetSteamId(Net.PeerId peer, out Steamworks.CSteamID steamId) : Boolean
+static class Net.Steam.SteamPlatformBootstrap
+    static Configure(String gameName, GamerServices.IGuideSignInProvider signInProvider = null, Net.INetworkBackend backend = null, Func<GamerServices.ILeaderboardProvider> liveProviderFactoryOverride = null, Func<GamerServices.IAchievementProvider> achievementLiveProviderFactoryOverride = null, Func<GamerServices.IAchievementMediaProvider> achievementMediaLiveProviderFactoryOverride = null, Collections.Generic.IEnumerable<GamerServices.AchievementDefinition> achievementDefinitions = null, Net.Steam.SteamFallbackMode fallbackMode = PreferFallback) : Void
+    static TrySignInAndEnableLiveAsync(Int32 paneCount = 1, Boolean onlineOnly = False, Threading.CancellationToken cancellationToken = null) : Threading.Tasks.Task<Boolean>
+static class Net.Steam.SteamRuntime
+    static Initialize(UInt32 appId = 0) : Boolean
+    static RunCallbacks() : Void
+    static Shutdown() : Void
+    static prop IsInitialized : Boolean { get }
+sealed class Net.Steam.SteamSignInProvider : GamerServices.IGuideSignInProvider
+    ShowSignInAsync(Int32 paneCount, Boolean onlineOnly, Threading.CancellationToken cancellationToken = null) : Threading.Tasks.Task<Boolean>
+    ctor()

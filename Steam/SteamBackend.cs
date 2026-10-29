@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 using Microsoft.Xna.Framework.Net.Steam;
 using Steamworks;
 
-namespace Microsoft.Xna.Framework.Net
+namespace Microsoft.Xna.Framework.Net.Steam
 {
     /// <summary>
     /// The Steam back-end: sessions are advertised as Steam lobbies, and gameplay travels over Steam P2P

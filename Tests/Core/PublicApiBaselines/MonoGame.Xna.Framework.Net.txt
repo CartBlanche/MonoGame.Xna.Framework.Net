@@ -1,0 +1,685 @@
+sealed class GamerServices.Achievement
+    ctor(String key, String displayName, String description, String howToEarn, Int32 gamerScore, Single percentComplete, Boolean isEarned, DateTime? earnedDate, Boolean isHidden = False, String iconKey = null, String iconUri = null, GamerServices.AchievementSyncState? syncState = null)
+    prop Description : String { get }
+    prop DisplayName : String { get }
+    prop EarnedDate : DateTime? { get }
+    prop GamerScore : Int32 { get }
+    prop HowToEarn : String { get }
+    prop IconKey : String { get }
+    prop IconUri : String { get }
+    prop IsEarned : Boolean { get }
+    prop IsHidden : Boolean { get }
+    prop Key : String { get }
+    prop PercentComplete : Single { get }
+    prop SyncState : GamerServices.AchievementSyncState { get }
+static class GamerServices.AchievementCatalog
+    static Clear() : Void
+    static Get(String key) : GamerServices.AchievementDefinition
+    static GetAll() : Collections.Generic.IReadOnlyList<GamerServices.AchievementDefinition>
+    static Register(GamerServices.AchievementDefinition definition) : Void
+    static RegisterRange(Collections.Generic.IEnumerable<GamerServices.AchievementDefinition> definitions) : Void
+sealed class GamerServices.AchievementCollection : Collections.ObjectModel.ReadOnlyCollection<GamerServices.Achievement>
+    ctor(Collections.Generic.IList<GamerServices.Achievement> list)
+    prop Item[String] : GamerServices.Achievement { get }
+sealed class GamerServices.AchievementDefinition
+    ctor(String key, String displayName, String description = , String howToEarn = , Int32 gamerScore = 0, Boolean isHidden = False, String iconKey = null, String iconUri = null)
+    prop Description : String { get }
+    prop DisplayName : String { get }
+    prop GamerScore : Int32 { get }
+    prop HowToEarn : String { get }
+    prop IconKey : String { get }
+    prop IconUri : String { get }
+    prop IsHidden : Boolean { get }
+    prop Key : String { get }
+sealed class GamerServices.AchievementIcon
+    ctor(Byte[] data, String contentType, String cacheKey = null, Int32 width = 0, Int32 height = 0)
+    prop CacheKey : String { get }
+    prop ContentType : String { get }
+    prop Data : Byte[] { get }
+    prop Height : Int32 { get }
+    prop Width : Int32 { get }
+static class GamerServices.AchievementMediaService
+    static prop LiveProvider : GamerServices.IAchievementMediaProvider { get; set }
+    static prop LocalProvider : GamerServices.IAchievementMediaProvider { get; set }
+static class GamerServices.AchievementService
+    static ReconcilePendingUnlocksAsync(GamerServices.SignedInGamer gamer, Threading.CancellationToken cancellationToken = null) : Threading.Tasks.Task<Int32>
+    static UnlockWithSyncAsync(GamerServices.SignedInGamer gamer, String achievementKey, Threading.CancellationToken cancellationToken = null) : Threading.Tasks.Task
+    static UsePersistentLocalStorage(String gameName) : Void
+    static prop LiveProvider : GamerServices.IAchievementProvider { get; set }
+    static prop LocalProvider : GamerServices.IAchievementProvider { get; set }
+    static prop Provider : GamerServices.IAchievementProvider { get; set }
+    static prop RemoteSyncEnabled : Boolean { get; set }
+enum GamerServices.AchievementSyncState
+    Locked = 0
+    SyncFailedRetry = 3
+    UnlockedPendingSync = 1
+    UnlockedSynced = 2
+abstract class GamerServices.Gamer
+    abstract prop Gamertag : String { get }
+    prop Tag : Object { get; set }
+    protected ctor()
+    static prop SignedInGamers : GamerServices.GamerCollection<GamerServices.SignedInGamer> { get }
+    virtual prop DisplayName : String { get }
+    virtual prop IsDisposed : Boolean { get }
+class GamerServices.GamerCollection<T> : Collections.ObjectModel.ReadOnlyCollection<T>
+    ctor(Collections.Generic.IList<T> list)
+class GamerServices.GamerPresence
+    ctor()
+    prop PresenceMode : GamerServices.GamerPresenceMode { get; set }
+    prop PresenceValue : Int32 { get; set }
+enum GamerServices.GamerPresenceMode
+    AtMenu = 5
+    Away = 2
+    Busy = 3
+    Losing = 9
+    None = 0
+    Online = 1
+    PlayingGame = 4
+    ScoreIsTied = 10
+    WaitingForPlayers = 6
+    WaitingInLobby = 7
+    Winning = 8
+class GamerServices.GamerPrivilegeException : Exception
+    ctor()
+    ctor(String message)
+    ctor(String message, Exception innerException)
+class GamerServices.GamerPrivileges
+    ctor()
+    prop AllowOnlineSessions : Boolean { get; set }
+class GamerServices.GamerServicesComponent : IGameComponent
+    Initialize() : Void
+    Update(GameTime gameTime) : Void
+    ctor(Game game)
+static class GamerServices.GamerServicesDispatcher
+    static Initialize(IServiceProvider serviceProvider) : Void
+    static Update() : Void
+    static event InstallingTitleUpdate : EventHandler<EventArgs>
+    static prop IsInitialized : Boolean { get }
+    static prop WindowHandle : IntPtr { get; set }
+static class GamerServices.Guide
+    static ShowMarketplace(PlayerIndex playerIndex) : Void
+    static ShowMessageBox(String title, String text, Collections.Generic.IEnumerable<String> buttons, Int32 focusButton, GamerServices.MessageBoxIcon icon) : Int32?
+    static ShowMessageBoxAsync(String title, String text, Collections.Generic.IEnumerable<String> buttons, Int32 focusButton, GamerServices.MessageBoxIcon icon, Threading.CancellationToken cancellationToken = null) : Threading.Tasks.Task<Int32?>
+    static ShowSignIn(Int32 paneCount, Boolean onlineOnly) : Void
+    static ShowSignInAsync(Int32 paneCount, Boolean onlineOnly, Threading.CancellationToken cancellationToken = null) : Threading.Tasks.Task
+    static prop IsScreenSaverEnabled : Boolean { get; set }
+    static prop IsTrialMode : Boolean { get }
+    static prop IsVisible : Boolean { get }
+    static prop SignInProvider : GamerServices.IGuideSignInProvider { get; set }
+interface GamerServices.IAchievementMediaProvider
+    abstract GetIconAsync(GamerServices.SignedInGamer gamer, String achievementKey, Threading.CancellationToken cancellationToken = null) : Threading.Tasks.Task<GamerServices.AchievementIcon>
+interface GamerServices.IAchievementProvider
+    abstract GetAchievementsAsync(GamerServices.SignedInGamer gamer, Threading.CancellationToken cancellationToken = null) : Threading.Tasks.Task<GamerServices.AchievementCollection>
+    abstract SetProgressAsync(GamerServices.SignedInGamer gamer, String achievementKey, Single percentComplete, Threading.CancellationToken cancellationToken = null) : Threading.Tasks.Task
+    abstract UnlockAsync(GamerServices.SignedInGamer gamer, String achievementKey, Threading.CancellationToken cancellationToken = null) : Threading.Tasks.Task
+interface GamerServices.IGuideSignInProvider
+    abstract ShowSignInAsync(Int32 paneCount, Boolean onlineOnly, Threading.CancellationToken cancellationToken = null) : Threading.Tasks.Task<Boolean>
+interface GamerServices.ILeaderboardProvider
+    abstract ReadAsync(GamerServices.LeaderboardIdentity identity, Int32 pageStart, Int32 pageSize, GamerServices.SignedInGamer pivotGamer = null, Threading.CancellationToken cancellationToken = null) : Threading.Tasks.Task<GamerServices.LeaderboardReader>
+    abstract SubmitAsync(GamerServices.LeaderboardWriter writer, Threading.CancellationToken cancellationToken = null) : Threading.Tasks.Task
+class GamerServices.InviteAcceptedEventArgs : EventArgs
+    ctor(GamerServices.SignedInGamer gamer, Boolean isCurrentSession)
+    prop Gamer : GamerServices.SignedInGamer { get }
+    prop IsCurrentSession : Boolean { get }
+sealed class GamerServices.LeaderboardEntry
+    ctor(Int32 rank, String gamertag, Int64 score, Boolean isCurrentGamer)
+    prop Gamertag : String { get }
+    prop IsCurrentGamer : Boolean { get }
+    prop Rank : Int32 { get }
+    prop Score : Int64 { get }
+sealed class GamerServices.LeaderboardIdentity
+    ctor(String key)
+    prop Key : String { get }
+sealed class GamerServices.LeaderboardReader : Collections.Generic.IEnumerable<GamerServices.LeaderboardEntry>, Collections.IEnumerable, IDisposable
+    Dispose() : Void
+    GetEnumerator() : Collections.Generic.IEnumerator<GamerServices.LeaderboardEntry>
+    prop Count : Int32 { get }
+    prop Item[Int32] : GamerServices.LeaderboardEntry { get }
+    prop LeaderboardKey : String { get }
+    prop PageStart : Int32 { get }
+    prop TotalRowCount : Int32 { get }
+static class GamerServices.LeaderboardService
+    static UsePersistentLocalStorage(String gameName) : Void
+    static prop LiveProvider : GamerServices.ILeaderboardProvider { get; set }
+    static prop LocalProvider : GamerServices.ILeaderboardProvider { get; set }
+    static prop Provider : GamerServices.ILeaderboardProvider { get; set }
+sealed class GamerServices.LeaderboardWriter
+    ctor(GamerServices.LeaderboardIdentity leaderboardIdentity)
+    ctor(GamerServices.LeaderboardIdentity leaderboardIdentity, GamerServices.SignedInGamer gamer)
+    prop Gamer : GamerServices.SignedInGamer { get }
+    prop LeaderboardIdentity : GamerServices.LeaderboardIdentity { get }
+    prop Score : Int64 { get; set }
+enum GamerServices.MessageBoxIcon
+    Alert = 3
+    Error = 1
+    None = 0
+    Warning = 2
+class GamerServices.NetworkException : Exception
+    ctor()
+    ctor(String message)
+    ctor(String message, Exception innerException)
+class GamerServices.NetworkNotAvailableException : GamerServices.NetworkException
+    ctor()
+class GamerServices.SignedInGamer : GamerServices.Gamer
+    GetAchievementIcon(String achievementKey) : GamerServices.AchievementIcon
+    GetAchievementIconAsync(String achievementKey, Threading.CancellationToken cancellationToken = null) : Threading.Tasks.Task<GamerServices.AchievementIcon>
+    GetAchievements() : GamerServices.AchievementCollection
+    GetAchievementsAsync(Threading.CancellationToken cancellationToken = null) : Threading.Tasks.Task<GamerServices.AchievementCollection>
+    GetLeaderboard(GamerServices.LeaderboardIdentity leaderboard, Int32 pageSize) : GamerServices.LeaderboardReader
+    GetLeaderboard(GamerServices.LeaderboardIdentity leaderboard, Int32 pageStart, Int32 pageSize) : GamerServices.LeaderboardReader
+    GetLeaderboardAsync(GamerServices.LeaderboardIdentity leaderboard, Int32 pageSize, Threading.CancellationToken cancellationToken = null) : Threading.Tasks.Task<GamerServices.LeaderboardReader>
+    GetLeaderboardAsync(GamerServices.LeaderboardIdentity leaderboard, Int32 pageStart, Int32 pageSize, Threading.CancellationToken cancellationToken = null) : Threading.Tasks.Task<GamerServices.LeaderboardReader>
+    SetAchievementProgress(String achievementKey, Single percentComplete) : Void
+    SetAchievementProgressAsync(String achievementKey, Single percentComplete, Threading.CancellationToken cancellationToken = null) : Threading.Tasks.Task
+    UnlockAchievement(String achievementKey) : Void
+    UnlockAchievementAsync(String achievementKey, Threading.CancellationToken cancellationToken = null) : Threading.Tasks.Task
+    WriteLeaderboard(GamerServices.LeaderboardWriter writer) : Void
+    WriteLeaderboardAsync(GamerServices.LeaderboardWriter writer, Threading.CancellationToken cancellationToken = null) : Threading.Tasks.Task
+    prop DisplayName : String { get }
+    prop IsGuest : Boolean { get }
+    prop IsSignedInToLive : Boolean { get }
+    prop PlayerIndex : PlayerIndex { get }
+    prop Presence : GamerServices.GamerPresence { get }
+    prop Privileges : GamerServices.GamerPrivileges { get }
+    static prop Current : GamerServices.SignedInGamer { get }
+    virtual prop Gamertag : String { get }
+class Net.AvailableNetworkSession
+    ctor(String sessionName, String hostGamertag, Int32 currentGamerCount, Int32 openPublicGamerSlots, Int32 openPrivateGamerSlots, Net.NetworkSessionType sessionType, Collections.Generic.IDictionary<String, Object> sessionProperties, String sessionId, Net.PeerId hostPeer = null, Boolean isPasswordProtected = False)
+    prop CurrentGamerCount : Int32 { get }
+    prop HostGamertag : String { get }
+    prop HostPeer : Net.PeerId { get }
+    prop IsPasswordProtected : Boolean { get }
+    prop OpenPrivateGamerSlots : Int32 { get }
+    prop OpenPublicGamerSlots : Int32 { get }
+    prop QualityOfService : Net.QualityOfService { get }
+    prop SessionId : String { get }
+    prop SessionName : String { get }
+    prop SessionProperties : Collections.Generic.IDictionary<String, Object> { get }
+    prop SessionType : Net.NetworkSessionType { get }
+class Net.AvailableNetworkSessionCollection : Collections.ObjectModel.ReadOnlyCollection<Net.AvailableNetworkSession>, IDisposable
+    Dispose() : Void
+    protected virtual Dispose(Boolean disposing) : Void
+class Net.ConnectionHealthMonitor
+    OnGamerJoined(Net.NetworkGamer gamer) : Void
+    OnGamerLeft(Net.NetworkGamer gamer) : Void
+    OnHeartbeatReceived(String gamerId, Net.HeartbeatMessage heartbeat) : Void
+    OnHeartbeatReplyReceived(String gamerId, Net.HeartbeatReplyMessage reply) : Void
+    OnPeerActivity(String gamerId) : Void
+    StartMonitoring(Net.NetworkSession session) : Void
+    StopMonitoring() : Void
+    ctor()
+class Net.ConsoleNetworkLogger : Net.INetworkLogger
+    LogError(String message, Exception ex = null) : Void
+    LogInfo(String message) : Void
+    LogWarning(String message) : Void
+    ctor()
+class Net.DebugNetworkLogger : Net.INetworkLogger
+    LogError(String message, Exception ex = null) : Void
+    LogInfo(String message) : Void
+    LogWarning(String message) : Void
+    ctor()
+class Net.DiscoveryPacket
+    ToByteArray() : Byte[]
+    ctor(Byte type, Net.DiscoveryPayload payload)
+    prop Magic : UInt32 { get }
+    prop Payload : Net.DiscoveryPayload { get }
+    prop Type : Byte { get }
+    prop Version : Byte { get }
+    static TryParse(Byte[] data, out Net.DiscoveryPacket packet) : Boolean
+    static const field MAGIC : UInt32 = 1299148399
+    static const field PROTOCOL_VERSION : Byte = 1
+    static const field TYPE_DISCOVERY : Byte = 1
+    static const field TYPE_RESPONSE : Byte = 2
+class Net.DiscoveryPayload
+    ToByteArray() : Byte[]
+    ctor(String sessionId, Int32 maxGamers, Int32 privateSlots, String hostGamertag, Int32 gamePort, Byte[] properties)
+    prop GamePort : Int32 { get }
+    prop HostGamertag : String { get }
+    prop MaxGamers : Int32 { get }
+    prop PrivateGamerSlots : Int32 { get }
+    prop SessionId : String { get }
+    prop SessionProperties : Byte[] { get }
+    static TryParse(Byte[] data, out Net.DiscoveryPayload payload) : Boolean
+enum Net.EventDispatchMode
+    Immediate = 1
+    OnUpdate = 0
+class Net.GameEndedEventArgs : EventArgs
+class Net.GameStartedEventArgs : EventArgs
+class Net.GamerCollection : GamerServices.GamerCollection<Net.NetworkGamer>
+    FindGamerById(Byte id) : Net.NetworkGamer
+    prop Host : Net.NetworkGamer { get }
+class Net.GamerJoinedEventArgs : EventArgs
+    prop Gamer : Net.NetworkGamer { get }
+class Net.GamerJoinedMessage : Net.INetworkMessage
+    Deserialize(Net.PacketReader reader) : Void
+    Serialize(Net.PacketWriter writer) : Void
+    ctor()
+    prop GamerId : String { get; set }
+    prop Gamertag : String { get; set }
+    prop Id : Byte { get; set }
+    prop MessageType : Byte { get }
+class Net.GamerLeavingMessage : Net.INetworkMessage
+    Deserialize(Net.PacketReader reader) : Void
+    Serialize(Net.PacketWriter writer) : Void
+    ctor()
+    prop GamerId : String { get; set }
+    prop MessageType : Byte { get }
+    prop Reason : String { get; set }
+class Net.GamerLeftEventArgs : EventArgs
+    prop Gamer : Net.NetworkGamer { get }
+enum Net.GamerType
+    Local = 0
+    Remote = 1
+class Net.HeartbeatMessage : Net.INetworkMessage
+    Deserialize(Net.PacketReader reader) : Void
+    Serialize(Net.PacketWriter writer) : Void
+    ctor()
+    prop GamerCount : Int32 { get; set }
+    prop GamerId : String { get; set }
+    prop MessageType : Byte { get }
+    prop SequenceNumber : UInt32 { get; set }
+    prop Timestamp : Int64 { get; set }
+class Net.HeartbeatReplyMessage : Net.INetworkMessage
+    Deserialize(Net.PacketReader reader) : Void
+    Serialize(Net.PacketWriter writer) : Void
+    ctor()
+    prop GamerId : String { get; set }
+    prop MessageType : Byte { get }
+    prop ReplyTimestamp : Int64 { get; set }
+    prop RequestTimestamp : Int64 { get; set }
+class Net.HostChangedEventArgs : EventArgs
+    ctor(Net.NetworkGamer newHost, Net.NetworkGamer oldHost)
+    prop NewHost : Net.NetworkGamer { get }
+    prop OldHost : Net.NetworkGamer { get }
+interface Net.INetworkBackend
+    abstract AdvertiseAsync(Net.ISessionAdvertiser session, Net.IPeerTransport transport, Threading.CancellationToken stopToken) : Threading.Tasks.Task
+    abstract CreateTransport() : Net.IPeerTransport
+    abstract FindAsync(Net.NetworkSessionType sessionType, Int32 maxLocalGamers, Threading.CancellationToken cancellationToken) : Threading.Tasks.Task<Collections.Generic.IReadOnlyList<Net.AvailableNetworkSession>>
+    abstract PrepareJoinAsync(Net.AvailableNetworkSession session, Net.IPeerTransport transport, Threading.CancellationToken cancellationToken) : Threading.Tasks.Task<IDisposable>
+    abstract SupportsSessionType(Net.NetworkSessionType sessionType) : Boolean
+    abstract prop Name : String { get }
+    event InviteReceived : EventHandler<Net.InviteReceivedEventArgs>
+interface Net.INetworkLogger
+    abstract LogError(String message, Exception ex = null) : Void
+    abstract LogInfo(String message) : Void
+    abstract LogWarning(String message) : Void
+interface Net.INetworkMessage
+    abstract Deserialize(Net.PacketReader reader) : Void
+    abstract Serialize(Net.PacketWriter writer) : Void
+    abstract prop MessageType : Byte { get }
+interface Net.IPeerTransport : IDisposable
+    abstract Bind() : Void
+    abstract ReceiveAsync() : Threading.Tasks.Task<ValueTuple<Byte[], Net.PeerId>>
+    abstract Send(Net.PeerId peer, Byte[] data, Int32 length) : Void
+    abstract prop IsBound : Boolean { get }
+    abstract prop LocalPeer : Net.PeerId { get }
+interface Net.ISessionAdvertiser
+    abstract GetAdvertisement() : Net.SessionAdvertisement
+class Net.InviteReceivedEventArgs : EventArgs
+    ctor(Net.AvailableNetworkSession session)
+    prop Session : Net.AvailableNetworkSession { get }
+class Net.JoinAcceptedMessage : Net.INetworkMessage
+    Deserialize(Net.PacketReader reader) : Void
+    Serialize(Net.PacketWriter writer) : Void
+    ctor()
+    prop HostGamerId : String { get; set }
+    prop HostGamertag : String { get; set }
+    prop HostId : Byte { get; set }
+    prop KeyIsSealed : Boolean { get; set }
+    prop LinkKey : Byte[] { get; set }
+    prop MessageType : Byte { get }
+    prop Others : Collections.Generic.List<Net.JoinAcceptedMessage.RosterEntry> { get; set }
+    prop SessionId : String { get; set }
+    prop YourId : Byte { get; set }
+struct Net.JoinAcceptedMessage.RosterEntry
+    prop GamerId : String { get; set }
+    prop Gamertag : String { get; set }
+    prop Id : Byte { get; set }
+class Net.JoinRejectedMessage : Net.INetworkMessage
+    Deserialize(Net.PacketReader reader) : Void
+    Serialize(Net.PacketWriter writer) : Void
+    ctor()
+    prop ErrorCode : Net.NetworkSessionJoinError { get; set }
+    prop MessageType : Byte { get }
+    prop Reason : String { get; set }
+class Net.JoinRequestMessage : Net.INetworkMessage
+    Deserialize(Net.PacketReader reader) : Void
+    Serialize(Net.PacketWriter writer) : Void
+    ctor()
+    prop GamerId : String { get; set }
+    prop Gamertag : String { get; set }
+    prop MessageType : Byte { get }
+    prop Proof : Byte[] { get; set }
+    prop ProtocolVersion : Byte { get; set }
+    static const field CURRENT_PROTOCOL_VERSION : Byte = 5
+class Net.LocalGamerCollection : Collections.ObjectModel.ReadOnlyCollection<Net.LocalNetworkGamer>
+    FindGamerById(Byte id) : Net.LocalNetworkGamer
+    prop Host : Net.LocalNetworkGamer { get }
+class Net.LocalNetworkGamer : Net.NetworkGamer
+class Net.MessageReceivedEventArgs : EventArgs
+    ctor(Net.INetworkMessage message, Net.PeerId remotePeer)
+    prop Message : Net.INetworkMessage { get }
+    prop RemotePeer : Net.PeerId { get }
+    prop Sender : Net.NetworkGamer { get }
+class Net.NetworkDiagnostics
+    GetSummary() : String
+    RecordPacketReceived(Int32 bytes) : Void
+    RecordPacketSent(Int32 bytes) : Void
+    RecordRtt(TimeSpan rtt) : Void
+    ctor()
+    prop AverageRtt : TimeSpan { get; set }
+    prop BytesReceived : Int64 { get; set }
+    prop BytesSent : Int64 { get; set }
+    prop MaxRtt : TimeSpan { get; set }
+    prop MinRtt : TimeSpan { get; set }
+    prop PacketLossRate : Single { get; set }
+    prop PacketsDropped : Int64 { get }
+    prop PacketsReceived : Int64 { get; set }
+    prop PacketsRejected : Int64 { get }
+    prop PacketsSent : Int64 { get; set }
+    prop SessionStartTime : DateTime { get; set }
+    prop Uptime : TimeSpan { get }
+class Net.NetworkGamer : GamerServices.Gamer
+    ReceiveData(Byte[] data, Int32 offset, out Net.NetworkGamer sender) : Int32
+    ReceiveData(Byte[] data, out Net.NetworkGamer sender) : Int32
+    ReceiveData(Net.PacketReader reader, out Net.NetworkGamer sender) : Int32
+    SendData(Byte[] data, Net.SendDataOptions options) : Void
+    SendData(Byte[] data, Net.SendDataOptions options, Collections.Generic.IEnumerable<Net.NetworkGamer> recipients) : Void
+    SendData(Byte[] data, Net.SendDataOptions options, Net.NetworkGamer recipient) : Void
+    SendData(Net.PacketWriter data, Net.SendDataOptions options) : Void
+    SendData(Net.PacketWriter data, Net.SendDataOptions options, Collections.Generic.IEnumerable<Net.NetworkGamer> recipients) : Void
+    SendData(Net.PacketWriter data, Net.SendDataOptions options, Net.NetworkGamer recipient) : Void
+    prop GamerId : String { get }
+    prop HasVoice : Boolean { get }
+    prop Id : Byte { get }
+    prop IsDataAvailable : Boolean { get }
+    prop IsHost : Boolean { get }
+    prop IsLocal : Boolean { get }
+    prop IsMutedByLocalUser : Boolean { get }
+    prop IsReady : Boolean { get; set }
+    prop IsTalking : Boolean { get }
+    prop Machine : Net.NetworkMachine { get }
+    prop RoundtripTime : TimeSpan { get }
+    prop SignedInGamer : GamerServices.SignedInGamer { get }
+    prop UnacknowledgedAge : TimeSpan { get }
+    static op_Implicit(Net.NetworkGamer gamer) : GamerServices.SignedInGamer
+    virtual Equals(Object obj) : Boolean
+    virtual GetHashCode() : Int32
+    virtual ToString() : String
+    virtual prop Gamertag : String { get }
+    virtual prop IsDisposed : Boolean { get }
+static class Net.NetworkLogging
+    static prop Logger : Net.INetworkLogger { get; set }
+class Net.NetworkMachine
+    RemoveFromSession() : Void
+    prop Gamers : Net.GamerCollection { get }
+static class Net.NetworkMessageRegistry
+    static CreateMessage(Byte typeId) : Net.INetworkMessage
+    static Register<T>(Byte typeId) : Void
+static class Net.NetworkServiceProvider
+    static ResetToDefault() : Void
+    static SetBackend(Net.INetworkBackend newBackend) : Void
+    static prop ActiveBackendName : String { get }
+    static prop Backend : Net.INetworkBackend { get }
+class Net.NetworkSession : IAsyncDisposable, IDisposable, Net.ISessionAdvertiser
+    Cancel() : Void
+    Dispose() : Void
+    DisposeAsync() : Threading.Tasks.ValueTask
+    EndGame() : Void
+    FindGamerById(Byte gamerId) : Net.NetworkGamer
+    Leave(String reason = User left session) : Void
+    ResetReady() : Void
+    SendToAll(Net.PacketWriter writer, Net.SendDataOptions options) : Void
+    SendToAll(Net.PacketWriter writer, Net.SendDataOptions options, Net.NetworkGamer sender) : Void
+    StartGame() : Void
+    Update() : Void
+    event GameEnded : EventHandler<Net.GameEndedEventArgs>
+    event GameStarted : EventHandler<Net.GameStartedEventArgs>
+    event GamerJoined : EventHandler<Net.GamerJoinedEventArgs>
+    event GamerLeft : EventHandler<Net.GamerLeftEventArgs>
+    event HostChanged : EventHandler<Net.HostChangedEventArgs>
+    event MessageReceived : EventHandler<Net.MessageReceivedEventArgs>
+    event SessionEnded : EventHandler<Net.NetworkSessionEndedEventArgs>
+    prop AllGamers : Net.GamerCollection { get }
+    prop AllowHostMigration : Boolean { get; set }
+    prop AllowJoinInProgress : Boolean { get; set }
+    prop BytesPerSecondReceived : Int32 { get }
+    prop BytesPerSecondSent : Int32 { get }
+    prop Diagnostics : Net.NetworkDiagnostics { get }
+    prop EventDispatchMode : Net.EventDispatchMode { get; set }
+    prop Host : Net.NetworkGamer { get }
+    prop IsDisposed : Boolean { get }
+    prop IsEveryoneReady : Boolean { get }
+    prop IsHost : Boolean { get }
+    prop IsPasswordProtected : Boolean { get }
+    prop LocalGamers : Net.LocalGamerCollection { get }
+    prop Logger : Net.INetworkLogger { get; set }
+    prop MaxGamers : Int32 { get }
+    prop NetworkTransport : Net.IPeerTransport { get; set }
+    prop Password : String { get; set }
+    prop PrivateGamerSlots : Int32 { get }
+    prop RemoteGamers : Net.GamerCollection { get }
+    prop SessionProperties : Collections.Generic.IDictionary<String, Object> { get; set }
+    prop SessionState : Net.NetworkSessionState { get }
+    prop SessionType : Net.NetworkSessionType { get }
+    prop SimulatedLatency : TimeSpan { get; set }
+    prop SimulatedPacketLoss : Single { get; set }
+    static Create(Net.NetworkSessionType sessionType, Int32 maxLocalGamers, Int32 maxGamers) : Net.NetworkSession
+    static Create(Net.NetworkSessionType sessionType, Int32 maxLocalGamers, Int32 maxGamers, Int32 privateGamerSlots, Net.NetworkSessionProperties sessionProperties) : Net.NetworkSession
+    static CreateAsync(Net.NetworkSessionType sessionType, Int32 maxLocalGamers, Int32 maxGamers, Int32 privateGamerSlots, Collections.Generic.IDictionary<String, Object> sessionProperties, String password, Threading.CancellationToken cancellationToken = null) : Threading.Tasks.Task<Net.NetworkSession>
+    static CreateAsync(Net.NetworkSessionType sessionType, Int32 maxLocalGamers, Int32 maxGamers, Int32 privateGamerSlots, Collections.Generic.IDictionary<String, Object> sessionProperties, Threading.CancellationToken cancellationToken = null) : Threading.Tasks.Task<Net.NetworkSession>
+    static Find(Net.NetworkSessionType sessionType, Int32 maxLocalGamers) : Net.AvailableNetworkSessionCollection
+    static Find(Net.NetworkSessionType sessionType, Int32 maxLocalGamers, Net.NetworkSessionProperties searchProperties) : Net.AvailableNetworkSessionCollection
+    static FindAsync(Net.NetworkSessionType sessionType, Int32 maxLocalGamers, Collections.Generic.IDictionary<String, Object> sessionProperties, Threading.CancellationToken cancellationToken = null) : Threading.Tasks.Task<Net.AvailableNetworkSessionCollection>
+    static Join(Net.AvailableNetworkSession availableSession) : Net.NetworkSession
+    static JoinAsync(Net.AvailableNetworkSession availableSession, String password, Threading.CancellationToken cancellationToken = null) : Threading.Tasks.Task<Net.NetworkSession>
+    static JoinAsync(Net.AvailableNetworkSession availableSession, Threading.CancellationToken cancellationToken = null) : Threading.Tasks.Task<Net.NetworkSession>
+    static JoinInvited(Collections.Generic.IEnumerable<GamerServices.SignedInGamer> localGamers, Object state = null) : Net.NetworkSession
+    static JoinInvitedAsync(Collections.Generic.IEnumerable<GamerServices.SignedInGamer> localGamers, Object state = null, Threading.CancellationToken cancellationToken = null) : Threading.Tasks.Task<Net.NetworkSession>
+    static event InviteAccepted : EventHandler<GamerServices.InviteAcceptedEventArgs>
+enum Net.NetworkSessionEndReason
+    ClientSignedOut = 0
+    Disconnected = 3
+    HostEndedSession = 1
+    NetworkError = 4
+    RemovedByHost = 2
+class Net.NetworkSessionEndedEventArgs : EventArgs
+    prop EndReason : Net.NetworkSessionEndReason { get }
+enum Net.NetworkSessionJoinError
+    PasswordRequired = 6
+    ProtocolVersionMismatch = 4
+    SessionFull = 1
+    SessionNotFound = 2
+    SessionNotJoinable = 3
+    Timeout = 5
+    Unknown = 0
+    WrongPassword = 7
+class Net.NetworkSessionJoinException : Exception
+    ctor()
+    ctor(Net.NetworkSessionJoinError joinError)
+    ctor(String message)
+    ctor(String message, Exception innerException)
+    ctor(String message, Net.NetworkSessionJoinError joinError)
+    prop JoinError : Net.NetworkSessionJoinError { get }
+class Net.NetworkSessionProperties : Collections.Generic.ICollection<Int32?>, Collections.Generic.IEnumerable<Int32?>, Collections.Generic.IList<Int32?>, Collections.IEnumerable
+    Add(Int32? item) : Void
+    Clear() : Void
+    Contains(Int32? item) : Boolean
+    CopyTo(Int32?[] array, Int32 arrayIndex) : Void
+    GetEnumerator() : Collections.Generic.IEnumerator<Int32?>
+    IndexOf(Int32? item) : Int32
+    Insert(Int32 index, Int32? item) : Void
+    Remove(Int32? item) : Boolean
+    RemoveAt(Int32 index) : Void
+    ctor()
+    prop Count : Int32 { get }
+    prop IsReadOnly : Boolean { get }
+    prop Item[Int32] : Int32? { get; set }
+    static const field SlotCount : Int32 = 8
+enum Net.NetworkSessionState
+    Creating = 0
+    Ended = 4
+    Joining = 1
+    Lobby = 2
+    Playing = 3
+enum Net.NetworkSessionType
+    Local = 0
+    PlayerMatch = 2
+    Ranked = 3
+    SystemLink = 1
+class Net.NullNetworkLogger : Net.INetworkLogger
+    LogError(String message, Exception ex = null) : Void
+    LogInfo(String message) : Void
+    LogWarning(String message) : Void
+    ctor()
+class Net.PacketReader : IDisposable
+    Close() : Void
+    Dispose() : Void
+    ReadBoolean() : Boolean
+    ReadByte() : Byte
+    ReadBytes(Int32 count) : Byte[]
+    ReadChar() : Char
+    ReadChars(Int32 count) : Char[]
+    ReadColor() : Color
+    ReadDecimal() : Decimal
+    ReadDouble() : Double
+    ReadInt16() : Int16
+    ReadInt32() : Int32
+    ReadInt64() : Int64
+    ReadLengthPrefixedBytes() : Byte[]
+    ReadMatrix() : Matrix
+    ReadQuaternion() : Quaternion
+    ReadSByte() : SByte
+    ReadSingle() : Single
+    ReadString() : String
+    ReadUInt16() : UInt16
+    ReadUInt32() : UInt32
+    ReadUInt64() : UInt64
+    ReadVector2() : Vector2
+    ReadVector3() : Vector3
+    ReadVector4() : Vector4
+    Reset(Byte[] data) : Void
+    ctor()
+    prop BytesRemaining : Int32 { get }
+    prop Length : Int32 { get }
+    prop Position : Int32 { get; set }
+class Net.PacketWriter : IDisposable
+    Close() : Void
+    Dispose() : Void
+    Seek(Int32 offset, IO.SeekOrigin origin) : Int64
+    Write(Boolean value) : Void
+    Write(Byte value) : Void
+    Write(Byte[] buffer) : Void
+    Write(Byte[] buffer, Int32 offset, Int32 count) : Void
+    Write(Char value) : Void
+    Write(Char[] chars) : Void
+    Write(Char[] chars, Int32 index, Int32 count) : Void
+    Write(Color value) : Void
+    Write(Decimal value) : Void
+    Write(Double value) : Void
+    Write(Int16 value) : Void
+    Write(Int32 value) : Void
+    Write(Int64 value) : Void
+    Write(Matrix value) : Void
+    Write(Quaternion value) : Void
+    Write(SByte value) : Void
+    Write(Single value) : Void
+    Write(String value) : Void
+    Write(UInt16 value) : Void
+    Write(UInt32 value) : Void
+    Write(UInt64 value) : Void
+    Write(Vector2 value) : Void
+    Write(Vector3 value) : Void
+    Write(Vector4 value) : Void
+    WriteLengthPrefixed(Byte[] buffer) : Void
+    ctor()
+    prop Length : Int32 { get }
+    prop Position : Int32 { get; set }
+class Net.PasswordChallengeMessage : Net.INetworkMessage
+    Deserialize(Net.PacketReader reader) : Void
+    Serialize(Net.PacketWriter writer) : Void
+    ctor()
+    prop MessageType : Byte { get }
+    prop Nonce : Byte[] { get; set }
+    prop Salt : Byte[] { get; set }
+struct Net.PeerId : IEquatable<Net.PeerId>
+    Equals(Net.PeerId other) : Boolean
+    ctor(String value)
+    prop IsValid : Boolean { get }
+    prop Value : String { get }
+    static op_Equality(Net.PeerId left, Net.PeerId right) : Boolean
+    static op_Inequality(Net.PeerId left, Net.PeerId right) : Boolean
+    static prop None : Net.PeerId { get }
+    virtual Equals(Object obj) : Boolean
+    virtual GetHashCode() : Int32
+    virtual ToString() : String
+class Net.QualityOfService
+    ctor()
+    prop AverageRoundtripTime : TimeSpan { get }
+    prop BytesPerSecondDownstream : Int32 { get }
+    prop BytesPerSecondUpstream : Int32 { get }
+    prop IsAvailable : Boolean { get }
+    prop MaximumRoundtripTime : TimeSpan { get }
+    prop MinimumRoundtripTime : TimeSpan { get }
+class Net.ReadinessUpdateMessage : Net.INetworkMessage
+    Deserialize(Net.PacketReader reader) : Void
+    Serialize(Net.PacketWriter writer) : Void
+    ctor()
+    prop GamerId : String { get; set }
+    prop IsReady : Boolean { get; set }
+    prop MessageType : Byte { get }
+class Net.RemovedFromSessionMessage : Net.INetworkMessage
+    Deserialize(Net.PacketReader reader) : Void
+    Serialize(Net.PacketWriter writer) : Void
+    ctor()
+    prop MessageType : Byte { get }
+    prop Reason : String { get; set }
+[Flags] enum Net.SendDataOptions
+    Chat = 4
+    InOrder = 2
+    None = 0
+    Reliable = 1
+    ReliableInOrder = 3
+sealed class Net.SessionAdvertisement
+    ctor()
+    prop CurrentGamerCount : Int32 { get }
+    prop HostGamertag : String { get }
+    prop IsClosed : Boolean { get }
+    prop IsPasswordProtected : Boolean { get }
+    prop MaxGamers : Int32 { get }
+    prop PrivateGamerSlots : Int32 { get }
+    prop Properties : Collections.Generic.IReadOnlyDictionary<String, Object> { get }
+    prop SessionId : String { get }
+    prop SessionType : Net.NetworkSessionType { get }
+static class Net.SessionPropertyEncoding
+    static Encode(Object value) : String
+    static TryDecode(String text, out Object value) : Boolean
+class Net.SessionStateMessage : Net.INetworkMessage
+    Deserialize(Net.PacketReader reader) : Void
+    Serialize(Net.PacketWriter writer) : Void
+    ctor()
+    prop MessageType : Byte { get }
+    prop NewState : Net.NetworkSessionState { get; set }
+    prop Reason : String { get; set }
+    prop Timestamp : Int64 { get; set }
+sealed class Net.UdpBackend : Net.INetworkBackend
+    AdvertiseAsync(Net.ISessionAdvertiser session, Net.IPeerTransport transport, Threading.CancellationToken stopToken) : Threading.Tasks.Task
+    CreateTransport() : Net.IPeerTransport
+    FindAsync(Net.NetworkSessionType sessionType, Int32 maxLocalGamers, Threading.CancellationToken cancellationToken) : Threading.Tasks.Task<Collections.Generic.IReadOnlyList<Net.AvailableNetworkSession>>
+    PrepareJoinAsync(Net.AvailableNetworkSession session, Net.IPeerTransport transport, Threading.CancellationToken cancellationToken) : Threading.Tasks.Task<IDisposable>
+    SupportsSessionType(Net.NetworkSessionType sessionType) : Boolean
+    ctor()
+    event InviteReceived : EventHandler<Net.InviteReceivedEventArgs>
+    prop Name : String { get }
+class Net.UdpTransport : IDisposable, Net.IPeerTransport
+    Bind() : Void
+    Dispose() : Void
+    ReceiveAsync() : Threading.Tasks.Task<ValueTuple<Byte[], Net.PeerId>>
+    Send(Net.PeerId peer, Byte[] data, Int32 length) : Void
+    ctor()
+    ctor(Int32 preferredPort)
+    prop IsBound : Boolean { get }
+    prop LocalEndPoint : Net.IPEndPoint { get }
+    prop LocalPeer : Net.PeerId { get }
+    static ToEndPoint(Net.PeerId peer) : Net.IPEndPoint
+    static ToPeer(Net.IPEndPoint endpoint) : Net.PeerId

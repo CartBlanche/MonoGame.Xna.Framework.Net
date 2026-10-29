@@ -1,0 +1,57 @@
+sealed class Net.EOS.EOSAchievementMediaProvider : GamerServices.IAchievementMediaProvider
+    GetIconAsync(GamerServices.SignedInGamer gamer, String achievementKey, Threading.CancellationToken cancellationToken = null) : Threading.Tasks.Task<GamerServices.AchievementIcon>
+    ctor()
+sealed class Net.EOS.EOSAchievementProvider : GamerServices.IAchievementProvider
+    GetAchievementsAsync(GamerServices.SignedInGamer gamer, Threading.CancellationToken cancellationToken = null) : Threading.Tasks.Task<GamerServices.AchievementCollection>
+    SetProgressAsync(GamerServices.SignedInGamer gamer, String achievementKey, Single percentComplete, Threading.CancellationToken cancellationToken = null) : Threading.Tasks.Task
+    UnlockAsync(GamerServices.SignedInGamer gamer, String achievementKey, Threading.CancellationToken cancellationToken = null) : Threading.Tasks.Task
+    ctor()
+sealed class Net.EOS.EOSBackend : Net.INetworkBackend
+    AdvertiseAsync(Net.ISessionAdvertiser session, Net.IPeerTransport transport, Threading.CancellationToken stopToken) : Threading.Tasks.Task
+    CreateTransport() : Net.IPeerTransport
+    FindAsync(Net.NetworkSessionType sessionType, Int32 maxLocalGamers, Threading.CancellationToken cancellationToken) : Threading.Tasks.Task<Collections.Generic.IReadOnlyList<Net.AvailableNetworkSession>>
+    PrepareJoinAsync(Net.AvailableNetworkSession session, Net.IPeerTransport transport, Threading.CancellationToken cancellationToken) : Threading.Tasks.Task<IDisposable>
+    SupportsSessionType(Net.NetworkSessionType sessionType) : Boolean
+    ctor(Net.EOS.EOSFallbackMode fallbackMode = PreferFallback)
+    event InviteReceived : EventHandler<Net.InviteReceivedEventArgs>
+    prop Name : String { get }
+sealed class Net.EOS.EOSCredentials
+    ctor()
+    prop BucketId : String { get; set }
+    prop ClientId : String { get; set }
+    prop ClientSecret : String { get; set }
+    prop DeploymentId : String { get; set }
+    prop ProductId : String { get; set }
+    prop ProductName : String { get; set }
+    prop ProductVersion : String { get; set }
+    prop SandboxId : String { get; set }
+enum Net.EOS.EOSFallbackMode
+    PreferFallback = 0
+    Strict = 1
+sealed class Net.EOS.EOSLeaderboardProvider : GamerServices.ILeaderboardProvider
+    ReadAsync(GamerServices.LeaderboardIdentity identity, Int32 pageStart, Int32 pageSize, GamerServices.SignedInGamer pivotGamer = null, Threading.CancellationToken cancellationToken = null) : Threading.Tasks.Task<GamerServices.LeaderboardReader>
+    SubmitAsync(GamerServices.LeaderboardWriter writer, Threading.CancellationToken cancellationToken = null) : Threading.Tasks.Task
+    ctor()
+sealed class Net.EOS.EOSP2PTransport : IDisposable, Net.IPeerTransport
+    Bind() : Void
+    Dispose() : Void
+    ReceiveAsync() : Threading.Tasks.Task<ValueTuple<Byte[], Net.PeerId>>
+    Send(Net.PeerId peer, Byte[] data, Int32 length) : Void
+    ctor(Func<Epic.OnlineServices.ProductUserId, Boolean> acceptPeer = null)
+    prop IsBound : Boolean { get }
+    prop LocalPeer : Net.PeerId { get }
+    static ToPeer(Epic.OnlineServices.ProductUserId user) : Net.PeerId
+    static TryGetUserIdText(Net.PeerId peer) : String
+static class Net.EOS.EOSPlatformBootstrap
+    static Configure(String gameName, Net.EOS.EOSCredentials credentials = null, GamerServices.IGuideSignInProvider signInProvider = null, Func<GamerServices.ILeaderboardProvider> liveProviderFactoryOverride = null, Func<GamerServices.IAchievementProvider> achievementLiveProviderFactoryOverride = null, Func<GamerServices.IAchievementMediaProvider> achievementMediaLiveProviderFactoryOverride = null, Collections.Generic.IEnumerable<GamerServices.AchievementDefinition> achievementDefinitions = null, Net.EOS.EOSFallbackMode fallbackMode = PreferFallback, Net.INetworkBackend backend = null) : Void
+    static TrySignInAndEnableLiveAsync(Int32 paneCount = 1, Boolean onlineOnly = False, Threading.CancellationToken cancellationToken = null) : Threading.Tasks.Task<Boolean>
+static class Net.EOS.EOSRuntime
+    static Initialize(String initialPlayerId = null, String initialGamertag = null) : Boolean
+    static RunCallbacks() : Void
+    static SetSignedInIdentity(String newPlayerId, String newGamertag) : Void
+    static Shutdown() : Void
+    static SignInAsync(Threading.CancellationToken cancellationToken = null) : Threading.Tasks.Task<Boolean>
+    static prop IsInitialized : Boolean { get }
+sealed class Net.EOS.EOSSignInProvider : GamerServices.IGuideSignInProvider
+    ShowSignInAsync(Int32 paneCount, Boolean onlineOnly, Threading.CancellationToken cancellationToken = null) : Threading.Tasks.Task<Boolean>
+    ctor()

@@ -23,5 +23,8 @@
   <ItemGroup>
     <Compile Include="..\Conformance\BackendConformanceTests.cs" Link="BackendConformanceTests.cs" />
   </ItemGroup>
+  <ItemGroup>
+    <Compile Include="..\Core\PublicApi.cs" Link="PublicApi.cs" />
+  </ItemGroup>
 
 </Project>

@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 using Microsoft.Xna.Framework.Net.Steam;
 using Steamworks;
 
-namespace Microsoft.Xna.Framework.Net
+namespace Microsoft.Xna.Framework.Net.Steam
 {
     /// <summary>
     /// Carries datagrams between Steam users over Steam P2P (Steam Datagram Relay under the hood).
