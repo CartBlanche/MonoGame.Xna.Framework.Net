@@ -268,6 +268,7 @@ namespace Microsoft.Xna.Framework.GamerServices
         internal void SetSignedInToLive(bool value)
         {
             isSignedInToLive = value;
+            Privileges.AllowOnlineSessions = value;
         }
 
         /// <summary>
@@ -292,11 +293,11 @@ namespace Microsoft.Xna.Framework.GamerServices
 
         internal SignedInGamer() { }
 
-		public GamerPrivileges? Privileges
-		{
-			get;
-			private set;
-		}
+        /// <summary>
+        /// What this gamer may do. Online sessions are allowed exactly while the gamer is signed in to the
+        /// online service (<see cref="IsSignedInToLive"/>); this was never assigned, so it used to be null.
+        /// </summary>
+        public GamerPrivileges Privileges { get; } = new GamerPrivileges();
 
         /// <summary>
         /// Asynchronously writes a score to a leaderboard.
