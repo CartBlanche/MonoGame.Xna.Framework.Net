@@ -17,6 +17,7 @@
     <RepositoryType>git</RepositoryType>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageIcon>icon.png</PackageIcon>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
     <IncludeSymbols>true</IncludeSymbols>

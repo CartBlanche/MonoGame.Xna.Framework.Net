@@ -1,0 +1,3 @@
+# Epic's vendored SDK source; its members are documented by Epic's own docs, not XML comments
+[*.cs]
+dotnet_diagnostic.CS1591.severity = none
