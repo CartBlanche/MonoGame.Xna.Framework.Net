@@ -22,6 +22,8 @@ namespace Microsoft.Xna.Framework.Net
     {
         private const string LobbyGameKey = "mgnet_game";
         private const string LobbyHostSteamIdKey = "host_steamid";
+        private const string LobbyTypeKey = "mgnet_type";
+        private const string LobbyPropertyPrefix = "p.";
 
         private readonly string lobbyGameValue;
         private readonly SteamFallbackMode fallbackMode;
@@ -36,6 +38,63 @@ namespace Microsoft.Xna.Framework.Net
         private bool IsStrict => fallbackMode == SteamFallbackMode.Strict;
 
         public string Name => "Steam";
+
+        // lobbies carry every type; without Steam running this is the LAN, which carries SystemLink only
+        public bool SupportsSessionType(NetworkSessionType sessionType) =>
+            sessionType == NetworkSessionType.SystemLink || SteamRuntime.IsInitialized;
+
+        private EventHandler<InviteReceivedEventArgs> inviteReceived;
+        private Callback<GameLobbyJoinRequested_t> lobbyJoinRequested;
+        private bool launchInviteChecked;
+
+        /// <summary>
+        /// Raised when the user accepts a Steam invitation or "Join Game" (a friend's invite, the friends
+        /// list, or the game being started with <c>+connect_lobby</c>). Needs <c>SteamRuntime.RunCallbacks()</c>
+        /// called regularly, as Steam does for every callback.
+        /// </summary>
+        public event EventHandler<InviteReceivedEventArgs> InviteReceived
+        {
+            add
+            {
+                inviteReceived += value;
+                EnsureInviteListening();
+            }
+            remove => inviteReceived -= value;
+        }
+
+        private void EnsureInviteListening()
+        {
+            if (!SteamRuntime.IsInitialized)
+                return;
+
+            lobbyJoinRequested ??= Callback<GameLobbyJoinRequested_t>.Create(request => _ = RaiseInviteAsync(request.m_steamIDLobby));
+
+            // started from Steam's "Join Game" with the lobby on the command line
+            if (!launchInviteChecked)
+            {
+                launchInviteChecked = true;
+                string[] args = Environment.GetCommandLineArgs();
+                int at = Array.IndexOf(args, "+connect_lobby");
+                if (at >= 0 && at + 1 < args.Length && ulong.TryParse(args[at + 1], out var lobbyRaw))
+                    _ = RaiseInviteAsync(new CSteamID(lobbyRaw));
+            }
+        }
+
+        // an invitation names a lobby: join it so Steam gives us its data, then describe it as a session
+        private async Task RaiseInviteAsync(CSteamID lobbyId)
+        {
+            try
+            {
+                await AwaitCallResultAsync<LobbyEnter_t>(SteamMatchmaking.JoinLobby(lobbyId)).ConfigureAwait(false);
+                var session = DescribeLobby(lobbyId, NetworkSessionType.PlayerMatch);
+                if (session != null)
+                    inviteReceived?.Invoke(this, new InviteReceivedEventArgs(session));
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[Steam] Could not follow the invitation to lobby {lobbyId}: {ex.Message}");
+            }
+        }
 
         public IPeerTransport CreateTransport()
         {
@@ -56,9 +115,9 @@ namespace Microsoft.Xna.Framework.Net
             }
 
             if (IsStrict)
-                await AdvertiseLobbyAsync(session.GetAdvertisement().MaxGamers).ConfigureAwait(false);
+                await AdvertiseLobbyAsync(session, stopToken).ConfigureAwait(false);
             else
-                _ = AdvertiseLobbyAsync(session.GetAdvertisement().MaxGamers);
+                _ = AdvertiseLobbyAsync(session, stopToken);
         }
 
         public async Task<IReadOnlyList<AvailableNetworkSession>> FindAsync(NetworkSessionType sessionType, int maxLocalGamers, CancellationToken cancellationToken)
@@ -73,6 +132,7 @@ namespace Microsoft.Xna.Framework.Net
             {
                 SteamMatchmaking.AddRequestLobbyListResultCountFilter(50);
                 SteamMatchmaking.AddRequestLobbyListStringFilter(LobbyGameKey, lobbyGameValue, ELobbyComparison.k_ELobbyComparisonEqual);
+                SteamMatchmaking.AddRequestLobbyListStringFilter(LobbyTypeKey, sessionType.ToString(), ELobbyComparison.k_ELobbyComparisonEqual);
                 var result = await AwaitCallResultAsync<LobbyMatchList_t>(SteamMatchmaking.RequestLobbyList()).ConfigureAwait(false);
                 var localSteamId = SteamUser.GetSteamID();
 
@@ -80,30 +140,12 @@ namespace Microsoft.Xna.Framework.Net
                 for (var i = 0; i < (int)result.m_nLobbiesMatching; i++)
                 {
                     var lobbyId = SteamMatchmaking.GetLobbyByIndex(i);
-                    var lobbyGame = SteamMatchmaking.GetLobbyData(lobbyId, LobbyGameKey);
-                    if (!string.Equals(lobbyGame, lobbyGameValue, StringComparison.OrdinalIgnoreCase))
-                        continue;
-
-                    var ownerId = SteamMatchmaking.GetLobbyOwner(lobbyId);
-                    if (ownerId == localSteamId)
+                    if (SteamMatchmaking.GetLobbyOwner(lobbyId) == localSteamId)
                         continue;   // our own lobby: a same-account join cannot work
 
-                    var ownerName = SteamFriends.GetFriendPersonaName(ownerId);
-                    if (string.IsNullOrWhiteSpace(ownerName))
-                        ownerName = ownerId.ToString();
-
-                    int current = SteamMatchmaking.GetNumLobbyMembers(lobbyId);
-                    int max = SteamMatchmaking.GetLobbyMemberLimit(lobbyId);
-                    found.Add(new AvailableNetworkSession(
-                        sessionName: ownerName,
-                        hostGamertag: ownerName,
-                        currentGamerCount: current,
-                        openPublicGamerSlots: Math.Max(0, max - current),
-                        openPrivateGamerSlots: 0,
-                        sessionType: sessionType,
-                        sessionProperties: new Dictionary<string, object>(),
-                        sessionId: lobbyId.ToString(),
-                        hostPeer: HostPeerOf(lobbyId)));
+                    var described = DescribeLobby(lobbyId, sessionType);
+                    if (described != null)
+                        found.Add(described);
                 }
 
                 return found;
@@ -158,12 +200,53 @@ namespace Microsoft.Xna.Framework.Net
             public void Dispose() => SteamMatchmaking.LeaveLobby(lobbyId);
         }
 
-        private async Task AdvertiseLobbyAsync(int maxGamers)
+        // describes a Steam lobby as a joinable session, or null if it is not one of this game's
+        private AvailableNetworkSession DescribeLobby(CSteamID lobbyId, NetworkSessionType fallbackType)
+        {
+            if (!string.Equals(SteamMatchmaking.GetLobbyData(lobbyId, LobbyGameKey), lobbyGameValue, StringComparison.OrdinalIgnoreCase))
+                return null;
+
+            var ownerId = SteamMatchmaking.GetLobbyOwner(lobbyId);
+            var ownerName = SteamFriends.GetFriendPersonaName(ownerId);
+            if (string.IsNullOrWhiteSpace(ownerName))
+                ownerName = ownerId.ToString();
+
+            var type = Enum.TryParse(SteamMatchmaking.GetLobbyData(lobbyId, LobbyTypeKey), out NetworkSessionType parsed) ? parsed : fallbackType;
+
+            // the properties the host set: every lobby entry under the property prefix
+            var properties = new Dictionary<string, object>();
+            int entries = SteamMatchmaking.GetLobbyDataCount(lobbyId);
+            for (int i = 0; i < entries; i++)
+            {
+                if (SteamMatchmaking.GetLobbyDataByIndex(lobbyId, i, out string key, 256, out string value, 1024)
+                    && key.StartsWith(LobbyPropertyPrefix, StringComparison.Ordinal)
+                    && SessionPropertyEncoding.TryDecode(value, out object decoded))
+                {
+                    properties[key.Substring(LobbyPropertyPrefix.Length)] = decoded;
+                }
+            }
+
+            int current = SteamMatchmaking.GetNumLobbyMembers(lobbyId);
+            int max = SteamMatchmaking.GetLobbyMemberLimit(lobbyId);
+            return new AvailableNetworkSession(
+                sessionName: ownerName,
+                hostGamertag: ownerName,
+                currentGamerCount: current,
+                openPublicGamerSlots: Math.Max(0, max - current),
+                openPrivateGamerSlots: 0,
+                sessionType: type,
+                sessionProperties: properties,
+                sessionId: lobbyId.ToString(),
+                hostPeer: HostPeerOf(lobbyId));
+        }
+
+        private async Task AdvertiseLobbyAsync(ISessionAdvertiser session, CancellationToken stopToken)
         {
             try
             {
+                var ad = session.GetAdvertisement();
                 var result = await AwaitCallResultAsync<LobbyCreated_t>(
-                    SteamMatchmaking.CreateLobby(ELobbyType.k_ELobbyTypePublic, maxGamers)).ConfigureAwait(false);
+                    SteamMatchmaking.CreateLobby(ELobbyType.k_ELobbyTypePublic, ad.MaxGamers)).ConfigureAwait(false);
                 if (result.m_eResult != EResult.k_EResultOK)
                 {
                     Debug.WriteLine($"[Steam] CreateLobby returned {result.m_eResult}");
@@ -173,12 +256,44 @@ namespace Microsoft.Xna.Framework.Net
                 var lobbyId = new CSteamID(result.m_ulSteamIDLobby);
                 SteamMatchmaking.SetLobbyData(lobbyId, LobbyGameKey, lobbyGameValue);
                 SteamMatchmaking.SetLobbyData(lobbyId, LobbyHostSteamIdKey, SteamUser.GetSteamID().m_SteamID.ToString());
+                SteamMatchmaking.SetLobbyData(lobbyId, LobbyTypeKey, ad.SessionType.ToString());
+                var published = PublishProperties(lobbyId, ad.Properties, new HashSet<string>());
                 Debug.WriteLine($"[Steam] Lobby created: {lobbyId}");
+
+                // the host can change the session's properties later; keep the lobby in step until the session ends
+                _ = Task.Run(async () =>
+                {
+                    while (!stopToken.IsCancellationRequested)
+                    {
+                        try { await Task.Delay(1000, stopToken).ConfigureAwait(false); }
+                        catch (OperationCanceledException) { break; }
+                        published = PublishProperties(lobbyId, session.GetAdvertisement().Properties, published);
+                    }
+                    SteamMatchmaking.LeaveLobby(lobbyId);
+                });
             }
             catch (Exception ex) when (!IsStrict)
             {
                 Debug.WriteLine($"[Steam] Advertising the lobby failed: {ex.Message}");
             }
+        }
+
+        private HashSet<string> PublishProperties(CSteamID lobbyId, IReadOnlyDictionary<string, object> properties, HashSet<string> previouslyPublished)
+        {
+            var now = new HashSet<string>();
+            foreach (var property in properties)
+            {
+                string key = LobbyPropertyPrefix + property.Key;
+                string encoded = SessionPropertyEncoding.Encode(property.Value);
+                if (SteamMatchmaking.GetLobbyData(lobbyId, key) != encoded)
+                    SteamMatchmaking.SetLobbyData(lobbyId, key, encoded);
+                now.Add(key);
+            }
+
+            // a property the host removed disappears from the lobby too (Steam deletes a key set to empty)
+            foreach (string gone in previouslyPublished.Where(k => !now.Contains(k)))
+                SteamMatchmaking.DeleteLobbyData(lobbyId, gone);
+            return now;
         }
 
         private static PeerId HostPeerOf(CSteamID lobbyId)

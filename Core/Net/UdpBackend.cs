@@ -14,6 +14,16 @@ namespace Microsoft.Xna.Framework.Net
     {
         public string Name => "UDP/SystemLink";
 
+        // the LAN carries SystemLink only
+        public bool SupportsSessionType(NetworkSessionType sessionType) => sessionType == NetworkSessionType.SystemLink;
+
+        // nobody invites you over a LAN broadcast
+        public event EventHandler<InviteReceivedEventArgs> InviteReceived
+        {
+            add { }
+            remove { }
+        }
+
         public IPeerTransport CreateTransport() => new UdpTransport(SystemLinkSessionManager.GamePort);
 
         public Task AdvertiseAsync(ISessionAdvertiser session, IPeerTransport transport, CancellationToken stopToken)

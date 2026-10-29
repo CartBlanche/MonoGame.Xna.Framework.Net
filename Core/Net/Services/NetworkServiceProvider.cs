@@ -11,6 +11,10 @@ namespace Microsoft.Xna.Framework.Net
         private static INetworkBackend backend;
         private static readonly object lockObject = new object();
 
+        // the invitation the user last accepted in the platform's UI, until the game joins it
+        private static AvailableNetworkSession pendingInvite;
+        private static bool inviteNotificationDue;
+
         /// <summary>
         /// The back-end that carries sessions: LAN (UDP) unless a plugin has set another.
         /// </summary>
@@ -19,7 +23,14 @@ namespace Microsoft.Xna.Framework.Net
             get
             {
                 lock (lockObject)
-                    return backend ??= new UdpBackend();
+                {
+                    if (backend == null)
+                    {
+                        backend = new UdpBackend();
+                        backend.InviteReceived += OnInviteReceived;
+                    }
+                    return backend;
+                }
             }
         }
 
@@ -36,8 +47,58 @@ namespace Microsoft.Xna.Framework.Net
             if (newBackend == null) throw new ArgumentNullException(nameof(newBackend));
             lock (lockObject)
             {
+                if (backend != null)
+                    backend.InviteReceived -= OnInviteReceived;
                 backend = newBackend;
+                backend.InviteReceived += OnInviteReceived;
                 System.Diagnostics.Debug.WriteLine($"[Network] Using {newBackend.Name} backend");
+            }
+        }
+
+        private static void OnInviteReceived(object sender, InviteReceivedEventArgs e)
+        {
+            lock (lockObject)
+            {
+                pendingInvite = e.Session;
+                inviteNotificationDue = true;
+            }
+        }
+
+        /// <summary>
+        /// Raises <see cref="NetworkSession.InviteAccepted"/> for an invitation that arrived since the last
+        /// call, on the calling thread. Called from <c>NetworkSession.Update()</c> and
+        /// <c>GamerServicesComponent.Update()</c>, so it is raised on the game's thread, as in XNA.
+        /// </summary>
+        internal static void DispatchInvites()
+        {
+            AvailableNetworkSession invite;
+            lock (lockObject)
+            {
+                if (!inviteNotificationDue)
+                    return;
+                inviteNotificationDue = false;
+                invite = pendingInvite;
+            }
+
+            if (NetworkSession.RaiseInviteAccepted(invite))
+            {
+                // already in that session: nothing left to join
+                lock (lockObject)
+                {
+                    if (pendingInvite == invite)
+                        pendingInvite = null;
+                }
+            }
+        }
+
+        /// <summary>The invitation waiting to be joined, which is then no longer pending; null if none.</summary>
+        internal static AvailableNetworkSession TakePendingInvite()
+        {
+            lock (lockObject)
+            {
+                var invite = pendingInvite;
+                pendingInvite = null;
+                return invite;
             }
         }
 
@@ -46,11 +107,7 @@ namespace Microsoft.Xna.Framework.Net
         /// </summary>
         public static void ResetToDefault()
         {
-            lock (lockObject)
-            {
-                backend = new UdpBackend();
-                System.Diagnostics.Debug.WriteLine("[Network] Reset to default UDP backend");
-            }
+            SetBackend(new UdpBackend());
         }
     }
 }

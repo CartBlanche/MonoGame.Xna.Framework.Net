@@ -8,7 +8,7 @@ This file is the single source of truth for progress. Update it in the same comm
 
 Legend: `[-]` dropped · `[ ]` todo · `[~]` in progress · `[x]` done · `[?]` needs verification before work starts · `(!)` decision needed
 
-_Last updated: 2026-10-29 (Phases 0-4 complete; the EOS, Android and iOS transports are unverified on real runtimes)_
+_Last updated: 2026-10-29 (Phases 0-5 complete; Steam/EOS lobbies and invites, and the EOS/Android/iOS transports, are unverified on real runtimes; the iOS test app needs attention)_
 
 ---
 
@@ -21,7 +21,7 @@ _Last updated: 2026-10-29 (Phases 0-4 complete; the EOS, Android and iOS transpo
 | 2 | Threading and event model (`Update()`-drained events) | Done | 6/6 |
 | 3 | XNA API parity (gamers, packets, sessions) | Done (2 deferred, 1 dropped) | 16/19 |
 | 4 | Backend unification (one public API, peer-id transport) | Done (4.4 unverified on devices) | 6/6 |
-| 5 | Online session types, matchmaking, invites | Not started | 0/5 |
+| 5 | Online session types, matchmaking, invites | Done (Steam/EOS paths unverified live) | 5/5 |
 | 6 | Security and robustness | Not started | 0/5 |
 | 7 | Voice (pluggable) | Not started | 0/7 |
 | 8 | Modernisation and cleanup | Not started | 0/8 |
@@ -207,11 +207,11 @@ Exit criteria: all back-ends pass the same conformance suite; no back-end needs 
 
 ## Phase 5: Online session types, matchmaking, invites
 
-- [ ] 5.1 `PlayerMatch` and `Ranked` supported by the base `NetworkSession` paths (currently `NotSupported`/`NotImplemented`)
-- [ ] 5.2 Property filtering and skill/mode matching in `FindAsync` across back-ends
-- [ ] 5.3 `JoinInvited` wired to real invite events (Steam rich presence/lobby invites, EOS custom invites, Game Center); remove the simulated one
-- [ ] 5.4 `NetworkSession.InviteAccepted` raised from back-end events and from `Update()`
-- [ ] 5.5 Session end reasons audited against XNA's (`ClientSignedOut`, `RemovedByHost`, `Disconnected`, `HostEndedSession`) per back-end
+- [x] 5.1 `PlayerMatch` and `Ranked` run through the same back-end path as SystemLink: `INetworkBackend.SupportsSessionType` says what a back-end carries and `NetworkSession` refuses the rest with a `NotSupportedException` naming the back-end. The UDP/Android back-ends carry SystemLink only; Steam, EOS and iOS (with their runtime up) carry all three, labelling lobbies with the type and filtering searches by it. Found on the way: the receive loop, `SendData` and the join path were all hard-wired to SystemLink, so a PlayerMatch session could not have exchanged a byte
+- [x] 5.2 Session properties are carried by the online back-ends as lobby data (Steam) and lobby attributes (EOS), encoded with the public `SessionPropertyEncoding` so types survive, kept up to date while the session lives, and read back into `AvailableNetworkSession.SessionProperties`, where Core's search filter (3.11) narrows the results. Skill and mode matching are just properties. NOT verified against live Steam/EOS: they compile and the encoding is unit-tested
+- [x] 5.3 `JoinInvitedAsync` joins the invitation the user last accepted in the platform UI (it used to join a made-up session). Back-ends raise `INetworkBackend.InviteReceived`: Steam (`GameLobbyJoinRequested_t` and `+connect_lobby`) and EOS (`AddNotifyLobbyInviteAccepted`; lobbies now allow invites) are written but UNVERIFIED without live accounts; Android has no invitations; iOS is NOT wired (needs `GKLocalPlayer`'s listener and a device)
+- [x] 5.4 `NetworkSession.InviteAccepted` is raised on the game's thread from `NetworkSession.Update()` and `GamerServicesComponent.Update()`; its args are XNA's (`Gamer`, `IsCurrentSession`, which is true when the invite is to a session this machine is already in) instead of the old non-XNA `IsSignedInGamer`
+- [x] 5.5 End reasons audited: dispose = `ClientSignedOut` (once); host leaves = `HostEndedSession`; host removes you = `RemovedByHost`; heartbeat timeout or a channel that gives up = `Disconnected`; a transport that fails 10 receives in a row = `NetworkError` (new: the loop used to log and spin forever). Back-ends add no reasons of their own now that the sessions are all `NetworkSession`
 
 Exit criteria: `NetworkStateManagement` create/find/join/invite flows work on Steam.
 

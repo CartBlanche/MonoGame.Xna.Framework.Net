@@ -24,6 +24,18 @@ namespace Microsoft.Xna.Framework.Net.iOS
 
         public string Name => "iOS";
 
+        // Game Center matches are online; without the runtime this is the LAN, which carries SystemLink only
+        public bool SupportsSessionType(NetworkSessionType sessionType) =>
+            sessionType == NetworkSessionType.SystemLink || IOSRuntime.IsInitialized;
+
+        // not wired yet: Game Center delivers invitations through GKLocalPlayer's listener, which needs a
+        // device to develop against (plan task 5.3)
+        public event EventHandler<InviteReceivedEventArgs> InviteReceived
+        {
+            add { }
+            remove { }
+        }
+
         private bool UseGameKit(string what)
         {
             if (IOSRuntime.IsInitialized)

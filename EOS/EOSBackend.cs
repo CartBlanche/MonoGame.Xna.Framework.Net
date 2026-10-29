@@ -16,6 +16,8 @@ namespace Microsoft.Xna.Framework.Net.EOS
     public sealed class EOSBackend : INetworkBackend
     {
         private const string BucketId = "MonoGame.Xna.Framework.Net";
+        private const string TypeKey = "type";
+        private const string PropertyPrefix = "p.";
 
         private readonly UdpBackend lan = new UdpBackend();
         private readonly EOSFallbackMode fallbackMode;
@@ -28,6 +30,60 @@ namespace Microsoft.Xna.Framework.Net.EOS
         }
 
         public string Name => "EOS";
+
+        // lobbies carry every type; without EOS up this is the LAN, which carries SystemLink only
+        public bool SupportsSessionType(NetworkSessionType sessionType) =>
+            sessionType == NetworkSessionType.SystemLink || Ready;
+
+        private EventHandler<InviteReceivedEventArgs> inviteReceived;
+        private ulong inviteNotification = Common.INVALID_NOTIFICATIONID;
+
+        /// <summary>
+        /// Raised when the user accepts an Epic lobby invitation (from the overlay or the Epic Games
+        /// launcher). Needs <c>EOSRuntime.RunCallbacks()</c> called regularly, as EOS does for every callback.
+        /// </summary>
+        public event EventHandler<InviteReceivedEventArgs> InviteReceived
+        {
+            add
+            {
+                inviteReceived += value;
+                EnsureInviteListening();
+            }
+            remove => inviteReceived -= value;
+        }
+
+        private void EnsureInviteListening()
+        {
+            if (inviteNotification != Common.INVALID_NOTIFICATIONID || !Ready)
+                return;
+
+            var lobbyInterface = EOSRuntime.TryGetPlatform().GetLobbyInterface();
+            var options = new Lobby.AddNotifyLobbyInviteAcceptedOptions();
+            inviteNotification = lobbyInterface.AddNotifyLobbyInviteAccepted(ref options, null, OnInviteAccepted);
+        }
+
+        // the invitation names a lobby; fetch its details and describe it as a session
+        private void OnInviteAccepted(ref Lobby.LobbyInviteAcceptedCallbackInfo info)
+        {
+            var lobbyInterface = EOSRuntime.TryGetPlatform()?.GetLobbyInterface();
+            if (lobbyInterface == null)
+                return;
+
+            var detailsOptions = new Lobby.CopyLobbyDetailsHandleByInviteIdOptions { InviteId = info.InviteId };
+            if (lobbyInterface.CopyLobbyDetailsHandleByInviteId(ref detailsOptions, out var details) != Result.Success || details == null)
+                return;
+
+            try
+            {
+                var session = DescribeLobby(details, NetworkSessionType.PlayerMatch);
+                if (session != null)
+                    inviteReceived?.Invoke(this, new InviteReceivedEventArgs(session));
+            }
+            finally
+            {
+                details.Release();
+            }
+        }
 
         private bool IsStrict => fallbackMode == EOSFallbackMode.Strict;
 
@@ -72,7 +128,7 @@ namespace Microsoft.Xna.Framework.Net.EOS
                 BucketId = BucketId,
                 DisableHostMigration = true,
                 EnableJoinById = true,
-                AllowInvites = false
+                AllowInvites = true
             };
 
             var created = new TaskCompletionSource<Lobby.CreateLobbyCallbackInfo>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -83,10 +139,25 @@ namespace Microsoft.Xna.Framework.Net.EOS
 
             string lobbyId = createResult.LobbyId;
             lock (lobbyGate) activeLobbies.Add(lobbyId);
-            await SetBucketAttributeAsync(lobbyInterface, localUserId, lobbyId).ConfigureAwait(false);
+            var ad = session.GetAdvertisement();
+            var published = await PublishAttributesAsync(lobbyInterface, localUserId, lobbyId, ad.SessionType, ad.Properties, new HashSet<string>()).ConfigureAwait(false);
 
             // the session ending (its token is cancelled) closes the lobby
             stopToken.Register(() => _ = DestroyLobbyAsync(lobbyInterface, localUserId, lobbyId));
+
+            // the host can change the session's properties later; keep the lobby in step until the session ends
+            _ = Task.Run(async () =>
+            {
+                while (!stopToken.IsCancellationRequested)
+                {
+                    try { await Task.Delay(1000, stopToken).ConfigureAwait(false); }
+                    catch (OperationCanceledException) { break; }
+                    var latest = session.GetAdvertisement();
+                    if (!PropertiesChanged(latest.Properties, published))
+                        continue;
+                    published = await PublishAttributesAsync(lobbyInterface, localUserId, lobbyId, latest.SessionType, latest.Properties, published).ConfigureAwait(false);
+                }
+            });
         }
 
         public async Task<IReadOnlyList<AvailableNetworkSession>> FindAsync(NetworkSessionType sessionType, int maxLocalGamers, CancellationToken cancellationToken)
@@ -112,6 +183,13 @@ namespace Microsoft.Xna.Framework.Net.EOS
                 };
                 search.SetParameter(ref parameter);
 
+                var typeParameter = new Lobby.LobbySearchSetParameterOptions
+                {
+                    Parameter = new Lobby.AttributeData { Key = TypeKey, Value = new Lobby.AttributeDataValue { AsUtf8 = sessionType.ToString() } },
+                    ComparisonOp = ComparisonOp.Equal
+                };
+                search.SetParameter(ref typeParameter);
+
                 var findOptions = new Lobby.LobbySearchFindOptions { LocalUserId = localUserId };
                 var finished = new TaskCompletionSource<Lobby.LobbySearchFindCallbackInfo>(TaskCreationOptions.RunContinuationsAsynchronously);
                 search.Find(ref findOptions, null, (ref Lobby.LobbySearchFindCallbackInfo info) => finished.TrySetResult(info));
@@ -129,26 +207,9 @@ namespace Microsoft.Xna.Framework.Net.EOS
 
                     try
                     {
-                        var infoOptions = new Lobby.LobbyDetailsCopyInfoOptions();
-                        if (details.CopyInfo(ref infoOptions, out var lobbyInfo) != Result.Success || !lobbyInfo.HasValue)
-                            continue;
-
-                        var info = lobbyInfo.Value;
-                        if (info.LobbyOwnerUserId == null || info.LobbyOwnerUserId.ToString() == localUserId.ToString())
-                            continue;   // our own lobby
-
-                        int max = (int)info.MaxMembers;
-                        int current = max - (int)info.AvailableSlots;
-                        found.Add(new AvailableNetworkSession(
-                            sessionName: info.LobbyOwnerUserId.ToString(),
-                            hostGamertag: info.LobbyOwnerUserId.ToString(),
-                            currentGamerCount: current,
-                            openPublicGamerSlots: (int)info.AvailableSlots,
-                            openPrivateGamerSlots: 0,
-                            sessionType: sessionType,
-                            sessionProperties: new Dictionary<string, object>(),
-                            sessionId: info.LobbyId,
-                            hostPeer: EOSP2PTransport.ToPeer(info.LobbyOwnerUserId)));
+                        var described = DescribeLobby(details, sessionType);
+                        if (described != null && described.HostPeer != EOSP2PTransport.ToPeer(localUserId))
+                            found.Add(described);
                     }
                     finally
                     {
@@ -262,35 +323,120 @@ namespace Microsoft.Xna.Framework.Net.EOS
             }
         }
 
-        private static async Task SetBucketAttributeAsync(Lobby.LobbyInterface lobbyInterface, ProductUserId localUserId, string lobbyId)
+        // describes an EOS lobby as a joinable session, or null if it is not one of ours
+        private static AvailableNetworkSession DescribeLobby(Lobby.LobbyDetails details, NetworkSessionType fallbackType)
         {
+            var infoOptions = new Lobby.LobbyDetailsCopyInfoOptions();
+            if (details.CopyInfo(ref infoOptions, out var lobbyInfo) != Result.Success || !lobbyInfo.HasValue)
+                return null;
+
+            var info = lobbyInfo.Value;
+            if (info.LobbyOwnerUserId == null)
+                return null;
+
+            var type = fallbackType;
+            var properties = new Dictionary<string, object>();
+            var countOptions = new Lobby.LobbyDetailsGetAttributeCountOptions();
+            uint attributes = details.GetAttributeCount(ref countOptions);
+            for (uint i = 0; i < attributes; i++)
+            {
+                var copyOptions = new Lobby.LobbyDetailsCopyAttributeByIndexOptions { AttrIndex = i };
+                if (details.CopyAttributeByIndex(ref copyOptions, out var attribute) != Result.Success || attribute?.Data == null)
+                    continue;
+
+                string key = attribute.Value.Data.Value.Key;
+                string value = attribute.Value.Data.Value.Value.AsUtf8;
+                if (key == TypeKey)
+                {
+                    if (Enum.TryParse(value, out NetworkSessionType parsed))
+                        type = parsed;
+                }
+                else if (key != null && key.StartsWith(PropertyPrefix, StringComparison.Ordinal)
+                         && SessionPropertyEncoding.TryDecode(value, out object decoded))
+                {
+                    properties[key.Substring(PropertyPrefix.Length)] = decoded;
+                }
+            }
+
+            int max = (int)info.MaxMembers;
+            int available = (int)info.AvailableSlots;
+            string owner = info.LobbyOwnerUserId.ToString();
+            return new AvailableNetworkSession(
+                sessionName: owner,
+                hostGamertag: owner,
+                currentGamerCount: max - available,
+                openPublicGamerSlots: available,
+                openPrivateGamerSlots: 0,
+                sessionType: type,
+                sessionProperties: properties,
+                sessionId: info.LobbyId,
+                hostPeer: EOSP2PTransport.ToPeer(info.LobbyOwnerUserId));
+        }
+
+        private static bool PropertiesChanged(IReadOnlyDictionary<string, object> now, HashSet<string> published) =>
+            now.Count != published.Count || now.Any(p => !published.Contains(PropertyPrefix + p.Key + "=" + SessionPropertyEncoding.Encode(p.Value)));
+
+        // Writes the bucket, type and properties as public lobby attributes. Returns what is now published,
+        // as "key=encoded" entries, so a later call can tell what changed.
+        private static async Task<HashSet<string>> PublishAttributesAsync(Lobby.LobbyInterface lobbyInterface, ProductUserId localUserId, string lobbyId,
+            NetworkSessionType sessionType, IReadOnlyDictionary<string, object> properties, HashSet<string> previouslyPublished)
+        {
+            var published = new HashSet<string>();
+            foreach (var property in properties)
+                published.Add(PropertyPrefix + property.Key + "=" + SessionPropertyEncoding.Encode(property.Value));
+
             var modification = new Lobby.UpdateLobbyModificationOptions { LobbyId = lobbyId, LocalUserId = localUserId };
             if (lobbyInterface.UpdateLobbyModification(ref modification, out var handle) != Result.Success || handle == null)
             {
-                Debug.WriteLine("[EOS] UpdateLobbyModification failed: the bucket attribute is not set, so searches will not find this lobby.");
-                return;
+                Debug.WriteLine("[EOS] UpdateLobbyModification failed: the lobby's attributes are not set, so searches will not find it.");
+                return previouslyPublished;
             }
 
             try
             {
-                var attribute = new Lobby.LobbyModificationAddAttributeOptions
+                void Set(string key, string value)
                 {
-                    Attribute = new Lobby.AttributeData { Key = "bucket", Value = new Lobby.AttributeDataValue { AsUtf8 = BucketId } },
-                    Visibility = Lobby.LobbyAttributeVisibility.Public
-                };
-                handle.AddAttribute(ref attribute);
+                    var attribute = new Lobby.LobbyModificationAddAttributeOptions
+                    {
+                        Attribute = new Lobby.AttributeData { Key = key, Value = new Lobby.AttributeDataValue { AsUtf8 = value } },
+                        Visibility = Lobby.LobbyAttributeVisibility.Public
+                    };
+                    handle.AddAttribute(ref attribute);
+                }
+
+                Set("bucket", BucketId);
+                Set(TypeKey, sessionType.ToString());
+                foreach (var property in properties)
+                    Set(PropertyPrefix + property.Key, SessionPropertyEncoding.Encode(property.Value));
+
+                // a property the host removed disappears from the lobby too
+                var keysNow = new HashSet<string>(properties.Keys.Select(k => PropertyPrefix + k));
+                foreach (string entry in previouslyPublished)
+                {
+                    string key = entry.Substring(0, entry.IndexOf('='));
+                    if (!keysNow.Contains(key))
+                    {
+                        var remove = new Lobby.LobbyModificationRemoveAttributeOptions { Key = key };
+                        handle.RemoveAttribute(ref remove);
+                    }
+                }
 
                 var update = new Lobby.UpdateLobbyOptions { LobbyModificationHandle = handle };
                 var done = new TaskCompletionSource<Lobby.UpdateLobbyCallbackInfo>(TaskCreationOptions.RunContinuationsAsynchronously);
                 lobbyInterface.UpdateLobby(ref update, null, (ref Lobby.UpdateLobbyCallbackInfo info) => done.TrySetResult(info));
                 var result = await EOSClient.WaitForCallbackAsync(done, EOSClient.GetCallbackTimeout(), CancellationToken.None, "Lobby.UpdateLobby").ConfigureAwait(false);
                 if (result.ResultCode != Result.Success)
-                    Debug.WriteLine($"[EOS] Lobby.UpdateLobby (bucket) failed: {result.ResultCode}");
+                {
+                    Debug.WriteLine($"[EOS] Lobby.UpdateLobby (attributes) failed: {result.ResultCode}");
+                    return previouslyPublished;
+                }
             }
             finally
             {
                 handle.Release();
             }
+
+            return published;
         }
 
         private sealed class LobbyMembership : IDisposable

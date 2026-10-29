@@ -27,6 +27,16 @@ namespace Microsoft.Xna.Framework.Net.Android
 
         public string Name => "Android";
 
+        // Nearby is proximity play, like the LAN: no online session types
+        public bool SupportsSessionType(NetworkSessionType sessionType) => sessionType == NetworkSessionType.SystemLink;
+
+        // Nearby Connections has no invitations
+        public event EventHandler<InviteReceivedEventArgs> InviteReceived
+        {
+            add { }
+            remove { }
+        }
+
         private bool UseNearby(string what)
         {
             if (AndroidRuntime.IsInitialized && AndroidRuntime.TryGetActivity(out _))

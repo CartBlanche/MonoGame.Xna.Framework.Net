@@ -13,14 +13,15 @@ namespace Microsoft.Xna.Framework.Net
         public SignedInGamer Gamer { get; internal set; }
 
         /// <summary>
-        /// Gets whether the operation completed successfully.
+        /// Gets whether the invite is to the session the gamer is already in, in which case there is
+        /// nothing to join.
         /// </summary>
-        public bool IsSignedInGamer { get; internal set; }
+        public bool IsCurrentSession { get; internal set; }
 
-        internal InviteAcceptedEventArgs(SignedInGamer gamer, bool isSignedInGamer)
+        internal InviteAcceptedEventArgs(SignedInGamer gamer, bool isCurrentSession)
         {
             Gamer = gamer;
-            IsSignedInGamer = isSignedInGamer;
+            IsCurrentSession = isCurrentSession;
         }
     }
 }

@@ -117,6 +117,7 @@ namespace Microsoft.Xna.Framework.Net
             this.isHost = isHost;
             this.sessionId = Guid.NewGuid().ToString();
             this.sessionState = NetworkSessionState.Creating;
+            TrackLive(this);
 
             gamers = new List<NetworkGamer>();
             gamerCollection = new GamerCollection(gamers);
@@ -136,8 +137,8 @@ namespace Microsoft.Xna.Framework.Net
             this.localGamer = localGamer;
             AddGamer(localGamer);
 
-            // Start receive loop for SystemLink sessions
-            if (sessionType == NetworkSessionType.SystemLink)
+            // Start the receive loop for every session that talks to others over a transport
+            if (sessionType != NetworkSessionType.Local)
             {
                 // Bind immediately so our address is stable and reachable
                 if (!networkTransport.IsBound)
@@ -326,44 +327,41 @@ namespace Microsoft.Xna.Framework.Net
             if (privateGamerSlots < 0 || privateGamerSlots > maxGamers)
                 throw new ArgumentOutOfRangeException(nameof(privateGamerSlots));
 
-            NetworkSession session = null;
-            switch (sessionType)
+            NetworkSession session;
+            if (sessionType == NetworkSessionType.Local)
             {
-                case NetworkSessionType.Local:
-                    // Local session: in-memory only
-                    await Task.Delay(5, cancellationToken);
-                    session = new NetworkSession(sessionType, maxGamers, privateGamerSlots, true);
-                    session.sessionState = NetworkSessionState.Lobby;
-                    // Register in local session list for FindAsync
-                    LocalSessionRegistry.RegisterSession(session);
-                    break;
-                case NetworkSessionType.SystemLink:
-                    // The back-end supplies the transport and makes the session discoverable
-                    var backend = NetworkServiceProvider.Backend;
-                    session = new NetworkSession(sessionType, maxGamers, privateGamerSlots, true, backend.CreateTransport());
-                    session.sessionState = NetworkSessionState.Lobby;
-                    session.StartConnectionMonitoring();
-                    session.logger?.LogInfo($"Started connection monitoring for session {session.sessionId}");
+                // Local session: in-memory only
+                await Task.Delay(5, cancellationToken);
+                session = new NetworkSession(sessionType, maxGamers, privateGamerSlots, true);
+                session.sessionState = NetworkSessionState.Lobby;
+                // Register in local session list for FindAsync
+                LocalSessionRegistry.RegisterSession(session);
+            }
+            else
+            {
+                // Every other type is carried by the back-end, which supplies the transport and makes the
+                // session discoverable
+                var backend = RequireBackendFor(sessionType);
+                session = new NetworkSession(sessionType, maxGamers, privateGamerSlots, true, backend.CreateTransport());
+                session.sessionState = NetworkSessionState.Lobby;
+                session.StartConnectionMonitoring();
+                session.logger?.LogInfo($"Started connection monitoring for session {session.sessionId}");
 
-                    // what the host asked for is what searches see and what joiners get
-                    if (sessionProperties != null)
-                        foreach (var kvp in sessionProperties)
-                            session.SessionProperties[kvp.Key] = kvp.Value;
+                // set before advertising: the advertisement carries them
+                if (sessionProperties != null)
+                    foreach (var kvp in sessionProperties)
+                        session.SessionProperties[kvp.Key] = kvp.Value;
 
-                    try
-                    {
-                        // the session's own token, so advertising stops when the session does
-                        await backend.AdvertiseAsync(session, session.networkTransport, session.cancellationTokenSource.Token).ConfigureAwait(false);
-                    }
-                    catch
-                    {
-                        session.Dispose();
-                        throw;
-                    }
-                    break;
-                default:
-                    // Not implemented
-                    throw new NotSupportedException($"SessionType {sessionType} not supported yet.");
+                try
+                {
+                    // the session's own token, so advertising stops when the session does
+                    await backend.AdvertiseAsync(session, session.networkTransport, session.cancellationTokenSource.Token).ConfigureAwait(false);
+                }
+                catch
+                {
+                    session.Dispose();
+                    throw;
+                }
             }
 
             // what the host asked for is what searches see and what joiners get
@@ -400,21 +398,26 @@ namespace Microsoft.Xna.Framework.Net
         /// </summary>
         public static async Task<AvailableNetworkSessionCollection> FindAsync(NetworkSessionType sessionType, int maxLocalGamers, IDictionary<string, object> sessionProperties, CancellationToken cancellationToken = default)
         {
-            switch (sessionType)
+            if (sessionType == NetworkSessionType.Local)
             {
-                case NetworkSessionType.Local:
-                    await Task.Delay(5, cancellationToken);
-                    // Return sessions in local registry
-                    var localSessions = LocalSessionRegistry.FindSessions(maxLocalGamers).Where(s => MatchesSearch(s, sessionProperties)).ToList();
-                    return new AvailableNetworkSessionCollection(localSessions);
-                case NetworkSessionType.SystemLink:
-                    // Discover sessions via UDP broadcast
-                    var found = await NetworkServiceProvider.Backend.FindAsync(sessionType, maxLocalGamers, cancellationToken).ConfigureAwait(false);
-                    var systemLinkSessions = found.Where(s => MatchesSearch(s, sessionProperties)).ToList();
-                    return new AvailableNetworkSessionCollection(systemLinkSessions);
-                default:
-                    throw new NotSupportedException($"SessionType {sessionType} not supported yet.");
+                await Task.Delay(5, cancellationToken);
+                // Return sessions in local registry
+                var localSessions = LocalSessionRegistry.FindSessions(maxLocalGamers).Where(s => MatchesSearch(s, sessionProperties)).ToList();
+                return new AvailableNetworkSessionCollection(localSessions);
             }
+
+            var backend = RequireBackendFor(sessionType);
+            var found = await backend.FindAsync(sessionType, maxLocalGamers, cancellationToken).ConfigureAwait(false);
+            // the back-end lists what it has; the search properties narrow it
+            return new AvailableNetworkSessionCollection(found.Where(s => s.SessionType == sessionType && MatchesSearch(s, sessionProperties)).ToList());
+        }
+
+        private static INetworkBackend RequireBackendFor(NetworkSessionType sessionType)
+        {
+            var backend = NetworkServiceProvider.Backend;
+            if (!backend.SupportsSessionType(sessionType))
+                throw new NotSupportedException($"The {backend.Name} back-end does not support {sessionType} sessions.");
+            return backend;
         }
 
         /// <summary>
@@ -431,72 +434,85 @@ namespace Microsoft.Xna.Framework.Net
         /// </summary>
         public static async Task<NetworkSession> JoinAsync(AvailableNetworkSession availableSession, CancellationToken cancellationToken = default)
         {
-            switch (availableSession.SessionType)
+            if (availableSession == null)
+                throw new ArgumentNullException(nameof(availableSession));
+
+            if (availableSession.SessionType == NetworkSessionType.Local)
             {
-                case NetworkSessionType.Local:
-                    // Attach to local session
-                    var localSession = LocalSessionRegistry.GetSessionById(availableSession.SessionId);
-                    if (localSession == null)
-                        throw new NetworkSessionJoinException(NetworkSessionJoinError.SessionNotFound);
+                // Attach to local session
+                var localSession = LocalSessionRegistry.GetSessionById(availableSession.SessionId);
+                if (localSession == null)
+                    throw new NetworkSessionJoinException(NetworkSessionJoinError.SessionNotFound);
 
-                    // Add local gamer
-                    var localGamer = new LocalNetworkGamer(localSession, Guid.NewGuid().ToString(), false, SignedInGamer.Current?.Gamertag ?? "Player");
-                    localSession.AddGamer(localGamer);
-                    return localSession;
-                case NetworkSessionType.SystemLink:
-                    // Connect to host via network
-                    var backend = NetworkServiceProvider.Backend;
-                    var joinTransport = backend.CreateTransport();
-                    IDisposable membership = null;
-                    NetworkSession joinedSession;
-                    try
-                    {
-                        membership = await backend.PrepareJoinAsync(availableSession, joinTransport, cancellationToken).ConfigureAwait(false);
-                        joinedSession = await SystemLinkSessionManager.JoinSessionAsync(availableSession, joinTransport, cancellationToken);
-                    }
-                    catch
-                    {
-                        membership?.Dispose();
-                        joinTransport.Dispose();
-                        throw;
-                    }
-                    joinedSession.backendMembership = membership;
-                    if (joinedSession == null)
-                        throw new NetworkSessionJoinException(NetworkSessionJoinError.SessionNotFound);
-
-                    return joinedSession;
-                default:
-                    throw new NotSupportedException($"SessionType {availableSession.SessionType} not supported yet.");
+                // Add local gamer
+                var localGamer = new LocalNetworkGamer(localSession, Guid.NewGuid().ToString(), false, SignedInGamer.Current?.Gamertag ?? "Player");
+                localSession.AddGamer(localGamer);
+                return localSession;
             }
+
+            // Connect to the host through the back-end
+            var backend = RequireBackendFor(availableSession.SessionType);
+            var joinTransport = backend.CreateTransport();
+            IDisposable membership = null;
+            NetworkSession joinedSession;
+            try
+            {
+                membership = await backend.PrepareJoinAsync(availableSession, joinTransport, cancellationToken).ConfigureAwait(false);
+                joinedSession = await SystemLinkSessionManager.JoinSessionAsync(availableSession, joinTransport, cancellationToken);
+                if (joinedSession == null)
+                    throw new NetworkSessionJoinException(NetworkSessionJoinError.SessionNotFound);
+            }
+            catch
+            {
+                membership?.Dispose();
+                joinTransport.Dispose();
+                throw;
+            }
+
+            joinedSession.backendMembership = membership;
+            return joinedSession;
         }
 
+        /// <summary>
+        /// Joins the session the user was invited to: the invitation they last accepted in the platform's
+        /// own UI, which is announced by <see cref="InviteAccepted"/>.
+        /// </summary>
+        /// <exception cref="InvalidOperationException">There is no invitation waiting.</exception>
         public static Task<NetworkSession> JoinInvitedAsync(IEnumerable<SignedInGamer> localGamers, object state = null, CancellationToken cancellationToken = default)
         {
             if (localGamers == null || !localGamers.Any())
                 throw new ArgumentException("At least one local gamer must be provided.", nameof(localGamers));
 
-            // Simulate invite acceptance logic
-            var inviteAcceptedEventArgs = new InviteAcceptedEventArgs(localGamers.First(), true);
-            InviteAccepted?.Invoke(null, inviteAcceptedEventArgs);
+            AvailableNetworkSession invite = NetworkServiceProvider.TakePendingInvite()
+                ?? throw new InvalidOperationException("There is no invitation to join. Wait for NetworkSession.InviteAccepted.");
 
-            if (!inviteAcceptedEventArgs.IsSignedInGamer)
-                throw new InvalidOperationException("The gamer is not signed in.");
+            return JoinAsync(invite, cancellationToken);
+        }
 
-            // Simulate finding the session associated with the invite
-            var availableSession = new AvailableNetworkSession(
-                sessionName: "InvitedSession",
-                hostGamertag: "HostPlayer",
-                currentGamerCount: 1,
-                openPublicGamerSlots: 3,
-                openPrivateGamerSlots: 1,
-                sessionType: NetworkSessionType.PlayerMatch,
-                sessionProperties: new Dictionary<string, object>(),
-                sessionId: Guid.NewGuid().ToString()
-            );
+        // sessions that are alive on this machine, to tell whether an invitation is to one we are already in
+        private static readonly List<WeakReference<NetworkSession>> liveSessions = new List<WeakReference<NetworkSession>>();
 
-            // Join the session
-            var joinedSession = SystemLinkSessionManager.JoinSessionAsync(availableSession, cancellationToken);
-            return joinedSession;
+        private static void TrackLive(NetworkSession session)
+        {
+            lock (liveSessions)
+            {
+                liveSessions.RemoveAll(w => !w.TryGetTarget(out var s) || s.disposed);
+                liveSessions.Add(new WeakReference<NetworkSession>(session));
+            }
+        }
+
+        /// <summary>
+        /// Raises <see cref="InviteAccepted"/> for an invitation. Returns true if it is to a session this
+        /// machine is already in.
+        /// </summary>
+        internal static bool RaiseInviteAccepted(AvailableNetworkSession invite)
+        {
+            bool isCurrent;
+            lock (liveSessions)
+                isCurrent = liveSessions.Any(w => w.TryGetTarget(out var s) && !s.disposed && s.sessionId == invite.SessionId);
+
+            InviteAccepted?.Invoke(null, new InviteAcceptedEventArgs(SignedInGamer.Current, isCurrent));
+            return isCurrent;
         }
 
         /// <summary>
@@ -537,6 +553,9 @@ namespace Microsoft.Xna.Framework.Net
         /// </summary>
         public void Update()
         {
+            // an invitation accepted in the platform's UI is raised from any session's Update
+            NetworkServiceProvider.DispatchInvites();
+
             if (disposed)
                 return;
 
@@ -1822,10 +1841,16 @@ namespace Microsoft.Xna.Framework.Net
         }
 
         // Modern async receive loop for SystemLink
+        // a transport that keeps failing is as good as gone: this many failures in a row end the session
+        private const int MaxConsecutiveReceiveFailures = 10;
+
         private async Task ReceiveLoopAsync(CancellationToken cancellationToken)
         {
+            int failures = 0;
             while (!cancellationToken.IsCancellationRequested)
             {
+                byte[] data;
+                PeerId sender;
                 try
                 {
                     // Ensure the network transport is bound before receiving data
@@ -1834,19 +1859,13 @@ namespace Microsoft.Xna.Framework.Net
                         networkTransport.Bind();
                     }
 
-                    var (data, senderEndpoint) = await networkTransport.ReceiveAsync();
-                    if (data.Length > 0)
-                    {
-                        // Phase 1: Record received packet in diagnostics
-                        diagnostics?.RecordPacketReceived(data.Length);
-
-                        ProcessIncomingDatagram(data, senderEndpoint);
-                    }
+                    (data, sender) = await networkTransport.ReceiveAsync();
+                    failures = 0;
                 }
-                catch (ObjectDisposedException) 
-                { 
+                catch (ObjectDisposedException)
+                {
                     // Session disposed - exit gracefully
-                    break; 
+                    break;
                 }
                 catch (OperationCanceledException)
                 {
@@ -1860,14 +1879,38 @@ namespace Microsoft.Xna.Framework.Net
                 }
                 catch (Exception ex)
                 {
-                    // Only log unexpected errors
-                    if (!cancellationToken.IsCancellationRequested)
-                    {
-                        logger?.LogError($"ReceiveLoop error: {ex.Message}", ex);
-                    }
-                    // Exit if cancellation was requested
                     if (cancellationToken.IsCancellationRequested)
                         break;
+
+                    logger?.LogError($"ReceiveLoop error: {ex.Message}", ex);
+                    if (++failures >= MaxConsecutiveReceiveFailures)
+                    {
+                        logger?.LogError("The transport keeps failing: ending the session");
+                        if (sessionState != NetworkSessionState.Ended)
+                            OnSessionEnded(NetworkSessionEndReason.NetworkError);
+                        break;
+                    }
+
+                    // back off, so a transport that fails at once does not become a busy loop
+                    try { await Task.Delay(50 * failures, cancellationToken); }
+                    catch (OperationCanceledException) { break; }
+                    continue;
+                }
+
+                if (data.Length == 0)
+                    continue;
+
+                try
+                {
+                    // Phase 1: Record received packet in diagnostics
+                    diagnostics?.RecordPacketReceived(data.Length);
+
+                    ProcessIncomingDatagram(data, sender);
+                }
+                catch (Exception ex)
+                {
+                    // one bad datagram must not end the session
+                    logger?.LogError($"Processing a datagram failed: {ex.Message}", ex);
                 }
             }
         }

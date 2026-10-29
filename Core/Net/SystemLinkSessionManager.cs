@@ -257,7 +257,7 @@ namespace Microsoft.Xna.Framework.Net
             Debug.WriteLine($"[JOIN] Starting join process for session {availableSession.SessionId}");
 
             // Create client session in Joining state
-            var session = new NetworkSession(NetworkSessionType.SystemLink,
+            var session = new NetworkSession(availableSession.SessionType,
                 availableSession.OpenPublicGamerSlots + availableSession.CurrentGamerCount + availableSession.OpenPrivateGamerSlots,
                 availableSession.OpenPrivateGamerSlots,
                 false,

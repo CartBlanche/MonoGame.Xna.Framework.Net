@@ -16,6 +16,20 @@ namespace Microsoft.Xna.Framework.Net
         string Name { get; }
 
         /// <summary>
+        /// Whether this back-end carries sessions of this type. <see cref="NetworkSession"/> refuses the
+        /// others with a <see cref="NotSupportedException"/> naming the back-end. (A LAN back-end carries
+        /// SystemLink; an online one carries PlayerMatch and Ranked. Local sessions never reach a back-end.)
+        /// </summary>
+        bool SupportsSessionType(NetworkSessionType sessionType);
+
+        /// <summary>
+        /// Raised, from any thread, when the local user accepts an invitation in the platform's UI. The
+        /// framework holds it until the game's next <c>Update()</c> and raises
+        /// <see cref="NetworkSession.InviteAccepted"/> there. A back-end without invitations never raises it.
+        /// </summary>
+        event EventHandler<InviteReceivedEventArgs> InviteReceived;
+
+        /// <summary>
         /// Creates a transport for one session. Called once per hosted or joined session; the session
         /// binds it and disposes it.
         /// </summary>

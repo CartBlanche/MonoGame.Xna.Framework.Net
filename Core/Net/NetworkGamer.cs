@@ -357,7 +357,11 @@ namespace Microsoft.Xna.Framework.Net
         {
             switch (session.SessionType)
             {
+                // sessions that talk over a transport: SystemLink, PlayerMatch and Ranked differ in who
+                // can find them, not in how data travels
                 case NetworkSessionType.SystemLink:
+                case NetworkSessionType.PlayerMatch:
+                case NetworkSessionType.Ranked:
                     // Everyone but the sender: a gamer never receives what it sent itself, as in XNA
                     foreach (var recipient in recipients)
                     {
@@ -383,14 +387,6 @@ namespace Microsoft.Xna.Framework.Net
                         recipient.EnqueueIncomingPacket(clone, this);
                     }
                     break;
-
-                case NetworkSessionType.PlayerMatch:
-                    // Placeholder for future implementation
-                    throw new NotImplementedException("PlayerMatch session type is not yet supported.");
-
-                case NetworkSessionType.Ranked:
-                    // Placeholder for future implementation
-                    throw new NotImplementedException("Ranked session type is not yet supported.");
 
                 default:
                     throw new ArgumentOutOfRangeException(nameof(session.SessionType), $"Unsupported session type: {session.SessionType}");

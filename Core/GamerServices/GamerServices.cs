@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Net;
 
 namespace Microsoft.Xna.Framework.GamerServices
 {
@@ -24,7 +25,8 @@ namespace Microsoft.Xna.Framework.GamerServices
         /// <param name="gameTime">Game timing information.</param>
         public void Update(GameTime gameTime)
         {
-            // Mock implementation - gamer services update logic would go here
+            // invitations accepted in the platform's UI are raised here, on the game's thread
+            NetworkServiceProvider.DispatchInvites();
         }
 
         /// <summary>
