@@ -272,8 +272,8 @@ Tasks
 
 - [ ] 9.1 `NetworkStateManagement` (`/Users/dominique/Development/CartBlanche/MonoGame-Samples/NetworkStateManagement`) runs unmodified-as-possible on UDP, Steam, then EOS/Android/iOS. Note: it exercises the session lifecycle (create/find/join/invite/lobby/end reasons) but **not** `SendData`/`ReceiveData`
 - [ ] 9.2 Add a small data-path sample (movement sync over reliable + unreliable) so the data path has a real acceptance test beyond ShipGame
-- [ ] 9.3 README: replace "covered by tests" with accurate per-back-end status; add compat matrix (XNA member → status)
-- [ ] 9.4 Update ShipGame for the `Write(byte[])` and any other intentional API changes (it is the only known consumer)
+- [ ] 9.3 (include a migration list from the pre-0.4 API: `NetworkGamer.Id` is a `byte` and the string identity is `GamerId`; `AvailableNetworkSession` takes a `PeerId`; `Write(byte[])` no longer length-prefixes; `INetworkSession` is gone) README: replace "covered by tests" with accurate per-back-end status; add compat matrix (XNA member → status)
+- [x] 9.4 ShipGame (`~/Projects/MonoGame/MonoGame.Samples/ShipGame`, referencing this repo's Core by project reference) updated for the intentional API changes and builds with 0 errors (Core and DesktopGL), its 44 tests pass, as do this repo's 53 compat tests. It needed two changes, neither `Write(byte[])`: `NetworkGamer.Id` is now XNA's `byte`, so its string identity use moved to `GamerId` (12 sites in 5 files), and `AvailableNetworkSession` takes a `PeerId` for the host (`UdpTransport.ToPeer(endpoint)`). The edits are NOT committed in ShipGame (its tree has the owner's other uncommitted work). A two-machine play-through has not been done
 - [ ] 9.5 Before the first NuGet publish: freeze the public API surface, decide the compatibility/semver policy, set protocol-version negotiation if multi-version interop is wanted, then publish versioned previews for each package
 
 ---
