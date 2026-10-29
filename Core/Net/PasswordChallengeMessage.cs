@@ -8,9 +8,9 @@ namespace Microsoft.Xna.Framework.Net
     {
         public byte MessageType => 13;
 
-        public byte[] Salt { get; set; } = new byte[0];
+        public byte[] Salt { get; set; } = Array.Empty<byte>();
 
-        public byte[] Nonce { get; set; } = new byte[0];
+        public byte[] Nonce { get; set; } = Array.Empty<byte>();
 
         public void Serialize(PacketWriter writer)
         {

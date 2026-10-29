@@ -17,7 +17,7 @@ namespace Microsoft.Xna.Framework.GamerServices
     {
         private const string DefaultLocalStorageFolder = "MonoGame.Xna.Framework.Net";
 
-        private static IAchievementProvider liveProvider;
+        private static IAchievementProvider? liveProvider;
         private static IAchievementProvider localProvider = new PersistentLocalAchievementProvider();
         private static readonly IAchievementProvider syncAwareProvider = new SyncAwareAchievementProvider();
 
@@ -30,7 +30,7 @@ namespace Microsoft.Xna.Framework.GamerServices
         /// <summary>
         /// Gets or sets the online/live provider used when a gamer is signed in.
         /// </summary>
-        public static IAchievementProvider LiveProvider
+        public static IAchievementProvider? LiveProvider
         {
             get => liveProvider;
             set => liveProvider = value;
@@ -83,8 +83,7 @@ namespace Microsoft.Xna.Framework.GamerServices
             string achievementKey,
             CancellationToken cancellationToken = default)
         {
-            if (gamer == null)
-                throw new ArgumentNullException(nameof(gamer));
+            ArgumentNullException.ThrowIfNull(gamer);
             if (string.IsNullOrWhiteSpace(achievementKey))
                 throw new ArgumentException("Achievement key cannot be empty.", nameof(achievementKey));
 
@@ -128,8 +127,7 @@ namespace Microsoft.Xna.Framework.GamerServices
             SignedInGamer gamer,
             CancellationToken cancellationToken = default)
         {
-            if (gamer == null)
-                throw new ArgumentNullException(nameof(gamer));
+            ArgumentNullException.ThrowIfNull(gamer);
 
             cancellationToken.ThrowIfCancellationRequested();
 
@@ -190,8 +188,7 @@ namespace Microsoft.Xna.Framework.GamerServices
 
         public Task<AchievementCollection> GetAchievementsAsync(SignedInGamer gamer, CancellationToken cancellationToken = default)
         {
-            if (gamer == null)
-                throw new ArgumentNullException(nameof(gamer));
+            ArgumentNullException.ThrowIfNull(gamer);
 
             cancellationToken.ThrowIfCancellationRequested();
 
@@ -213,8 +210,7 @@ namespace Microsoft.Xna.Framework.GamerServices
             float percentComplete,
             CancellationToken cancellationToken = default)
         {
-            if (gamer == null)
-                throw new ArgumentNullException(nameof(gamer));
+            ArgumentNullException.ThrowIfNull(gamer);
             if (string.IsNullOrWhiteSpace(achievementKey))
                 throw new ArgumentException("Achievement key cannot be empty.", nameof(achievementKey));
 
@@ -232,8 +228,7 @@ namespace Microsoft.Xna.Framework.GamerServices
 
         public Task UnlockAsync(SignedInGamer gamer, string achievementKey, CancellationToken cancellationToken = default)
         {
-            if (gamer == null)
-                throw new ArgumentNullException(nameof(gamer));
+            ArgumentNullException.ThrowIfNull(gamer);
             if (string.IsNullOrWhiteSpace(achievementKey))
                 throw new ArgumentException("Achievement key cannot be empty.", nameof(achievementKey));
 
@@ -283,8 +278,7 @@ namespace Microsoft.Xna.Framework.GamerServices
 
         public Task<AchievementCollection> GetAchievementsAsync(SignedInGamer gamer, CancellationToken cancellationToken = default)
         {
-            if (gamer == null)
-                throw new ArgumentNullException(nameof(gamer));
+            ArgumentNullException.ThrowIfNull(gamer);
 
             cancellationToken.ThrowIfCancellationRequested();
 
@@ -308,8 +302,7 @@ namespace Microsoft.Xna.Framework.GamerServices
             float percentComplete,
             CancellationToken cancellationToken = default)
         {
-            if (gamer == null)
-                throw new ArgumentNullException(nameof(gamer));
+            ArgumentNullException.ThrowIfNull(gamer);
             if (string.IsNullOrWhiteSpace(achievementKey))
                 throw new ArgumentException("Achievement key cannot be empty.", nameof(achievementKey));
 
@@ -337,8 +330,7 @@ namespace Microsoft.Xna.Framework.GamerServices
 
         public Task UnlockAsync(SignedInGamer gamer, string achievementKey, CancellationToken cancellationToken = default)
         {
-            if (gamer == null)
-                throw new ArgumentNullException(nameof(gamer));
+            ArgumentNullException.ThrowIfNull(gamer);
             if (string.IsNullOrWhiteSpace(achievementKey))
                 throw new ArgumentException("Achievement key cannot be empty.", nameof(achievementKey));
 
@@ -365,8 +357,7 @@ namespace Microsoft.Xna.Framework.GamerServices
 
         internal void UnlockLocal(SignedInGamer gamer, string achievementKey, bool markPendingSync)
         {
-            if (gamer == null)
-                throw new ArgumentNullException(nameof(gamer));
+            ArgumentNullException.ThrowIfNull(gamer);
             if (string.IsNullOrWhiteSpace(achievementKey))
                 throw new ArgumentException("Achievement key cannot be empty.", nameof(achievementKey));
 
@@ -392,8 +383,7 @@ namespace Microsoft.Xna.Framework.GamerServices
 
         internal IReadOnlyList<string> GetPendingSyncKeys(SignedInGamer gamer)
         {
-            if (gamer == null)
-                throw new ArgumentNullException(nameof(gamer));
+            ArgumentNullException.ThrowIfNull(gamer);
 
             lock (gate)
             {
@@ -415,8 +405,7 @@ namespace Microsoft.Xna.Framework.GamerServices
 
         internal void MarkSynced(SignedInGamer gamer, string achievementKey)
         {
-            if (gamer == null)
-                throw new ArgumentNullException(nameof(gamer));
+            ArgumentNullException.ThrowIfNull(gamer);
             if (string.IsNullOrWhiteSpace(achievementKey))
                 throw new ArgumentException("Achievement key cannot be empty.", nameof(achievementKey));
 
@@ -440,8 +429,7 @@ namespace Microsoft.Xna.Framework.GamerServices
 
         internal void MarkSyncFailed(SignedInGamer gamer, string achievementKey, string errorMessage)
         {
-            if (gamer == null)
-                throw new ArgumentNullException(nameof(gamer));
+            ArgumentNullException.ThrowIfNull(gamer);
             if (string.IsNullOrWhiteSpace(achievementKey))
                 throw new ArgumentException("Achievement key cannot be empty.", nameof(achievementKey));
 
@@ -548,7 +536,7 @@ namespace Microsoft.Xna.Framework.GamerServices
         public DateTime? EarnedDate { get; set; }
         public AchievementSyncState SyncState { get; set; }
         public DateTime? LastSyncAttemptUtc { get; set; }
-        public string LastSyncError { get; set; }
+        public string? LastSyncError { get; set; }
     }
 
     internal static class AchievementProjection
@@ -640,7 +628,7 @@ namespace Microsoft.Xna.Framework.GamerServices
             }
         }
 
-        private static Achievement ToAchievement(AchievementDefinition definition, AchievementState state)
+        private static Achievement ToAchievement(AchievementDefinition definition, AchievementState? state)
         {
             return new Achievement(
                 key: definition.Key,

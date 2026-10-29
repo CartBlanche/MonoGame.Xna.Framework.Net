@@ -11,9 +11,9 @@ namespace Microsoft.Xna.Framework.Net
         /// <summary>The <see cref="NetworkGamer.Id"/> the host gave the new gamer.</summary>
         public byte Id { get; set; }
 
-        public string GamerId { get; set; }
+        public string GamerId { get; set; } = string.Empty;
 
-        public string Gamertag { get; set; }
+        public string Gamertag { get; set; } = string.Empty;
 
         public void Serialize(PacketWriter writer)
         {

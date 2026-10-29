@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System;
 using System.Security.Cryptography;
 using System.Text;
@@ -46,7 +47,7 @@ namespace Microsoft.Xna.Framework.Net
         }
 
         /// <summary>Reverses <see cref="Seal"/>; false if the key is wrong or anything was changed.</summary>
-        public static bool TryOpen(byte[] key, byte[] sealedBytes, byte[] associatedData, out byte[] plaintext)
+        public static bool TryOpen(byte[] key, byte[] sealedBytes, byte[] associatedData, [NotNullWhen(true)] out byte[]? plaintext)
         {
             plaintext = null;
             if (sealedBytes == null || sealedBytes.Length < 12 + 16)

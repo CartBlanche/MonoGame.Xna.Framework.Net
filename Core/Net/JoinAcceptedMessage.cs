@@ -15,9 +15,9 @@ namespace Microsoft.Xna.Framework.Net
         }
 
         public byte MessageType => 3;
-        public string SessionId { get; set; }
-        public string HostGamerId { get; set; }
-        public string HostGamertag { get; set; }
+        public string SessionId { get; set; } = string.Empty;
+        public string HostGamerId { get; set; } = string.Empty;
+        public string HostGamertag { get; set; } = string.Empty;
 
         /// <summary>The host's <see cref="NetworkGamer.Id"/>: the host decides the ids for everyone.</summary>
         public byte HostId { get; set; }
@@ -26,7 +26,7 @@ namespace Microsoft.Xna.Framework.Net
         public byte YourId { get; set; }
 
         /// <summary>The key for the link between this joiner and the host.</summary>
-        public byte[] LinkKey { get; set; } = new byte[0];
+        public byte[] LinkKey { get; set; } = Array.Empty<byte>();
 
         /// <summary>True if <see cref="LinkKey"/> is sealed under the session password; false if it is the key itself.</summary>
         public bool KeyIsSealed { get; set; }
@@ -43,7 +43,7 @@ namespace Microsoft.Xna.Framework.Net
             writer.Write(HostId);
             writer.Write(YourId);
             writer.Write(KeyIsSealed);
-            writer.WriteLengthPrefixed(LinkKey ?? new byte[0]);
+            writer.WriteLengthPrefixed(LinkKey ?? Array.Empty<byte>());
             writer.Write((byte)Others.Count);
             foreach (RosterEntry entry in Others)
             {

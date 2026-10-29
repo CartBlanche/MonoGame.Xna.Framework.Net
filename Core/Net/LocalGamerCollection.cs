@@ -14,7 +14,7 @@ namespace Microsoft.Xna.Framework.Net
         /// </summary>
         /// <param name="id">The ID to search for.</param>
         /// <returns>The local gamer with the specified ID, or null if not found.</returns>
-        public LocalNetworkGamer FindGamerById(byte id)
+        public LocalNetworkGamer? FindGamerById(byte id)
         {
             foreach (var gamer in this)
             {
@@ -27,7 +27,7 @@ namespace Microsoft.Xna.Framework.Net
         /// <summary>
         /// Gets the host gamer of the session (if local).
         /// </summary>
-        public LocalNetworkGamer Host
+        public LocalNetworkGamer? Host
         {
             get
             {

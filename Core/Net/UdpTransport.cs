@@ -39,23 +39,21 @@ namespace Microsoft.Xna.Framework.Net
         /// <summary>The peer that stands for an IP endpoint.</summary>
         public static PeerId ToPeer(IPEndPoint endpoint)
         {
-            if (endpoint == null)
-                throw new ArgumentNullException(nameof(endpoint));
+            ArgumentNullException.ThrowIfNull(endpoint);
             return new PeerId(PeerPrefix + endpoint);
         }
 
         /// <summary>The IP endpoint a peer stands for, or null if it is not a UDP peer.</summary>
-        public static IPEndPoint ToEndPoint(PeerId peer)
+        public static IPEndPoint? ToEndPoint(PeerId peer)
         {
             if (!peer.IsValid || !peer.Value.StartsWith(PeerPrefix, StringComparison.Ordinal))
                 return null;
-            return IPEndPoint.TryParse(peer.Value.Substring(PeerPrefix.Length), out var endpoint) ? endpoint : null;
+            return IPEndPoint.TryParse(peer.Value.AsSpan(PeerPrefix.Length), out var endpoint) ? endpoint : null;
         }
 
         public void Send(PeerId peer, byte[] data, int length)
         {
-            if (data == null)
-                throw new ArgumentNullException(nameof(data));
+            ArgumentNullException.ThrowIfNull(data);
             if (length < 0 || length > data.Length)
                 throw new ArgumentOutOfRangeException(nameof(length));
             IPEndPoint endpoint = ToEndPoint(peer) ?? throw new ArgumentException($"{peer} is not a UDP peer.", nameof(peer));
@@ -71,6 +69,7 @@ namespace Microsoft.Xna.Framework.Net
 
         public void Dispose()
         {
+            GC.SuppressFinalize(this);
             udpClient?.Close();
             udpClient?.Dispose();
         }
@@ -101,7 +100,7 @@ namespace Microsoft.Xna.Framework.Net
         public bool IsBound => isBound;
 
         /// <summary>The socket's address, or null before binding.</summary>
-        public IPEndPoint LocalEndPoint => isBound ? udpClient.Client.LocalEndPoint as IPEndPoint : null;
+        public IPEndPoint? LocalEndPoint => isBound ? udpClient.Client.LocalEndPoint as IPEndPoint : null;
 
         public PeerId LocalPeer => LocalEndPoint is IPEndPoint local ? ToPeer(local) : PeerId.None;
     }

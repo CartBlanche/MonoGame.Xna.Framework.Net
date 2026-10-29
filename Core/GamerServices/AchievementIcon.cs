@@ -8,12 +8,11 @@ namespace Microsoft.Xna.Framework.GamerServices
         public AchievementIcon(
             byte[] data,
             string contentType,
-            string cacheKey = null,
+            string? cacheKey = null,
             int width = 0,
             int height = 0)
         {
-            if (data == null)
-                throw new ArgumentNullException(nameof(data));
+            ArgumentNullException.ThrowIfNull(data);
             if (string.IsNullOrWhiteSpace(contentType))
                 throw new ArgumentException("Content type cannot be empty.", nameof(contentType));
 
@@ -26,7 +25,7 @@ namespace Microsoft.Xna.Framework.GamerServices
 
         public byte[] Data { get; }
         public string ContentType { get; }
-        public string CacheKey { get; }
+        public string? CacheKey { get; }
         public int Width { get; }
         public int Height { get; }
     }

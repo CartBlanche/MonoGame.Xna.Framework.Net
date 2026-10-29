@@ -15,7 +15,7 @@ namespace Microsoft.Xna.Framework.Net
         
         private readonly Dictionary<string, GamerConnectionState> connections = new Dictionary<string, GamerConnectionState>();
         private uint sequenceNumber = 0;
-        private NetworkSession session;
+        private NetworkSession session = null!;   // set by StartMonitoring, before the loop that reads it runs
         private bool isRunning = false;
 
         private class GamerConnectionState
@@ -149,13 +149,13 @@ namespace Microsoft.Xna.Framework.Net
         {
             lock (connections)
             {
-                if (!connections.ContainsKey(gamerId))
+                if (!connections.TryGetValue(gamerId, out var state))
                 {
                     // New remote gamer
-                    connections[gamerId] = new GamerConnectionState();
+                    state = new GamerConnectionState();
+                    connections[gamerId] = state;
                 }
 
-                var state = connections[gamerId];
                 state.LastHeartbeat = DateTime.UtcNow;
                 state.MissedHeartbeats = 0;
                 state.LastSequenceNumber = heartbeat.SequenceNumber;

@@ -34,7 +34,7 @@ namespace Microsoft.Xna.Framework.Net
             }
         }
 
-        public static NetworkSession GetSessionById(string sessionId)
+        public static NetworkSession? GetSessionById(string sessionId)
         {
             lock (sessions)
             {

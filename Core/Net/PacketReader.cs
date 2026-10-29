@@ -38,7 +38,7 @@ namespace Microsoft.Xna.Framework.Net
         /// </summary>
         public void Reset(byte[] data)
         {
-            if (data == null) throw new ArgumentNullException(nameof(data));
+            ArgumentNullException.ThrowIfNull(data);
             stream.SetLength(0);
             stream.Position = 0;
             stream.Write(data, 0, data.Length);
@@ -269,6 +269,7 @@ namespace Microsoft.Xna.Framework.Net
         /// </summary>
         public void Dispose()
         {
+            GC.SuppressFinalize(this);
             if (!disposed)
             {
                 reader?.Dispose();

@@ -264,7 +264,7 @@ Tasks
 - [x] 8.4 `PlayerMoveMessage` deleted (nothing used it; wire id 1 is now unassigned)
 - [x] 8.5 "Phase N" comments removed; the legacy `GameStateChangeMessage` broadcast was already gone
 - [x] 8.6 Every await in Core and the back-ends is `ConfigureAwait(false)`; all 14 blocking wrappers say they block and why they cannot deadlock. `Guide.ShowMessageBoxAsync` used `Task.Yield()`, which resumes on the caller's context and would have deadlocked `ShowMessageBox`; it now hops to the thread pool
-- [ ] 8.7 Nullable reference types and analyzers on Core
+- [x] 8.7 Nullable reference types and `latest-recommended` analyzers on Core: 90 nullable warnings and 73 analyzer warnings fixed, 0 left. Downgraded to none in `Core/.editorconfig`: CA1707/CA1708 (public names follow the protocol and XNA), CA1822 (XNA-shaped instance members), CA1805 (explicit defaults document intent). Public changes a nullable-aware caller sees: `?` on `FindGamerById`, `Host`, `Tag`, `Sender`, `Password`, `SignedInGamer.Privileges` (never assigned: always null), the achievement icon providers, `PrepareJoinAsync`; the optional string and exception arguments
 - [ ] 8.8 EOS: decide whether the generated 9.6k-line binding stays vendored or becomes a package reference
 
 ---

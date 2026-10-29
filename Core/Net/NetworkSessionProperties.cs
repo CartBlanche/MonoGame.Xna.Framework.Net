@@ -62,8 +62,8 @@ namespace Microsoft.Xna.Framework.Net
         {
             var result = new Dictionary<string, object>();
             for (int i = 0; i < SlotCount; i++)
-                if (values[i].HasValue)
-                    result[i.ToString()] = values[i].Value;
+                if (values[i] is { } slotValue)
+                    result[i.ToString(System.Globalization.CultureInfo.InvariantCulture)] = slotValue;
             return result;
         }
     }

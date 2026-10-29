@@ -84,8 +84,7 @@ namespace Microsoft.Xna.Framework.GamerServices
             MessageBoxIcon icon,
             CancellationToken cancellationToken = default)
         {
-            if (buttons == null)
-                throw new ArgumentNullException(nameof(buttons));
+            ArgumentNullException.ThrowIfNull(buttons);
 
             var buttonList = buttons as IList<string> ?? buttons.ToList();
             if (buttonList.Count == 0)
@@ -135,8 +134,7 @@ namespace Microsoft.Xna.Framework.GamerServices
         /// </summary>
         public static async Task ShowSignInAsync(int paneCount, bool onlineOnly, CancellationToken cancellationToken = default)
         {
-            if (paneCount < 1)
-                throw new ArgumentOutOfRangeException(nameof(paneCount));
+            ArgumentOutOfRangeException.ThrowIfLessThan(paneCount, 1);
 
             SetGuideVisible(true);
 

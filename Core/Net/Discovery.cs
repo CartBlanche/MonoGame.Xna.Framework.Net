@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 // DiscoveryPacket.cs - Replaces your string header
 using System;
 using System.IO;
@@ -51,7 +52,7 @@ namespace Microsoft.Xna.Framework.Net
         }
 
         // Deserialize from bytes
-        public static bool TryParse(byte[] data, out DiscoveryPacket packet)
+        public static bool TryParse(byte[] data, [NotNullWhen(true)] out DiscoveryPacket? packet)
         {
             packet = null;
             if (data == null || data.Length < 12) return false; // Minimum size
@@ -153,7 +154,7 @@ namespace Microsoft.Xna.Framework.Net
             return writer.GetData();
         }
 
-        public static bool TryParse(byte[] data, out DiscoveryPayload payload)
+        public static bool TryParse(byte[] data, [NotNullWhen(true)] out DiscoveryPayload? payload)
         {
             payload = null;
             if (data == null || data.Length < 50) return false; // Minimum GUID + metadata

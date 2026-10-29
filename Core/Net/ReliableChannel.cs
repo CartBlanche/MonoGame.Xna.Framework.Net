@@ -30,6 +30,8 @@ namespace Microsoft.Xna.Framework.Net
     /// packets after it have also arrived (bit 0 of byte 0 is next expected + 1), so the sender resends
     /// only what is really missing. The first bytes stay clear of the framework message ids (1..10).
     /// </summary>
+    // the MemoryStream it owns holds no resource that needs releasing, so the channel is not IDisposable
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1001:Types that own disposable fields should be disposable", Justification = "MemoryStream holds no unmanaged resource")]
     internal sealed class ReliableChannel
     {
         public const byte ChannelUnreliable = 0x21;
@@ -69,13 +71,13 @@ namespace Microsoft.Xna.Framework.Net
         {
             public byte Channel;
             public byte Flags;
-            public byte[] Payload;
+            public byte[] Payload = Array.Empty<byte>();
         }
 
         class PendingPacket
         {
             public ushort Sequence;
-            public byte[] Datagram;
+            public byte[] Datagram = Array.Empty<byte>();
             public double FirstSent;
             public double LastSent;
         }
@@ -84,7 +86,7 @@ namespace Microsoft.Xna.Framework.Net
         {
             public byte Channel;
             public byte Flags;
-            public byte[] Payload;
+            public byte[] Payload = Array.Empty<byte>();
         }
 
         readonly object sync = new object();
@@ -99,7 +101,7 @@ namespace Microsoft.Xna.Framework.Net
         // receiving
         ushort nextExpectedSequence;
         readonly Dictionary<ushort, IncomingPacket> early = new Dictionary<ushort, IncomingPacket>();
-        MemoryStream reassembly;
+        MemoryStream? reassembly;
         bool ackDue;
         ushort lastSequencedReceived;
         bool anySequencedReceived;
@@ -116,13 +118,13 @@ namespace Microsoft.Xna.Framework.Net
         /// overflowed, or it sent something that breaks the protocol. The channel sends nothing after this.
         /// Raised outside the channel's lock, on whichever thread noticed.
         /// </summary>
-        public event Action<string> Faulted;
+        public event Action<string>? Faulted;
 
         /// <summary>
         /// Raised with the smoothed roundtrip time, in seconds, each time an acknowledgement measures one.
         /// Measured from the data itself, so it works over any transport.
         /// </summary>
-        public event Action<double> RoundtripMeasured;
+        public event Action<double>? RoundtripMeasured;
 
         double smoothedRoundtrip;
 
@@ -203,7 +205,7 @@ namespace Microsoft.Xna.Framework.Net
                 throw new ArgumentOutOfRangeException(nameof(length),
                     "A message can be at most " + MaxMessageSize + " bytes, this one is " + length + ".");
 
-            List<byte[]> toSend;
+            List<byte[]>? toSend;
             lock (sync)
             {
                 if (faulted)
@@ -259,9 +261,9 @@ namespace Microsoft.Xna.Framework.Net
             if (length < 1)
                 return;
 
-            List<byte[]> ready = null;
-            List<byte[]> toSend = null;
-            string fault = null;
+            List<byte[]>? ready = null;
+            List<byte[]>? toSend = null;
+            string? fault = null;
             double rttSample = 0;
 
             lock (sync)
@@ -334,8 +336,8 @@ namespace Microsoft.Xna.Framework.Net
         /// </summary>
         public void Update(double now)
         {
-            List<byte[]> resend = null;
-            byte[] ack = null;
+            List<byte[]>? resend = null;
+            byte[]? ack = null;
 
             lock (sync)
             {
@@ -370,7 +372,7 @@ namespace Microsoft.Xna.Framework.Net
         // moves queued packets into the send window, giving them their sequence numbers. Call with the lock held.
         List<byte[]> Admit(double now)
         {
-            List<byte[]> datagrams = null;
+            List<byte[]>? datagrams = null;
 
             // the window is measured from the oldest packet still unacknowledged, as that is where the
             // receiver is waiting; packets it has already confirmed out of order don't hold it open
@@ -401,7 +403,7 @@ namespace Microsoft.Xna.Framework.Net
             return datagrams ?? new List<byte[]>();
         }
 
-        List<byte[]> ReceiveReliable(ushort sequence, IncomingPacket packet, out string fault)
+        List<byte[]>? ReceiveReliable(ushort sequence, IncomingPacket packet, out string? fault)
         {
             fault = null;
 
@@ -417,7 +419,7 @@ namespace Microsoft.Xna.Framework.Net
                 nextExpectedSequence++;
 
                 // anything that arrived early and is now in order follows
-                IncomingPacket next;
+                IncomingPacket? next;
                 while (fault == null && early.TryGetValue(nextExpectedSequence, out next))
                 {
                     early.Remove(nextExpectedSequence);
@@ -439,7 +441,7 @@ namespace Microsoft.Xna.Framework.Net
         }
 
         // a packet that is now in order: whole messages are ready, fragments are collected until the last one
-        void Complete(IncomingPacket packet, List<byte[]> ready, ref string fault)
+        void Complete(IncomingPacket packet, List<byte[]> ready, ref string? fault)
         {
             if (packet.Channel == ChannelReliable)
             {
@@ -548,7 +550,7 @@ namespace Microsoft.Xna.Framework.Net
 
         void RaiseFaulted(string reason)
         {
-            Action<string> handler;
+            Action<string>? handler;
             lock (sync)
             {
                 faulted = true;

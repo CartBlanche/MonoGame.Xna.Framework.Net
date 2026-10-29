@@ -22,7 +22,7 @@ namespace Microsoft.Xna.Framework.Net
         /// <summary>
         /// ID of the gamer sending the reply.
         /// </summary>
-        public string GamerId { get; set; }
+        public string GamerId { get; set; } = string.Empty;
 
         public void Serialize(PacketWriter writer)
         {

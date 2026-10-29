@@ -12,7 +12,7 @@ namespace Microsoft.Xna.Framework.GamerServices
 	/// </summary>
 	public class SignedInGamer : Gamer
     {
-        private static SignedInGamer current;
+        private static SignedInGamer? current;
         private bool isSignedInToLive;
 
         /// <summary>
@@ -74,14 +74,14 @@ namespace Microsoft.Xna.Framework.GamerServices
                 }
 
                 // Fallback to USER environment variable (macOS/Linux)
-                string envUser = Environment.GetEnvironmentVariable("USER");
+                string? envUser = Environment.GetEnvironmentVariable("USER");
                 if (!string.IsNullOrWhiteSpace(envUser) && !IsSystemUID(envUser))
                 {
                     return envUser;
                 }
 
                 // Windows alternative: USERNAME environment variable
-                string envUsername = Environment.GetEnvironmentVariable("USERNAME");
+                string? envUsername = Environment.GetEnvironmentVariable("USERNAME");
                 if (!string.IsNullOrWhiteSpace(envUsername))
                 {
                     return envUsername;
@@ -242,7 +242,7 @@ namespace Microsoft.Xna.Framework.GamerServices
             return Array.Exists(systemUsers, user => user.Equals(name, StringComparison.OrdinalIgnoreCase));
         }
 
-        private string gamertag;
+        private string gamertag = string.Empty;
 
         /// <summary>
         /// Gets or sets the gamertag for this gamer.
@@ -292,7 +292,7 @@ namespace Microsoft.Xna.Framework.GamerServices
 
         internal SignedInGamer() { }
 
-		public GamerPrivileges Privileges
+		public GamerPrivileges? Privileges
 		{
 			get;
 			private set;
@@ -303,8 +303,7 @@ namespace Microsoft.Xna.Framework.GamerServices
         /// </summary>
         public async Task WriteLeaderboardAsync(LeaderboardWriter writer, CancellationToken cancellationToken = default)
         {
-            if (writer == null)
-                throw new ArgumentNullException(nameof(writer));
+            ArgumentNullException.ThrowIfNull(writer);
 
             if (!ReferenceEquals(writer.Gamer, this))
                 throw new InvalidOperationException("LeaderboardWriter.Gamer must match this SignedInGamer.");
@@ -450,7 +449,7 @@ namespace Microsoft.Xna.Framework.GamerServices
         /// <summary>
         /// Asynchronously gets icon media for a specific achievement.
         /// </summary>
-        public Task<AchievementIcon> GetAchievementIconAsync(
+        public Task<AchievementIcon?> GetAchievementIconAsync(
             string achievementKey,
             CancellationToken cancellationToken = default)
         {
@@ -466,7 +465,7 @@ namespace Microsoft.Xna.Framework.GamerServices
         /// use <c>ConfigureAwait(false)</c>, so this does not deadlock on a thread with a synchronization context, but the thread is
         /// stalled meanwhile: prefer the asynchronous version where you can.
         /// </remarks>
-        public AchievementIcon GetAchievementIcon(string achievementKey)
+        public AchievementIcon? GetAchievementIcon(string achievementKey)
         {
             return GetAchievementIconAsync(achievementKey).GetAwaiter().GetResult();
         }

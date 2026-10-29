@@ -131,8 +131,7 @@ namespace Microsoft.Xna.Framework.Net
         /// </summary>
         public void Write(string value)
         {
-            if (value == null)
-                throw new ArgumentNullException(nameof(value));
+            ArgumentNullException.ThrowIfNull(value);
             writer.Write(value);
         }
 
@@ -205,8 +204,7 @@ namespace Microsoft.Xna.Framework.Net
         /// </summary>
         public void Write(byte[] buffer)
         {
-            if (buffer == null)
-                throw new ArgumentNullException(nameof(buffer));
+            ArgumentNullException.ThrowIfNull(buffer);
             writer.Write(buffer);
         }
 
@@ -215,8 +213,7 @@ namespace Microsoft.Xna.Framework.Net
         /// </summary>
         public void Write(byte[] buffer, int offset, int count)
         {
-            if (buffer == null)
-                throw new ArgumentNullException(nameof(buffer));
+            ArgumentNullException.ThrowIfNull(buffer);
             writer.Write(buffer, offset, count);
         }
 
@@ -225,8 +222,7 @@ namespace Microsoft.Xna.Framework.Net
         /// </summary>
         public void WriteLengthPrefixed(byte[] buffer)
         {
-            if (buffer == null)
-                throw new ArgumentNullException(nameof(buffer));
+            ArgumentNullException.ThrowIfNull(buffer);
             writer.Write(buffer.Length);
             writer.Write(buffer);
         }
@@ -244,8 +240,7 @@ namespace Microsoft.Xna.Framework.Net
         /// </summary>
         public void Write(char[] chars)
         {
-            if (chars == null)
-                throw new ArgumentNullException(nameof(chars));
+            ArgumentNullException.ThrowIfNull(chars);
             writer.Write(chars);
         }
 
@@ -254,8 +249,7 @@ namespace Microsoft.Xna.Framework.Net
         /// </summary>
         public void Write(char[] chars, int index, int count)
         {
-            if (chars == null)
-                throw new ArgumentNullException(nameof(chars));
+            ArgumentNullException.ThrowIfNull(chars);
             writer.Write(chars, index, count);
         }
 
@@ -297,7 +291,7 @@ namespace Microsoft.Xna.Framework.Net
 
             if (stream.TryGetBuffer(out var segment))
             {
-                Buffer.BlockCopy(segment.Array, segment.Offset, rented, 0, length);
+                Buffer.BlockCopy(segment.Array!, segment.Offset, rented, 0, length);
             }
             else
             {
@@ -340,6 +334,7 @@ namespace Microsoft.Xna.Framework.Net
         /// </summary>
         public void Dispose()
         {
+            GC.SuppressFinalize(this);
             if (!disposed)
             {
                 writer?.Dispose();

@@ -16,12 +16,12 @@ namespace Microsoft.Xna.Framework.Net
         /// <summary>
         /// The unique ID of the gamer who is leaving.
         /// </summary>
-        public string GamerId { get; set; }
+        public string GamerId { get; set; } = string.Empty;
 
         /// <summary>
         /// Optional reason for leaving (e.g., "User quit", "Application closing").
         /// </summary>
-        public string Reason { get; set; }
+        public string Reason { get; set; } = string.Empty;
 
         /// <summary>
         /// Serializes the message to a packet writer.

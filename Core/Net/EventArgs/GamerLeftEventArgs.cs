@@ -8,7 +8,7 @@ namespace Microsoft.Xna.Framework.Net
         /// <summary>
         /// Gets the gamer who left.
         /// </summary>
-        public NetworkGamer Gamer { get; internal set; }
+        public NetworkGamer Gamer { get; internal set; } = null!;   // the parameterless constructor leaves it for the caller to set
 
         /// <summary>
         /// Initializes a new instance of GamerLeftEventArgs.

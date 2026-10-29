@@ -27,7 +27,7 @@ namespace Microsoft.Xna.Framework.Net
         /// <summary>
         /// Optional reason for the state change (e.g., "Host started game", "Game completed").
         /// </summary>
-        public string Reason { get; set; }
+        public string Reason { get; set; } = string.Empty;
 
         /// <summary>
         /// Serializes the message to a packet writer.

@@ -26,8 +26,8 @@ namespace Microsoft.Xna.Framework.GamerServices
             bool isEarned,
             DateTime? earnedDate,
             bool isHidden = false,
-            string iconKey = null,
-            string iconUri = null,
+            string? iconKey = null,
+            string? iconUri = null,
             AchievementSyncState? syncState = null)
         {
             if (string.IsNullOrWhiteSpace(key))
@@ -56,8 +56,8 @@ namespace Microsoft.Xna.Framework.GamerServices
         public bool IsEarned { get; }
         public DateTime? EarnedDate { get; }
         public bool IsHidden { get; }
-        public string IconKey { get; }
-        public string IconUri { get; }
+        public string? IconKey { get; }
+        public string? IconUri { get; }
         public AchievementSyncState SyncState { get; }
     }
 }

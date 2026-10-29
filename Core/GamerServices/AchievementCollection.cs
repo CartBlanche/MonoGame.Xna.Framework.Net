@@ -12,7 +12,7 @@ namespace Microsoft.Xna.Framework.GamerServices
         {
         }
 
-        public Achievement this[string key]
+        public Achievement? this[string key]
         {
             get
             {

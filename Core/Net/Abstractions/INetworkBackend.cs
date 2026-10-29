@@ -59,7 +59,7 @@ namespace Microsoft.Xna.Framework.Net
         /// again), or null if there is nothing to undo. <paramref name="transport"/> is the one
         /// <see cref="CreateTransport"/> made for the session being joined.
         /// </summary>
-        Task<IDisposable> PrepareJoinAsync(AvailableNetworkSession session, IPeerTransport transport, CancellationToken cancellationToken);
+        Task<IDisposable?> PrepareJoinAsync(AvailableNetworkSession session, IPeerTransport transport, CancellationToken cancellationToken);
     }
 
     /// <summary>
@@ -74,9 +74,9 @@ namespace Microsoft.Xna.Framework.Net
     /// <summary>A snapshot of what to tell the world about a hosted session.</summary>
     public sealed class SessionAdvertisement
     {
-        public string SessionId { get; internal set; }
+        public string SessionId { get; internal set; } = string.Empty;
         public NetworkSessionType SessionType { get; internal set; }
-        public string HostGamertag { get; internal set; }
+        public string? HostGamertag { get; internal set; }
         public int MaxGamers { get; internal set; }
         public int PrivateGamerSlots { get; internal set; }
         public int CurrentGamerCount { get; internal set; }
@@ -85,7 +85,7 @@ namespace Microsoft.Xna.Framework.Net
         public bool IsPasswordProtected { get; internal set; }
 
         /// <summary>The session's properties, keyed as <see cref="NetworkSessionProperties"/> slots ("0" to "7") or by name.</summary>
-        public IReadOnlyDictionary<string, object> Properties { get; internal set; }
+        public IReadOnlyDictionary<string, object> Properties { get; internal set; } = new Dictionary<string, object>();
 
         /// <summary>True once the session is over or no longer taking gamers, so advertising should stop.</summary>
         public bool IsClosed { get; internal set; }

@@ -130,7 +130,7 @@ namespace Microsoft.Xna.Framework.Net
                     // Only one receive is ever outstanding. Starting a new ReceiveAsync every 100ms and
                     // abandoning the old one when the timeout wins leaves orphaned receives behind, and
                     // the next datagram is handed to the oldest orphan, so it is lost.
-                    Task<UdpReceiveResult> pendingReceive = null;
+                    Task<UdpReceiveResult>? pendingReceive = null;
 
                     while (DateTime.UtcNow < endTime && !cancellationToken.IsCancellationRequested)
                     {
@@ -138,7 +138,8 @@ namespace Microsoft.Xna.Framework.Net
                         {
                             receiveAttempts++;
                             // Try to receive with reduced timeout for faster response
-                            var receiveTask = pendingReceive ?? (pendingReceive = udpClient.ReceiveAsync());
+                            // the receive is kept pending across loop iterations, and ends when the socket is closed
+                            var receiveTask = pendingReceive ?? (pendingReceive = udpClient.ReceiveAsync(CancellationToken.None).AsTask());
                             var timeoutTask = Task.Delay(100, cancellationToken);
                             var completedTask = await Task.WhenAny(receiveTask, timeoutTask).ConfigureAwait(false);
 
@@ -254,7 +255,7 @@ namespace Microsoft.Xna.Framework.Net
             return JoinSessionAsync(availableSession, transport: null, cancellationToken);
         }
 
-        public static async Task<NetworkSession> JoinSessionAsync(AvailableNetworkSession availableSession, IPeerTransport transport, CancellationToken cancellationToken, string password = null)
+        public static async Task<NetworkSession> JoinSessionAsync(AvailableNetworkSession availableSession, IPeerTransport? transport, CancellationToken cancellationToken, string? password = null)
         {
             // Reliable join with timeout and retry
             const int MAX_RETRIES = 3;

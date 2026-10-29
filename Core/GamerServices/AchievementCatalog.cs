@@ -10,8 +10,7 @@ namespace Microsoft.Xna.Framework.GamerServices
 
         public static void Register(AchievementDefinition definition)
         {
-            if (definition == null)
-                throw new ArgumentNullException(nameof(definition));
+            ArgumentNullException.ThrowIfNull(definition);
 
             lock (Gate)
             {
@@ -21,8 +20,7 @@ namespace Microsoft.Xna.Framework.GamerServices
 
         public static void RegisterRange(IEnumerable<AchievementDefinition> definitions)
         {
-            if (definitions == null)
-                throw new ArgumentNullException(nameof(definitions));
+            ArgumentNullException.ThrowIfNull(definitions);
 
             lock (Gate)
             {
@@ -36,7 +34,7 @@ namespace Microsoft.Xna.Framework.GamerServices
             }
         }
 
-        public static AchievementDefinition Get(string key)
+        public static AchievementDefinition? Get(string key)
         {
             if (string.IsNullOrWhiteSpace(key))
                 throw new ArgumentException("Achievement key cannot be empty.", nameof(key));

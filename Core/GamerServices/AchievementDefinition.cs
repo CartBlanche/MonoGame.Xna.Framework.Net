@@ -12,8 +12,8 @@ namespace Microsoft.Xna.Framework.GamerServices
             string howToEarn = "",
             int gamerScore = 0,
             bool isHidden = false,
-            string iconKey = null,
-            string iconUri = null)
+            string? iconKey = null,
+            string? iconUri = null)
         {
             if (string.IsNullOrWhiteSpace(key))
                 throw new ArgumentException("Achievement key cannot be empty.", nameof(key));
@@ -34,7 +34,7 @@ namespace Microsoft.Xna.Framework.GamerServices
         public string HowToEarn { get; }
         public int GamerScore { get; }
         public bool IsHidden { get; }
-        public string IconKey { get; }
-        public string IconUri { get; }
+        public string? IconKey { get; }
+        public string? IconUri { get; }
     }
 }

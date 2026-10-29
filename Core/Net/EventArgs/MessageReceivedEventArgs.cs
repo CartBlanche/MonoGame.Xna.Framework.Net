@@ -20,7 +20,7 @@ namespace Microsoft.Xna.Framework.Net
         /// <summary>
         /// Gets the gamer who sent the message.
         /// </summary>
-        public NetworkGamer Sender { get; internal set; }
+        public NetworkGamer? Sender { get; internal set; }
 
         /// <summary>
         /// Initializes a new instance of MessageReceivedEventArgs.

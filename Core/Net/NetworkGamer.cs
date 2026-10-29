@@ -18,7 +18,7 @@ namespace Microsoft.Xna.Framework.Net
         private readonly bool isHost;
         private string gamertag;
         private bool isReady;
-        private object tag;
+        private object? tag;
 
         // Network performance properties
         private TimeSpan roundtripTime = TimeSpan.Zero;
@@ -89,7 +89,7 @@ namespace Microsoft.Xna.Framework.Net
         /// <summary>
         /// Gets or sets custom data associated with this gamer.
         /// </summary>
-        public object Tag
+        public object? Tag
         {
             get => tag;
             set => tag = value;
@@ -98,7 +98,7 @@ namespace Microsoft.Xna.Framework.Net
         /// <summary>
         /// Gets the machine for this network gamer.
         /// </summary>
-        public NetworkMachine Machine => session?.MachineOf(this);
+        public NetworkMachine? Machine => session?.MachineOf(this);
 
         /// <summary>
         /// Gets whether data is available to be received from this gamer.
@@ -117,7 +117,7 @@ namespace Microsoft.Xna.Framework.Net
         /// <summary>
         /// Gets the SignedInGamer associated with this NetworkGamer.
         /// </summary>
-        public SignedInGamer SignedInGamer => isLocal ? SignedInGamer.Current : null;
+        public SignedInGamer? SignedInGamer => isLocal ? SignedInGamer.Current : null;
 
         /// <summary>
         /// Gets whether this gamer is muted by the local user.
@@ -152,10 +152,9 @@ namespace Microsoft.Xna.Framework.Net
         /// <param name="data">Array to receive the data into.</param>
         /// <param name="sender">The gamer who sent the data.</param>
         /// <returns>The number of bytes received.</returns>
-        public int ReceiveData(byte[] data, out NetworkGamer sender)
+        public int ReceiveData(byte[] data, out NetworkGamer? sender)
         {
-            if (data == null)
-                throw new ArgumentNullException(nameof(data));
+            ArgumentNullException.ThrowIfNull(data);
 
             sender = null;
 
@@ -167,10 +166,9 @@ namespace Microsoft.Xna.Framework.Net
             return packet.Data.Length;
         }
 
-        public int ReceiveData(byte[] data, int offset, out NetworkGamer sender)
+        public int ReceiveData(byte[] data, int offset, out NetworkGamer? sender)
         {
-            if (data == null)
-                throw new ArgumentNullException(nameof(data));
+            ArgumentNullException.ThrowIfNull(data);
 
             if (offset < 0 || offset >= data.Length)
                 throw new ArgumentOutOfRangeException(nameof(offset), "Offset must be within the bounds of the data array.");
@@ -191,14 +189,13 @@ namespace Microsoft.Xna.Framework.Net
         /// <param name="data">Array to receive the data into.</param>
         /// <param name="sender">The gamer who sent the data.</param>
         /// <returns>The number of bytes received.</returns>
-        public int ReceiveData(PacketReader reader, out NetworkGamer sender)
+        public int ReceiveData(PacketReader reader, out NetworkGamer? sender)
         {
             // Ensure the session is valid
             if (session == null)
                 throw new InvalidOperationException("Network session is not initialized.");
 
-            if (reader == null)
-                throw new ArgumentNullException(nameof(reader));
+            ArgumentNullException.ThrowIfNull(reader);
             sender = null;
 
             if (!TryDequeueIncomingPacket(out var packet))
@@ -216,10 +213,9 @@ namespace Microsoft.Xna.Framework.Net
         /// <param name="options">Send options.</param>
         public void SendData(byte[] data, SendDataOptions options)
         {
-            if (data == null)
-                throw new ArgumentNullException(nameof(data));
+            ArgumentNullException.ThrowIfNull(data);
 
-            if (!Enum.IsDefined(typeof(SendDataOptions), options))
+            if (!Enum.IsDefined(options))
                 throw new ArgumentOutOfRangeException(nameof(options), "Invalid send data option.");
 
             SendDataInternal(data, options, session.AllGamers);
@@ -233,10 +229,9 @@ namespace Microsoft.Xna.Framework.Net
         /// <param name="recipients">The gamers to send to.</param>
         public void SendData(byte[] data, SendDataOptions options, IEnumerable<NetworkGamer> recipients)
         {
-            if (data == null)
-                throw new ArgumentNullException(nameof(data));
+            ArgumentNullException.ThrowIfNull(data);
 
-            if (!Enum.IsDefined(typeof(SendDataOptions), options))
+            if (!Enum.IsDefined(options))
                 throw new ArgumentOutOfRangeException(nameof(options), "Invalid send data option.");
 
             SendDataInternal(data, options, recipients);
@@ -253,11 +248,10 @@ namespace Microsoft.Xna.Framework.Net
             if (data == null)
                 throw new ArgumentNullException(nameof(data), "PacketWriter cannot be null.");
 
-            if (!Enum.IsDefined(typeof(SendDataOptions), options))
+            if (!Enum.IsDefined(options))
                 throw new ArgumentOutOfRangeException(nameof(options), "Invalid send data option.");
 
-            if (recipients == null)
-                throw new ArgumentNullException(nameof(recipients));
+            ArgumentNullException.ThrowIfNull(recipients);
 
             int serializedLength;
             byte[] serializedData = data.RentData(out serializedLength);
@@ -330,7 +324,7 @@ namespace Microsoft.Xna.Framework.Net
             return $"{Gamertag} ({(IsLocal ? "Local" : "Remote")}, {(IsHost ? "Host" : "Player")})";
         }
 
-        public override bool Equals(object obj)
+        public override bool Equals(object? obj)
         {
             return obj is NetworkGamer other && GamerId == other.GamerId;
         }
@@ -343,7 +337,7 @@ namespace Microsoft.Xna.Framework.Net
         /// <summary>
         /// Implicit conversion from NetworkGamer to SignedInGamer.
         /// </summary>
-        public static implicit operator SignedInGamer(NetworkGamer gamer)
+        public static implicit operator SignedInGamer?(NetworkGamer? gamer)
         {
             return gamer?.SignedInGamer;
         }
@@ -389,7 +383,7 @@ namespace Microsoft.Xna.Framework.Net
                     break;
 
                 default:
-                    throw new ArgumentOutOfRangeException(nameof(session.SessionType), $"Unsupported session type: {session.SessionType}");
+                    throw new ArgumentOutOfRangeException(null, $"Unsupported session type: {session.SessionType}");
             }
         }
 

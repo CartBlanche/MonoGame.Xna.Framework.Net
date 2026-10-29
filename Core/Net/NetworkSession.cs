@@ -18,7 +18,7 @@ namespace Microsoft.Xna.Framework.Net
     public class NetworkSession : IDisposable, IAsyncDisposable, ISessionAdvertiser
     {
         // Event for received messages
-        public event EventHandler<MessageReceivedEventArgs> MessageReceived;
+        public event EventHandler<MessageReceivedEventArgs>? MessageReceived;
         private readonly List<NetworkGamer> gamers;
         private readonly GamerCollection gamerCollection;
         private readonly NetworkSessionType sessionType;
@@ -31,20 +31,20 @@ namespace Microsoft.Xna.Framework.Net
         private readonly Dictionary<string, ReliableChannel> reliableChannels = new Dictionary<string, ReliableChannel>();
         private readonly object reliableLock = new object();
         private readonly Stopwatch reliableClock = Stopwatch.StartNew();
-        private Timer reliableTimer;
+        private Timer? reliableTimer;
         private const int ReliableTickMilliseconds = 50;
         private readonly object lockObject = new object();
 
         private LocalNetworkGamer localGamer;
-        private NetworkMachine localMachine;
+        private NetworkMachine? localMachine;
         private readonly Dictionary<string, NetworkMachine> remoteMachines = new Dictionary<string, NetworkMachine>();
         private IPeerTransport networkTransport;
-        private IDisposable backendMembership;   // e.g. the back-end's lobby, left when the session ends
+        private IDisposable? backendMembership;   // e.g. the back-end's lobby, left when the session ends
         internal NetworkSessionState sessionState;
         internal bool disposed;
         private bool isHost;
         internal string sessionId;
-        private Task receiveTask;
+        private Task? receiveTask;
         private CancellationTokenSource cancellationTokenSource;
 
         private ConnectionHealthMonitor connectionMonitor;
@@ -63,21 +63,21 @@ namespace Microsoft.Xna.Framework.Net
         public EventDispatchMode EventDispatchMode { get; set; } = EventDispatchMode.OnUpdate;
 
         // Events
-        public event EventHandler<GameStartedEventArgs> GameStarted;
-        public event EventHandler<GameEndedEventArgs> GameEnded;
+        public event EventHandler<GameStartedEventArgs>? GameStarted;
+        public event EventHandler<GameEndedEventArgs>? GameEnded;
 
         /// <summary>
         /// Raised, from <see cref="Update"/>, for each gamer that joins. A gamer who joined before
         /// <see cref="Update"/> first ran, the local gamers included, is raised by that first call; one who
         /// is already in the session when a handler is added is not raised again.
         /// </summary>
-        public event EventHandler<GamerJoinedEventArgs> GamerJoined;
+        public event EventHandler<GamerJoinedEventArgs>? GamerJoined;
 
-        public event EventHandler<GamerLeftEventArgs> GamerLeft;
-        public event EventHandler<NetworkSessionEndedEventArgs> SessionEnded;
+        public event EventHandler<GamerLeftEventArgs>? GamerLeft;
+        public event EventHandler<NetworkSessionEndedEventArgs>? SessionEnded;
 
         // Static event for invite acceptance
-        public static event EventHandler<InviteAcceptedEventArgs> InviteAccepted;
+        public static event EventHandler<InviteAcceptedEventArgs>? InviteAccepted;
 
         /// <summary>
         /// Allows changing the network transport implementation.
@@ -105,7 +105,7 @@ namespace Microsoft.Xna.Framework.Net
         /// <summary>
         /// Initializes a new NetworkSession.
         /// </summary>
-        private NetworkSession(NetworkSessionType sessionType, int maxGamers, int privateGamerSlots, bool isHost, IPeerTransport transport = null)
+        private NetworkSession(NetworkSessionType sessionType, int maxGamers, int privateGamerSlots, bool isHost, IPeerTransport? transport = null)
         {
             this.sessionType = sessionType;
             this.maxGamers = maxGamers;
@@ -146,7 +146,7 @@ namespace Microsoft.Xna.Framework.Net
         }
 
         // Internal constructor for SystemLink join
-        internal NetworkSession(NetworkSessionType sessionType, int maxGamers, int privateGamerSlots, bool isHost, string sessionId, IPeerTransport transport = null)
+        internal NetworkSession(NetworkSessionType sessionType, int maxGamers, int privateGamerSlots, bool isHost, string sessionId, IPeerTransport? transport = null)
             : this(sessionType, maxGamers, privateGamerSlots, isHost, transport)
         {
             this.sessionId = sessionId;
@@ -186,7 +186,7 @@ namespace Microsoft.Xna.Framework.Net
         /// <summary>
         /// Gets the host gamer.
         /// </summary>
-        public NetworkGamer Host => AllGamers.Host;
+        public NetworkGamer? Host => AllGamers.Host;
 
         /// <summary>
         /// Gets whether this machine is the host.
@@ -228,7 +228,7 @@ namespace Microsoft.Xna.Framework.Net
                 var uptime = diagnostics?.Uptime.TotalSeconds ?? 0;
                 if (uptime <= 0)
                     return 0;
-                return (int)(diagnostics.BytesSent / uptime);
+                return (int)(diagnostics!.BytesSent / uptime);   // uptime > 0 means diagnostics is set
             }
         }
 
@@ -242,7 +242,7 @@ namespace Microsoft.Xna.Framework.Net
                 var uptime = diagnostics?.Uptime.TotalSeconds ?? 0;
                 if (uptime <= 0)
                     return 0;
-                return (int)(diagnostics.BytesReceived / uptime);
+                return (int)(diagnostics!.BytesReceived / uptime);   // uptime > 0 means diagnostics is set
             }
         }
 
@@ -261,7 +261,7 @@ namespace Microsoft.Xna.Framework.Net
         public bool AllowJoinInProgress { get; set; } = true;
 
         // set when the host answers our join request with a rejection (see JoinSessionAsync)
-        internal volatile string joinRejectedReason;
+        internal volatile string? joinRejectedReason;
         internal NetworkSessionJoinError joinRejectedError;
 
         private IDictionary<string, object> sessionProperties = new Dictionary<string, object>();
@@ -320,17 +320,17 @@ namespace Microsoft.Xna.Framework.Net
         /// Creates a session that joiners need a password for. The password never crosses the network; see
         /// <see cref="Password"/>.
         /// </summary>
-        public static Task<NetworkSession> CreateAsync(NetworkSessionType sessionType, int maxLocalGamers, int maxGamers, int privateGamerSlots, IDictionary<string, object> sessionProperties, string password, CancellationToken cancellationToken = default)
+        public static Task<NetworkSession> CreateAsync(NetworkSessionType sessionType, int maxLocalGamers, int maxGamers, int privateGamerSlots, IDictionary<string, object>? sessionProperties, string? password, CancellationToken cancellationToken = default)
         {
-            return CreateAsync(sessionType, maxLocalGamers, maxGamers, privateGamerSlots, sessionProperties, cancellationToken, password);
+            return CreateCoreAsync(sessionType, maxLocalGamers, maxGamers, privateGamerSlots, sessionProperties, password, cancellationToken);
         }
 
-        public static Task<NetworkSession> CreateAsync(NetworkSessionType sessionType, int maxLocalGamers, int maxGamers, int privateGamerSlots, IDictionary<string, object> sessionProperties, CancellationToken cancellationToken = default)
+        public static Task<NetworkSession> CreateAsync(NetworkSessionType sessionType, int maxLocalGamers, int maxGamers, int privateGamerSlots, IDictionary<string, object>? sessionProperties, CancellationToken cancellationToken = default)
         {
-            return CreateAsync(sessionType, maxLocalGamers, maxGamers, privateGamerSlots, sessionProperties, cancellationToken, null);
+            return CreateCoreAsync(sessionType, maxLocalGamers, maxGamers, privateGamerSlots, sessionProperties, null, cancellationToken);
         }
 
-        private static async Task<NetworkSession> CreateAsync(NetworkSessionType sessionType, int maxLocalGamers, int maxGamers, int privateGamerSlots, IDictionary<string, object> sessionProperties, CancellationToken cancellationToken, string password)
+        private static async Task<NetworkSession> CreateCoreAsync(NetworkSessionType sessionType, int maxLocalGamers, int maxGamers, int privateGamerSlots, IDictionary<string, object>? sessionProperties, string? password, CancellationToken cancellationToken)
         {
             if (maxLocalGamers < 1 || maxLocalGamers > 4)
                 throw new ArgumentOutOfRangeException(nameof(maxLocalGamers));
@@ -398,7 +398,7 @@ namespace Microsoft.Xna.Framework.Net
 
         // A search matches a session that has every property the search sets, with the same value. No
         // properties (null or empty) matches everything.
-        private static bool MatchesSearch(AvailableNetworkSession session, IDictionary<string, object> search)
+        private static bool MatchesSearch(AvailableNetworkSession session, IDictionary<string, object>? search)
         {
             if (search == null)
                 return true;
@@ -413,7 +413,7 @@ namespace Microsoft.Xna.Framework.Net
         /// <summary>
         /// Asynchronously finds available network sessions.
         /// </summary>
-        public static async Task<AvailableNetworkSessionCollection> FindAsync(NetworkSessionType sessionType, int maxLocalGamers, IDictionary<string, object> sessionProperties, CancellationToken cancellationToken = default)
+        public static async Task<AvailableNetworkSessionCollection> FindAsync(NetworkSessionType sessionType, int maxLocalGamers, IDictionary<string, object>? sessionProperties, CancellationToken cancellationToken = default)
         {
             if (sessionType == NetworkSessionType.Local)
             {
@@ -465,10 +465,9 @@ namespace Microsoft.Xna.Framework.Net
         /// </summary>
         /// <exception cref="NetworkSessionJoinException">Thrown with <see cref="NetworkSessionJoinError.PasswordRequired"/>
         /// or <see cref="NetworkSessionJoinError.WrongPassword"/>.</exception>
-        public static async Task<NetworkSession> JoinAsync(AvailableNetworkSession availableSession, string password, CancellationToken cancellationToken = default)
+        public static async Task<NetworkSession> JoinAsync(AvailableNetworkSession availableSession, string? password, CancellationToken cancellationToken = default)
         {
-            if (availableSession == null)
-                throw new ArgumentNullException(nameof(availableSession));
+            ArgumentNullException.ThrowIfNull(availableSession);
 
             if (availableSession.SessionType == NetworkSessionType.Local)
             {
@@ -486,7 +485,7 @@ namespace Microsoft.Xna.Framework.Net
             // Connect to the host through the back-end
             var backend = RequireBackendFor(availableSession.SessionType);
             var joinTransport = backend.CreateTransport();
-            IDisposable membership = null;
+            IDisposable? membership = null;
             NetworkSession joinedSession;
             try
             {
@@ -511,7 +510,7 @@ namespace Microsoft.Xna.Framework.Net
         /// own UI, which is announced by <see cref="InviteAccepted"/>.
         /// </summary>
         /// <exception cref="InvalidOperationException">There is no invitation waiting.</exception>
-        public static Task<NetworkSession> JoinInvitedAsync(IEnumerable<SignedInGamer> localGamers, object state = null, CancellationToken cancellationToken = default)
+        public static Task<NetworkSession> JoinInvitedAsync(IEnumerable<SignedInGamer> localGamers, object? state = null, CancellationToken cancellationToken = default)
         {
             if (localGamers == null || !localGamers.Any())
                 throw new ArgumentException("At least one local gamer must be provided.", nameof(localGamers));
@@ -599,7 +598,7 @@ namespace Microsoft.Xna.Framework.Net
         /// use <c>ConfigureAwait(false)</c>, so this does not deadlock on a thread with a synchronization context, but the thread is
         /// stalled meanwhile: prefer the asynchronous version where you can.
         /// </remarks>
-        public static NetworkSession JoinInvited(IEnumerable<SignedInGamer> localGamers, object state = null)
+        public static NetworkSession JoinInvited(IEnumerable<SignedInGamer> localGamers, object? state = null)
         {
             return JoinInvitedAsync(localGamers, state).GetAwaiter().GetResult();
         }
@@ -661,8 +660,7 @@ namespace Microsoft.Xna.Framework.Net
         /// </summary>
         public void SendToAll(PacketWriter writer, SendDataOptions options, NetworkGamer sender)
         {
-            if (writer == null)
-                throw new ArgumentNullException(nameof(writer));
+            ArgumentNullException.ThrowIfNull(writer);
 
             int payloadLength;
             var payload = writer.RentData(out payloadLength);
@@ -856,7 +854,7 @@ namespace Microsoft.Xna.Framework.Net
                 // A password-protected session lets nobody in who cannot prove they know the password: the
                 // first request is answered with a challenge, the second must answer it. Somebody already in
                 // who repeats a lost request (from their own address) is not asked again.
-                byte[] admissionNonce = null;
+                byte[]? admissionNonce = null;
                 if (IsPasswordProtected)
                 {
                     bool alreadyIn;
@@ -866,13 +864,13 @@ namespace Microsoft.Xna.Framework.Net
                     if (!alreadyIn)
                     {
                         string peerKey = e.RemotePeer.ToString();
-                        byte[] outstanding = TakeChallenge(peerKey);
+                        byte[]? outstanding = TakeChallenge(peerKey);
                         if (joinRequest.Proof == null || joinRequest.Proof.Length == 0 || outstanding == null)
                         {
                             var nonce = JoinCredentials.RandomBytes(JoinCredentials.NonceLength);
                             StoreChallenge(peerKey, nonce);
                             byte[] salt;
-                            lock (securityLock) salt = passwordSalt;
+                            lock (securityLock) salt = passwordSalt ?? Array.Empty<byte>();   // there is a salt whenever there is a password
                             var challenge = new PacketWriter();
                             new PasswordChallengeMessage { Salt = salt, Nonce = nonce }.Serialize(challenge);
                             SendTo(e.RemotePeer, challenge.GetData());
@@ -880,7 +878,7 @@ namespace Microsoft.Xna.Framework.Net
                         }
 
                         byte[] expected;
-                        lock (securityLock) expected = JoinCredentials.Proof(passwordKey, joinRequest.GamerId ?? string.Empty, outstanding);
+                        lock (securityLock) expected = JoinCredentials.Proof(passwordKey ?? Array.Empty<byte>(), joinRequest.GamerId, outstanding);
                         if (!JoinCredentials.ProofMatches(expected, joinRequest.Proof))
                         {
                             logger?.LogWarning($"Join request from {joinRequest.Gamertag} refused: wrong password");
@@ -895,7 +893,7 @@ namespace Microsoft.Xna.Framework.Net
 
                 // Check if gamer already exists (from previous retry)
                 // CRITICAL: Keep the check and add in the same lock to prevent race conditions
-                NetworkGamer existingGamer = null;
+                NetworkGamer? existingGamer = null;
                 bool isNewGamer = false;
                 
                 logger?.LogInfo($"Processing join request from {joinRequest.Gamertag} (ID: {joinRequest.GamerId}), gamer count: {AllGamers.Count}");
@@ -951,20 +949,21 @@ namespace Microsoft.Xna.Framework.Net
 
                 // Send JoinAcceptedMessage back to the sender (always send, even on retry), with the
                 // ids the host chose and who else is in the session
+                var hostGamer = Host ?? throw new InvalidOperationException("The session has no host gamer.");
                 var joinAccepted = new JoinAcceptedMessage
                 {
                     SessionId = sessionId,
-                    HostGamerId = Host.GamerId,
-                    HostGamertag = Host.Gamertag,
-                    HostId = Host.Id,
+                    HostGamerId = hostGamer.GamerId,
+                    HostGamertag = hostGamer.Gamertag,
+                    HostId = hostGamer.Id,
                     YourId = existingGamer.Id
                 };
 
                 // the key for this gamer's link: made on the first request, the same one on every retry
                 if (ProtectLinks)
                 {
-                    byte[] linkKey = ProtectorFor(existingGamer.GamerId) == null ? CreateLinkKey(existingGamer.GamerId) : GetLinkKey(existingGamer.GamerId);
-                    byte[] nonceUsed;
+                    byte[] linkKey = ProtectorFor(existingGamer.GamerId) == null ? CreateLinkKey(existingGamer.GamerId) : GetLinkKey(existingGamer.GamerId) ?? CreateLinkKey(existingGamer.GamerId);
+                    byte[]? nonceUsed;
                     lock (securityLock)
                     {
                         if (admissionNonce != null)
@@ -976,7 +975,7 @@ namespace Microsoft.Xna.Framework.Net
                     {
                         // under the password: only somebody who knows it can open this
                         byte[] wrap;
-                        lock (securityLock) wrap = JoinCredentials.WrapKey(passwordKey, nonceUsed);
+                        lock (securityLock) wrap = JoinCredentials.WrapKey(passwordKey ?? Array.Empty<byte>(), nonceUsed);
                         joinAccepted.KeyIsSealed = true;
                         joinAccepted.LinkKey = JoinCredentials.Seal(wrap, linkKey, System.Text.Encoding.UTF8.GetBytes(existingGamer.GamerId));
                     }
@@ -1005,13 +1004,13 @@ namespace Microsoft.Xna.Framework.Net
 
                     // the key for our link to the host, opened with the password if it was sealed under it. Done
                     // first: an acceptance whose key does not open is a forgery, and changes nothing.
-                    LinkProtector hostLink = null;
+                    LinkProtector? hostLink = null;
                     if (ProtectLinks)
                     {
-                        byte[] key = null;
+                        byte[]? key = null;
                         if (joinAccepted.KeyIsSealed)
                         {
-                            byte[] passwordKeyHere = challengedPasswordKey, nonceHere = challengeNonce;
+                            byte[]? passwordKeyHere = challengedPasswordKey, nonceHere = challengeNonce;
                             if (passwordKeyHere == null || nonceHere == null
                                 || !JoinCredentials.TryOpen(JoinCredentials.WrapKey(passwordKeyHere, nonceHere), joinAccepted.LinkKey,
                                     System.Text.Encoding.UTF8.GetBytes(LocalGamers[0].GamerId), out key))
@@ -1130,7 +1129,7 @@ namespace Microsoft.Xna.Framework.Net
                     readiness.Serialize(writer);
 
                     // Determine sender gamer from endpoint mapping (if available)
-                    NetworkGamer sourceGamer = null;
+                    NetworkGamer? sourceGamer = null;
                     lock (lockObject)
                     {
                         if (e.RemotePeer.IsValid)
@@ -1170,7 +1169,7 @@ namespace Microsoft.Xna.Framework.Net
                 // Handle graceful leave - immediate gamer removal
                 logger?.LogInfo($"Received leave notification from gamer {leaveMessage.GamerId}: {leaveMessage.Reason}");
                 
-                NetworkGamer leavingGamer = null;
+                NetworkGamer? leavingGamer = null;
                 lock (lockObject)
                 {
                     leavingGamer = gamers.FirstOrDefault(g => g.GamerId == leaveMessage.GamerId);
@@ -1327,6 +1326,7 @@ namespace Microsoft.Xna.Framework.Net
         /// </summary>
         public void Dispose()
         {
+            GC.SuppressFinalize(this);
             if (!disposed)
             {
                 disposed = true; // Set BEFORE cleanup to prevent re-entry
@@ -1352,6 +1352,7 @@ namespace Microsoft.Xna.Framework.Net
 
         public async ValueTask DisposeAsync()
         {
+            GC.SuppressFinalize(this);
             if (!disposed)
             {
                 disposed = true; // Set BEFORE cleanup to prevent re-entry
@@ -1441,7 +1442,7 @@ namespace Microsoft.Xna.Framework.Net
                 {
                     string key = reader.ReadString();
                     byte type = reader.ReadByte();
-                    object value = null;
+                    object? value = null;
                     switch (type)
                     {
                         case 1: value = reader.ReadInt32(); break;
@@ -1546,7 +1547,7 @@ namespace Microsoft.Xna.Framework.Net
         SessionAdvertisement ISessionAdvertiser.GetAdvertisement()
         {
             int count;
-            string hostName;
+            string? hostName;
             lock (lockObject)
             {
                 count = gamers.Count;
@@ -1685,10 +1686,9 @@ namespace Microsoft.Xna.Framework.Net
         /// <summary>
         /// Sends a serialized INetworkMessage to every remote gamer except one.
         /// </summary>
-        internal void SendMessageToAll(PacketWriter writer, SendDataOptions options, NetworkGamer except)
+        internal void SendMessageToAll(PacketWriter writer, SendDataOptions options, NetworkGamer? except)
         {
-            if (writer == null)
-                throw new ArgumentNullException(nameof(writer));
+            ArgumentNullException.ThrowIfNull(writer);
 
             int length;
             byte[] data = writer.RentData(out length);
@@ -1723,14 +1723,14 @@ namespace Microsoft.Xna.Framework.Net
         {
             if (!endpoint.IsValid)
                 return false;
-            NetworkGamer host;
+            NetworkGamer? host;
             lock (lockObject)
                 host = gamers.FirstOrDefault(g => g.IsHost && !g.IsLocal);
             return host != null && PeerOf(host) == endpoint;
         }
 
         // the gamer a datagram came from, going by the address it came from, or null if nobody here has that address
-        private NetworkGamer GamerAt(PeerId peer)
+        private NetworkGamer? GamerAt(PeerId peer)
         {
             if (!peer.IsValid)
                 return null;
@@ -1751,25 +1751,25 @@ namespace Microsoft.Xna.Framework.Net
         private readonly object securityLock = new object();
 
         // host: the password, as a salt and the key made from it; challenges issued; the nonce each gamer was admitted under
-        private string sessionPassword;
-        private byte[] passwordSalt;
-        private byte[] passwordKey;
+        private string? sessionPassword;
+        private byte[]? passwordSalt;
+        private byte[]? passwordKey;
         private readonly Dictionary<string, (byte[] Nonce, double IssuedAt)> pendingChallenges = new Dictionary<string, (byte[], double)>(StringComparer.Ordinal);
         private readonly Dictionary<string, byte[]> admissionNonces = new Dictionary<string, byte[]>(StringComparer.Ordinal);
         private const double ChallengeLifetimeSeconds = 30;
         private const int MaxPendingChallenges = 256;
 
         // joiner: the password it was given, and what a challenge turned it into
-        internal string JoinPassword { get; set; }
-        private byte[] challengedPasswordKey;
-        private byte[] challengeNonce;
+        internal string? JoinPassword { get; set; }
+        private byte[]? challengedPasswordKey;
+        private byte[]? challengeNonce;
 
         /// <summary>
         /// The password a joiner must give, or null for none. Only the host sets it, and it can change
         /// while the session runs (gamers already in stay in). It never crosses the network: joiners prove
         /// they know it, and are given a key for their link to the host under it.
         /// </summary>
-        public string Password
+        public string? Password
         {
             get { lock (securityLock) return sessionPassword; }
             set
@@ -1780,7 +1780,7 @@ namespace Microsoft.Xna.Framework.Net
                 {
                     sessionPassword = string.IsNullOrEmpty(value) ? null : value;
                     passwordSalt = sessionPassword == null ? null : JoinCredentials.RandomBytes(JoinCredentials.SaltLength);
-                    passwordKey = sessionPassword == null ? null : JoinCredentials.DeriveKey(sessionPassword, passwordSalt);
+                    passwordKey = sessionPassword == null || passwordSalt == null ? null : JoinCredentials.DeriveKey(sessionPassword, passwordSalt);
                     pendingChallenges.Clear();
                 }
             }
@@ -1792,7 +1792,7 @@ namespace Microsoft.Xna.Framework.Net
             get { lock (securityLock) return sessionPassword != null; }
         }
 
-        private LinkProtector ProtectorFor(string gamerId)
+        private LinkProtector? ProtectorFor(string gamerId)
         {
             lock (securityLock)
                 return linkProtectors.TryGetValue(gamerId, out var protector) ? protector : null;
@@ -1812,7 +1812,7 @@ namespace Microsoft.Xna.Framework.Net
             return key;
         }
 
-        private byte[] GetLinkKey(string gamerId)
+        private byte[]? GetLinkKey(string gamerId)
         {
             lock (securityLock)
                 return linkKeys.TryGetValue(gamerId, out var key) ? key : null;
@@ -1834,7 +1834,7 @@ namespace Microsoft.Xna.Framework.Net
         }
 
         // a datagram as it goes on the wire to a gamer: protected, unless protection is off. null = do not send.
-        private byte[] ProtectOutgoing(string gamerId, byte[] data)
+        private byte[]? ProtectOutgoing(string gamerId, byte[] data)
         {
             if (!ProtectLinks)
                 return data;
@@ -1847,7 +1847,7 @@ namespace Microsoft.Xna.Framework.Net
             return protector.Protect(data, data.Length);
         }
 
-        private byte[] TakeChallenge(string peerKey)
+        private byte[]? TakeChallenge(string peerKey)
         {
             lock (securityLock)
             {
@@ -1909,7 +1909,7 @@ namespace Microsoft.Xna.Framework.Net
             // is passed on by the host; the framework's own messages are only ever sent to a direct peer.
             if (!IsHost && !gamer.IsLocal && PeerOf(gamer) == null)
             {
-                NetworkGamer host;
+                NetworkGamer? host;
                 lock (lockObject)
                     host = gamers.FirstOrDefault(g => g.IsHost && !g.IsLocal);
 
@@ -1949,9 +1949,10 @@ namespace Microsoft.Xna.Framework.Net
                     return;
             }
 
-            data = ProtectOutgoing(gamerId, data);
-            if (data == null)
+            var protectedData = ProtectOutgoing(gamerId, data);
+            if (protectedData == null)
                 return;
+            data = protectedData;
 
             try
             {
@@ -1972,7 +1973,7 @@ namespace Microsoft.Xna.Framework.Net
         {
             lock (reliableLock)
             {
-                if (!reliableChannels.TryGetValue(gamer.GamerId, out ReliableChannel channel))
+                if (!reliableChannels.TryGetValue(gamer.GamerId, out ReliableChannel? channel))
                 {
                     string id = gamer.GamerId;
                     channel = new ReliableChannel(datagram => SendRawToGamer(id, datagram));
@@ -1992,7 +1993,7 @@ namespace Microsoft.Xna.Framework.Net
         // the channel gave up on a gamer (stopped acknowledging, or broke the protocol): it is as good as gone
         private void OnChannelFaulted(string gamerId, string reason)
         {
-            NetworkGamer gamer;
+            NetworkGamer? gamer;
             lock (lockObject)
                 gamer = gamers.FirstOrDefault(g => g.GamerId == gamerId);
 
@@ -2046,7 +2047,7 @@ namespace Microsoft.Xna.Framework.Net
         {
             lock (reliableLock)
             {
-                return reliableChannels.TryGetValue(gamer.GamerId, out ReliableChannel channel)
+                return reliableChannels.TryGetValue(gamer.GamerId, out ReliableChannel? channel)
                     ? TimeSpan.FromSeconds(channel.OldestUnackedAge(ReliableNow))
                     : TimeSpan.Zero;
             }
@@ -2074,7 +2075,7 @@ namespace Microsoft.Xna.Framework.Net
                 return;
 
             // Identify sender by endpoint mapping
-            NetworkGamer senderGamer = null;
+            NetworkGamer? senderGamer = null;
             lock (lockObject)
             {
                 senderGamer = gamers.FirstOrDefault(g => gamerPeers.TryGetValue(g.GamerId, out var ep) && ep == senderEndpoint);
@@ -2153,7 +2154,7 @@ namespace Microsoft.Xna.Framework.Net
                     // the host passes on data from another client
                     if (!IsHost && senderGamer != null && senderGamer.IsHost && payload.Length >= 2)
                     {
-                        NetworkGamer from;
+                        NetworkGamer? from;
                         lock (lockObject)
                             from = gamers.FirstOrDefault(g => !g.IsLocal && g.HasShortId && g.Id == payload[1]);
                         if (from == null)
@@ -2180,7 +2181,7 @@ namespace Microsoft.Xna.Framework.Net
             if (from == null || from.IsLocal)
                 return;
 
-            NetworkGamer target;
+            NetworkGamer? target;
             lock (lockObject)
                 target = gamers.FirstOrDefault(g => g.HasShortId && g.Id == targetId);
             if (target == null || target == from)

@@ -25,7 +25,7 @@ namespace Microsoft.Xna.Framework.Net
 
         public bool Equals(PeerId other) => string.Equals(Value, other.Value, StringComparison.Ordinal);
 
-        public override bool Equals(object obj) => obj is PeerId other && Equals(other);
+        public override bool Equals(object? obj) => obj is PeerId other && Equals(other);
 
         public override int GetHashCode() => Value == null ? 0 : StringComparer.Ordinal.GetHashCode(Value);
 

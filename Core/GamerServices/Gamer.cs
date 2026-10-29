@@ -18,7 +18,7 @@ namespace Microsoft.Xna.Framework.GamerServices
         /// <summary>
         /// Gets custom data associated with this gamer.
         /// </summary>
-        public object Tag { get; set; }
+        public object? Tag { get; set; }
 
         /// <summary>
         /// Gets the signed-in gamers.

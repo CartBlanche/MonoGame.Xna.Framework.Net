@@ -17,7 +17,7 @@ namespace Microsoft.Xna.Framework.Net
         /// <summary>
         /// Human-readable reason for rejection.
         /// </summary>
-        public string Reason { get; set; }
+        public string Reason { get; set; } = string.Empty;
 
         public void Serialize(PacketWriter writer)
         {

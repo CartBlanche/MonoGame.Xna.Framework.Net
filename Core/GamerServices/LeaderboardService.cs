@@ -10,7 +10,7 @@ namespace Microsoft.Xna.Framework.GamerServices
             LeaderboardIdentity identity,
             int pageStart,
             int pageSize,
-            SignedInGamer pivotGamer = null,
+            SignedInGamer? pivotGamer = null,
             CancellationToken cancellationToken = default);
     }
 
@@ -20,13 +20,13 @@ namespace Microsoft.Xna.Framework.GamerServices
     public static class LeaderboardService
     {
         private const string DefaultLocalStorageFolder = "MonoGame.Xna.Framework.Net";
-        private static ILeaderboardProvider liveProvider;
+        private static ILeaderboardProvider? liveProvider;
         private static ILeaderboardProvider localProvider = new PersistentLocalLeaderboardProvider();
 
         /// <summary>
         /// Gets or sets the online/live provider used when a gamer is signed in.
         /// </summary>
-        public static ILeaderboardProvider LiveProvider
+        public static ILeaderboardProvider? LiveProvider
         {
             get => liveProvider;
             set => liveProvider = value;
@@ -89,8 +89,7 @@ namespace Microsoft.Xna.Framework.GamerServices
 
         public Task SubmitAsync(LeaderboardWriter writer, CancellationToken cancellationToken = default)
         {
-            if (writer == null)
-                throw new ArgumentNullException(nameof(writer));
+            ArgumentNullException.ThrowIfNull(writer);
 
             cancellationToken.ThrowIfCancellationRequested();
 
@@ -130,15 +129,12 @@ namespace Microsoft.Xna.Framework.GamerServices
             LeaderboardIdentity identity,
             int pageStart,
             int pageSize,
-            SignedInGamer pivotGamer = null,
+            SignedInGamer? pivotGamer = null,
             CancellationToken cancellationToken = default)
         {
-            if (identity == null)
-                throw new ArgumentNullException(nameof(identity));
-            if (pageStart < 0)
-                throw new ArgumentOutOfRangeException(nameof(pageStart));
-            if (pageSize <= 0)
-                throw new ArgumentOutOfRangeException(nameof(pageSize));
+            ArgumentNullException.ThrowIfNull(identity);
+            ArgumentOutOfRangeException.ThrowIfNegative(pageStart);
+            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(pageSize);
 
             cancellationToken.ThrowIfCancellationRequested();
 
@@ -223,8 +219,7 @@ namespace Microsoft.Xna.Framework.GamerServices
 
         public Task SubmitAsync(LeaderboardWriter writer, CancellationToken cancellationToken = default)
         {
-            if (writer == null)
-                throw new ArgumentNullException(nameof(writer));
+            ArgumentNullException.ThrowIfNull(writer);
 
             cancellationToken.ThrowIfCancellationRequested();
 
@@ -269,15 +264,12 @@ namespace Microsoft.Xna.Framework.GamerServices
             LeaderboardIdentity identity,
             int pageStart,
             int pageSize,
-            SignedInGamer pivotGamer = null,
+            SignedInGamer? pivotGamer = null,
             CancellationToken cancellationToken = default)
         {
-            if (identity == null)
-                throw new ArgumentNullException(nameof(identity));
-            if (pageStart < 0)
-                throw new ArgumentOutOfRangeException(nameof(pageStart));
-            if (pageSize <= 0)
-                throw new ArgumentOutOfRangeException(nameof(pageSize));
+            ArgumentNullException.ThrowIfNull(identity);
+            ArgumentOutOfRangeException.ThrowIfNegative(pageStart);
+            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(pageSize);
 
             cancellationToken.ThrowIfCancellationRequested();
 

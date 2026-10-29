@@ -7,7 +7,7 @@ namespace Microsoft.Xna.Framework.Net
     {
         public byte MessageType => 12;
 
-        public string Reason { get; set; }
+        public string Reason { get; set; } = string.Empty;
 
         public void Serialize(PacketWriter writer)
         {

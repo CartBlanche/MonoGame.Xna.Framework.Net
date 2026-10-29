@@ -10,12 +10,12 @@ namespace Microsoft.Xna.Framework.Net
         // Reserve message id 4
         public byte MessageType => 4;
 
-        public string GamerId { get; set; }
+        public string GamerId { get; set; } = string.Empty;
         public bool IsReady { get; set; }
 
         public void Serialize(PacketWriter writer)
         {
-            if (writer == null) throw new ArgumentNullException(nameof(writer));
+            ArgumentNullException.ThrowIfNull(writer);
             writer.Write(MessageType);
             writer.Write(GamerId);
             writer.Write(IsReady);
@@ -23,7 +23,7 @@ namespace Microsoft.Xna.Framework.Net
 
         public void Deserialize(PacketReader reader)
         {
-            if (reader == null) throw new ArgumentNullException(nameof(reader));
+            ArgumentNullException.ThrowIfNull(reader);
             // Reader is positioned after the type byte
             GamerId = reader.ReadString();
             IsReady = reader.ReadBoolean();

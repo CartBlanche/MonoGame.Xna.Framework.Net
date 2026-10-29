@@ -30,7 +30,7 @@ namespace Microsoft.Xna.Framework.Net
         /// <param name="maxKeys">How many keys to remember; the idlest are forgotten first, so a flood of
         /// made-up keys cannot grow this without limit.</param>
         /// <param name="seconds">The clock, for tests.</param>
-        public RateLimiter(double burst, double perSecond, int maxKeys = 512, Func<double> seconds = null)
+        public RateLimiter(double burst, double perSecond, int maxKeys = 512, Func<double>? seconds = null)
         {
             this.burst = burst;
             this.perSecond = perSecond;

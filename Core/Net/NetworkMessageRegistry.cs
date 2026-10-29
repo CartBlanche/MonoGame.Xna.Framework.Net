@@ -37,7 +37,7 @@ namespace Microsoft.Xna.Framework.Net
         /// </summary>
         /// <param name="typeId">The unique identifier for the message type.</param>
         /// <returns>An instance of the network message, or <c>null</c> if the type identifier is not registered.</returns>
-        public static INetworkMessage CreateMessage(byte typeId)
+        public static INetworkMessage? CreateMessage(byte typeId)
         {
             return registry.TryGetValue(typeId, out var entry) ? entry.Create() : null;
         }

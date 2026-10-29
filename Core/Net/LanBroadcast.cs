@@ -22,10 +22,8 @@ namespace Microsoft.Xna.Framework.Net
         /// </summary>
         public static IPAddress DirectedBroadcast(IPAddress address, IPAddress mask)
         {
-            if (address == null)
-                throw new ArgumentNullException(nameof(address));
-            if (mask == null)
-                throw new ArgumentNullException(nameof(mask));
+            ArgumentNullException.ThrowIfNull(address);
+            ArgumentNullException.ThrowIfNull(mask);
 
             byte[] a = address.GetAddressBytes();
             byte[] m = mask.GetAddressBytes();

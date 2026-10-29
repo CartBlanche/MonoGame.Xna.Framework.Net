@@ -31,7 +31,7 @@ namespace Microsoft.Xna.Framework.Net
         {
             public void LogInfo(string message) => logger.LogInfo(message);
             public void LogWarning(string message) => logger.LogWarning(message);
-            public void LogError(string message, Exception ex = null) => logger.LogError(message, ex);
+            public void LogError(string message, Exception? ex = null) => logger.LogError(message, ex);
         }
     }
 
@@ -42,7 +42,7 @@ namespace Microsoft.Xna.Framework.Net
 
         public void LogWarning(string message) => Debug.WriteLine($"[NET-WARN] {message}");
 
-        public void LogError(string message, Exception ex = null)
+        public void LogError(string message, Exception? ex = null)
         {
             Debug.WriteLine($"[NET-ERROR] {message}");
             if (ex != null)

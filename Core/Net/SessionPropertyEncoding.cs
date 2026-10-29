@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 
 namespace Microsoft.Xna.Framework.Net
@@ -22,7 +23,7 @@ namespace Microsoft.Xna.Framework.Net
         }
 
         /// <summary>Decodes text made by <see cref="Encode"/>; false if it is not.</summary>
-        public static bool TryDecode(string text, out object value)
+        public static bool TryDecode(string text, [NotNullWhen(true)] out object? value)
         {
             value = null;
             if (text == null || text.Length < 2 || text[1] != ':')

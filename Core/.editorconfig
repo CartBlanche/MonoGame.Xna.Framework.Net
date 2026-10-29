@@ -1,0 +1,9 @@
+# Analyzer rules that would need a public API change or only restyle code that is deliberate.
+[*.cs]
+# the member names follow the original protocol and XNA (CURRENT_PROTOCOL_VERSION, MAGIC/Magic, ...) and are public
+dotnet_diagnostic.CA1707.severity = none
+dotnet_diagnostic.CA1708.severity = none
+# XNA-shaped instance members (HasVoice, IsTalking, IsGuest, Update ...) must stay instance members, whatever they use today
+dotnet_diagnostic.CA1822.severity = none
+# an explicit default (= false, = 0) is written on purpose to document a property's starting value
+dotnet_diagnostic.CA1805.severity = none

@@ -5,7 +5,7 @@ namespace Microsoft.Xna.Framework.GamerServices
     /// </summary>
     public interface IAchievementMediaProvider
     {
-        Task<AchievementIcon> GetIconAsync(SignedInGamer gamer, string achievementKey, CancellationToken cancellationToken = default);
+        Task<AchievementIcon?> GetIconAsync(SignedInGamer gamer, string achievementKey, CancellationToken cancellationToken = default);
     }
 
     /// <summary>
@@ -13,10 +13,10 @@ namespace Microsoft.Xna.Framework.GamerServices
     /// </summary>
     public static class AchievementMediaService
     {
-        private static IAchievementMediaProvider liveProvider;
+        private static IAchievementMediaProvider? liveProvider;
         private static IAchievementMediaProvider localProvider = new InMemoryAchievementMediaProvider();
 
-        public static IAchievementMediaProvider LiveProvider
+        public static IAchievementMediaProvider? LiveProvider
         {
             get => liveProvider;
             set => liveProvider = value;
@@ -43,10 +43,9 @@ namespace Microsoft.Xna.Framework.GamerServices
         private readonly Dictionary<string, AchievementIcon> iconsByAchievementKey = new(StringComparer.Ordinal);
         private readonly Dictionary<string, AchievementIcon> iconsByIconKey = new(StringComparer.Ordinal);
 
-        public Task<AchievementIcon> GetIconAsync(SignedInGamer gamer, string achievementKey, CancellationToken cancellationToken = default)
+        public Task<AchievementIcon?> GetIconAsync(SignedInGamer gamer, string achievementKey, CancellationToken cancellationToken = default)
         {
-            if (gamer == null)
-                throw new ArgumentNullException(nameof(gamer));
+            ArgumentNullException.ThrowIfNull(gamer);
             if (string.IsNullOrWhiteSpace(achievementKey))
                 throw new ArgumentException("Achievement key cannot be empty.", nameof(achievementKey));
 
@@ -56,7 +55,7 @@ namespace Microsoft.Xna.Framework.GamerServices
             {
                 if (iconsByAchievementKey.TryGetValue(achievementKey, out var direct))
                 {
-                    return Task.FromResult(direct);
+                    return Task.FromResult<AchievementIcon?>(direct);
                 }
 
                 var definition = AchievementCatalog.Get(achievementKey);
@@ -64,20 +63,19 @@ namespace Microsoft.Xna.Framework.GamerServices
                 {
                     if (iconsByIconKey.TryGetValue(definition.IconKey, out var byIconKey))
                     {
-                        return Task.FromResult(byIconKey);
+                        return Task.FromResult<AchievementIcon?>(byIconKey);
                     }
                 }
             }
 
-            return Task.FromResult<AchievementIcon>(null);
+            return Task.FromResult<AchievementIcon?>(null);
         }
 
         internal void RegisterByAchievementKey(string achievementKey, AchievementIcon icon)
         {
             if (string.IsNullOrWhiteSpace(achievementKey))
                 throw new ArgumentException("Achievement key cannot be empty.", nameof(achievementKey));
-            if (icon == null)
-                throw new ArgumentNullException(nameof(icon));
+            ArgumentNullException.ThrowIfNull(icon);
 
             lock (gate)
             {
@@ -89,8 +87,7 @@ namespace Microsoft.Xna.Framework.GamerServices
         {
             if (string.IsNullOrWhiteSpace(iconKey))
                 throw new ArgumentException("Icon key cannot be empty.", nameof(iconKey));
-            if (icon == null)
-                throw new ArgumentNullException(nameof(icon));
+            ArgumentNullException.ThrowIfNull(icon);
 
             lock (gate)
             {

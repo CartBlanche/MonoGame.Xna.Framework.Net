@@ -8,11 +8,11 @@ namespace Microsoft.Xna.Framework.Net
     /// </summary>
     public static class NetworkServiceProvider
     {
-        private static INetworkBackend backend;
+        private static INetworkBackend? backend;
         private static readonly object lockObject = new object();
 
         // the invitation the user last accepted in the platform's UI, until the game joins it
-        private static AvailableNetworkSession pendingInvite;
+        private static AvailableNetworkSession? pendingInvite;
         private static bool inviteNotificationDue;
 
         /// <summary>
@@ -44,7 +44,7 @@ namespace Microsoft.Xna.Framework.Net
         /// </summary>
         public static void SetBackend(INetworkBackend newBackend)
         {
-            if (newBackend == null) throw new ArgumentNullException(nameof(newBackend));
+            ArgumentNullException.ThrowIfNull(newBackend);
             lock (lockObject)
             {
                 if (backend != null)
@@ -55,7 +55,7 @@ namespace Microsoft.Xna.Framework.Net
             }
         }
 
-        private static void OnInviteReceived(object sender, InviteReceivedEventArgs e)
+        private static void OnInviteReceived(object? sender, InviteReceivedEventArgs e)
         {
             lock (lockObject)
             {
@@ -71,7 +71,7 @@ namespace Microsoft.Xna.Framework.Net
         /// </summary>
         internal static void DispatchInvites()
         {
-            AvailableNetworkSession invite;
+            AvailableNetworkSession? invite;
             lock (lockObject)
             {
                 if (!inviteNotificationDue)
@@ -79,6 +79,8 @@ namespace Microsoft.Xna.Framework.Net
                 inviteNotificationDue = false;
                 invite = pendingInvite;
             }
+            if (invite == null)
+                return;
 
             if (NetworkSession.RaiseInviteAccepted(invite))
             {
@@ -92,7 +94,7 @@ namespace Microsoft.Xna.Framework.Net
         }
 
         /// <summary>The invitation waiting to be joined, which is then no longer pending; null if none.</summary>
-        internal static AvailableNetworkSession TakePendingInvite()
+        internal static AvailableNetworkSession? TakePendingInvite()
         {
             lock (lockObject)
             {

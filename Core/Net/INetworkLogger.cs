@@ -20,7 +20,7 @@ namespace Microsoft.Xna.Framework.Net
         /// <summary>
         /// Logs an error message with optional exception.
         /// </summary>
-        void LogError(string message, Exception ex = null);
+        void LogError(string message, Exception? ex = null);
     }
 
     /// <summary>
@@ -38,7 +38,7 @@ namespace Microsoft.Xna.Framework.Net
             Console.WriteLine($"[NET-WARN] {message}");
         }
 
-        public void LogError(string message, Exception ex = null)
+        public void LogError(string message, Exception? ex = null)
         {
             Console.WriteLine($"[NET-ERROR] {message}");
             if (ex != null)
@@ -53,6 +53,6 @@ namespace Microsoft.Xna.Framework.Net
     {
         public void LogInfo(string message) { }
         public void LogWarning(string message) { }
-        public void LogError(string message, Exception ex = null) { }
+        public void LogError(string message, Exception? ex = null) { }
     }
 }

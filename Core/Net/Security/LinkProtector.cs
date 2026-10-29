@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System;
 using System.Security.Cryptography;
 
@@ -43,7 +44,7 @@ namespace Microsoft.Xna.Framework.Net
             return frame;
         }
 
-        public bool TryUnprotect(byte[] frame, int length, out byte[] plain)
+        public bool TryUnprotect(byte[] frame, int length, [NotNullWhen(true)] out byte[]? plain)
         {
             plain = null;
             if (length < Overhead || frame[0] != FrameType)

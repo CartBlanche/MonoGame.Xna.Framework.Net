@@ -10,11 +10,11 @@ namespace Microsoft.Xna.Framework.Net
         
         public byte MessageType => 2;
         public byte ProtocolVersion { get; set; } = CURRENT_PROTOCOL_VERSION;
-        public string GamerId { get; set; }
-        public string Gamertag { get; set; }
+        public string GamerId { get; set; } = string.Empty;
+        public string Gamertag { get; set; } = string.Empty;
 
         /// <summary>Proof of knowing the session password, answering a challenge; empty on a first request.</summary>
-        public byte[] Proof { get; set; } = new byte[0];
+        public byte[] Proof { get; set; } = Array.Empty<byte>();
 
         public void Serialize(PacketWriter writer)
         {
@@ -22,7 +22,7 @@ namespace Microsoft.Xna.Framework.Net
             writer.Write(ProtocolVersion);
             writer.Write(GamerId);
             writer.Write(Gamertag);
-            writer.WriteLengthPrefixed(Proof ?? new byte[0]);
+            writer.WriteLengthPrefixed(Proof ?? Array.Empty<byte>());
         }
 
         public void Deserialize(PacketReader reader)
