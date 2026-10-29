@@ -2,6 +2,9 @@
 
 Epic Online Services back-end package for MonoGame.Xna.Framework.Net.
 
+**Not published to NuGet yet.** It carries Epic's SDK and native libraries, whose redistribution terms are still to be checked, so for now
+reference this project or build it from source.
+
 This package keeps the same shared networking API as the core library while wiring EOS sign-in, leaderboard, achievement, media, and session seams.
 
 ## What this package provides

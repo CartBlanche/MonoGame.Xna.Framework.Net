@@ -8,20 +8,22 @@ This is the policy the first publish follows. Where a choice is still open it sa
 |---------|----------|
 | `MonoGame.Xna.Framework.Net` | the XNA-shaped API, the session code, the LAN back-end |
 | `MonoGame.Xna.Framework.Net.Steam` | Steam lobbies and P2P, leaderboards, achievements |
-| `MonoGame.Xna.Framework.Net.EOS` | Epic Online Services lobbies and P2P (see "Epic" below) |
+| `MonoGame.Xna.Framework.Net.EOS` | Epic Online Services lobbies and P2P (**not published yet**, see "Epic" below) |
 | `MonoGame.Xna.Framework.Net.Android` | Nearby Connections and Play Games |
 | `MonoGame.Xna.Framework.Net.iOS` | Game Center |
 
 All five carry **the same version number** and each back-end depends on the core package at that version or newer, so a game
-updates them together. A back-end release that changes nothing is still published, to keep the numbers equal.
+updates them together. A back-end release that changes nothing is still published, to keep the numbers equal. (The EOS
+package keeps the number but is not published yet.)
 
 ## Version numbers
 
 [Semantic Versioning 2.0](https://semver.org). The version is in each package's `Directory.Build.props`; CI adds a date to
-non-release builds (`0.3.1-2026-10-29`) and uses the tag for releases (`v0.4.0-preview.1`).
+non-release builds (`1.0.0-preview.1-2026-10-29`) and uses the tag for releases (`v1.0.0-preview.1`).
 
-- **Before 1.0 (`0.x`)**: a minor version may break the public API; a patch version does not. Previews are `-preview.N`.
-- **From 1.0**: a **major** version for any breaking change, a **minor** for additions, a **patch** for fixes.
+- **The first version is `1.0.0-preview.1`.** Nothing was published before it, so there is no 0.x history to continue from.
+- **Previews (`1.0.0-preview.N`)**: anything may change from one preview to the next, the API and the wire protocol included.
+- **From `1.0.0`**: a **major** version for any breaking change, a **minor** for additions, a **patch** for fixes.
 
 ## What the public API is
 
@@ -79,5 +81,7 @@ formats that never shipped); they are not safe to mix with a release, even the o
 ## Epic
 
 The EOS package contains Epic's SDK source and native libraries, which are under Epic's own terms, not this repository's MIT
-license. Until those terms have been checked against redistributing them in a package, the EOS package is not published with
-the others (the workflow publishes it only for an `eos-v*` tag or a manual run), and its metadata must say what it contains.
+license. **It is not published yet**: the decision is to wait until those terms have been checked against redistributing them
+in a package. The workflow's EOS publish job is switched off (`if: ${{ false }}`), and the package still packs in CI so it stays
+buildable. Before it is published, its license metadata must say what it contains. Until then the EOS back-end is used by
+referencing the project or building it from source.

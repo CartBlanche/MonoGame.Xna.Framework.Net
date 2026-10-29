@@ -54,7 +54,7 @@ What each back-end has actually been run against, as of 2026-10-29. "Written" me
 |----------|---------|--------|
 | UDP / SystemLink (default) | `SystemLink` | **Works.** Core, compatibility (53) and conformance suites pass over real sockets, including password joins and forged-datagram rejection. a two-machine play-through of ShipGame is pending |
 | Steam | all session types | A hosted session becoming a lobby that carries its type and properties is **verified against the live Steam client** (one account, app 480). The password flag was added afterwards and has only unit tests. Finding and joining a lobby and receiving a real invitation are **not verified** (they need a second account). Gameplay traffic uses Steam P2P |
-| EOS | all session types | **Written, never run against an Epic account.** The native library loads on macOS arm64 (tested). Lobbies, P2P, invitations, sign-in, leaderboards and achievements need your Epic sandbox and two accounts to verify |
+| EOS | all session types | **Not published to NuGet yet** (it carries Epic's SDK; build it from source). **Written, never run against an Epic account.** The native library loads on macOS arm64 (tested). Lobbies, P2P, invitations, sign-in, leaderboards and achievements need your Epic sandbox and two accounts to verify |
 | Android | `SystemLink` (over Nearby Connections, or the LAN) | The LAN path **passes 14 of 14 tests on an emulator**. Nearby Connections and Play Games sign-in are **not verified** (they need two devices with Google Play services) |
 | iOS | all session types (Game Center) | **Builds.** Game Center (`GKMatch`) is **not verified**, and the iOS test app currently finds 0 tests, so nothing runs on the platform yet |
 
