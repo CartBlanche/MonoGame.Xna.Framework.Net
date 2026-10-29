@@ -15,7 +15,7 @@ How closely this library follows XNA Game Studio 4.0's `Microsoft.Xna.Framework.
 ## Behaviour that differs from XNA
 
 - **Events are raised from `Update()`**, on the thread that calls it, as XNA does. Framework state (the lobby, readiness) still changes at once.
-- **`SendData` never delivers to the sender** (no echo).
+- **`SendData` to everyone delivers to the sender too**, as XNA documents ("This includes the gamer sending the packet"), so a game receives its own data with itself as the sender (`IsLocal` is true) and discards it, as XNA's samples do. Data sent to one gamer goes only to that gamer.
 - **The topology is a star.** Data between two clients goes through the host, which adds one hop.
 - **Unreliable and in-order-only datagrams are limited to 1100 bytes** (reliable data of any size is split for you).
 - **`AllowHostMigration` is accepted but migration is not built.** If the host leaves, the session ends with `HostEndedSession`.

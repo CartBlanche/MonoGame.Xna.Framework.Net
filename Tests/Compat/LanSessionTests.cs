@@ -22,6 +22,39 @@ namespace Microsoft.Xna.Framework.Net.CompatTests
         public void TearDown() => lan.Dispose();
 
         [Test]
+        public async Task TwoHostsOnOneMachine_AreEachJoinedAtTheirOwnAddress()
+        {
+            // the second host cannot have the usual game port, so it binds another; it has to announce that one,
+            // or its joiners end up knocking on the first host's door
+            NetworkSession first = await lan.StartHostAsync();
+            NetworkSession second = await NetworkSession.CreateAsync(NetworkSessionType.SystemLink, 1, 4, 0, new Dictionary<string, object>());
+            try
+            {
+                string secondName = SessionHarness.LocalOf(second).Gamertag;
+                AvailableNetworkSession target = null;
+                DateTime deadline = DateTime.UtcNow.AddSeconds(8);
+                while (target == null && DateTime.UtcNow < deadline)
+                {
+                    using (AvailableNetworkSessionCollection found =
+                        await NetworkSession.FindAsync(NetworkSessionType.SystemLink, 1, new Dictionary<string, object>()))
+                        target = found.FirstOrDefault(s => s.HostGamertag == secondName);
+                }
+                Assert.That(target, Is.Not.Null, "the second host was never listed");
+
+                using (NetworkSession client = await NetworkSession.JoinAsync(target))
+                {
+                    Assert.That(await lan.WaitUntilAsync(() => second.AllGamers.Count == 2), "the second host never saw the client");
+                    Assert.That(first.AllGamers.Count, Is.EqualTo(1), "the client joined the first host instead");
+                    Assert.That(client.Host.Gamertag, Is.EqualTo(secondName));
+                }
+            }
+            finally
+            {
+                second.Dispose();
+            }
+        }
+
+        [Test]
         public async Task CreatedSession_IsInTheLobby_WithTheHostAsItsOnlyGamer()
         {
             NetworkSession host = await lan.StartHostAsync();

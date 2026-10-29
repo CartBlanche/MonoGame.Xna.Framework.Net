@@ -164,11 +164,11 @@ namespace Microsoft.Xna.Framework.Net.Tests
             Assert.That(client.SessionState, Is.EqualTo(NetworkSessionState.Lobby));
             Assert.That(await PumpUntil(() => host.RemoteGamers.Count == 1, host, client), Is.True);
 
-            host.LocalGamers[0].SendData(new byte[] { 1, 2, 3, 4 }, SendDataOptions.ReliableInOrder);
+            host.LocalGamers[0].SendData(new byte[] { 1, 2, 3, 4 }, SendDataOptions.ReliableInOrder, host.RemoteGamers[0]);
             Assert.That(await PumpUntil(() => client.LocalGamers[0].IsDataAvailable, host, client), Is.True);
             Assert.That(Receive(client), Is.EqualTo(new byte[] { 1, 2, 3, 4 }));
 
-            client.LocalGamers[0].SendData(new byte[] { 9, 8, 7 }, SendDataOptions.ReliableInOrder);
+            client.LocalGamers[0].SendData(new byte[] { 9, 8, 7 }, SendDataOptions.ReliableInOrder, client.Host);
             Assert.That(await PumpUntil(() => host.LocalGamers[0].IsDataAvailable, host, client), Is.True);
             Assert.That(Receive(host), Is.EqualTo(new byte[] { 9, 8, 7 }));
         }

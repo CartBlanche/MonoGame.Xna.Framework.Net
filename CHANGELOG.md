@@ -42,6 +42,11 @@ Development builds used protocol numbers 1 to 5 for formats that never shipped; 
 
 ### Fixed
 
+- `SendData` to everyone did not deliver to the sender, but XNA's does ("This includes the gamer sending the packet"). A game that
+  sets itself up from the packet it sends to everyone (NetRumble's host does) never started. Games that discard packets from local
+  gamers, as XNA's samples do, are unaffected; a game written against the old behaviour must now skip `sender.IsLocal`.
+- A LAN host announced the usual game port even when its transport had to bind another because a second session on the machine had
+  the first, so the second host's joiners were sent to the first host (and rejected, or joined the wrong game).
 - Disposing a session now tells the other machines at once (it used to be `Leave()` only).
 - `SignedInGamer.Privileges` was never assigned.
 - The local achievement and leaderboard files are written with source-generated JSON (reflection is unsafe once an iOS app is trimmed).

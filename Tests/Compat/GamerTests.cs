@@ -74,16 +74,50 @@ namespace Microsoft.Xna.Framework.Net.CompatTests
         }
 
         [Test]
-        public async Task ASender_NeverReceivesItsOwnPackets()
+        public async Task DataSentToEveryone_AlsoReachesTheSender_AsTheSender()
+        {
+            // XNA: "Sends a network packet to all gamers in a session. This includes the gamer sending the packet."
+            // NetRumble's host only sets up its world from the packet it sends to everyone.
+            LocalNetworkGamer hostGamer = SessionHarness.LocalOf(host);
+            LocalNetworkGamer clientGamer = SessionHarness.LocalOf(client);
+
+            hostGamer.SendData(new byte[] { 0xAB }, SendDataOptions.ReliableInOrder);
+
+            Assert.That(await lan.WaitUntilAsync(() => clientGamer.IsDataAvailable), "the client never got it");
+            Assert.That(hostGamer.IsDataAvailable, Is.True, "the sender did not receive its own packet");
+
+            var buffer = new byte[16];
+            int length = hostGamer.ReceiveData(buffer, out NetworkGamer sender);
+            Assert.That(length, Is.EqualTo(1));
+            Assert.That(buffer[0], Is.EqualTo(0xAB));
+            Assert.That(sender, Is.SameAs(hostGamer));
+            Assert.That(sender.IsLocal, Is.True);
+            Assert.That(hostGamer.IsDataAvailable, Is.False, "it arrived twice");
+        }
+
+        [Test]
+        public async Task DataSentToOneGamer_DoesNotComeBackToTheSender()
         {
             LocalNetworkGamer hostGamer = SessionHarness.LocalOf(host);
             LocalNetworkGamer clientGamer = SessionHarness.LocalOf(client);
 
-            hostGamer.SendData(new byte[] { 0xAB }, SendDataOptions.ReliableInOrder);   // to everyone, itself included in AllGamers
+            hostGamer.SendData(new byte[] { 0xCD }, SendDataOptions.ReliableInOrder, host.RemoteGamers[0]);
 
             Assert.That(await lan.WaitUntilAsync(() => clientGamer.IsDataAvailable), "the client never got it");
             await lan.WaitUntilAsync(() => false, 500);
-            Assert.That(hostGamer.IsDataAvailable, Is.False, "the sender received its own packet");
+            Assert.That(hostGamer.IsDataAvailable, Is.False, "a packet for one gamer was also given to the sender");
+        }
+
+        [Test]
+        public async Task AClientsDataForEveryone_ReachesTheClientItselfToo()
+        {
+            LocalNetworkGamer hostGamer = SessionHarness.LocalOf(host);
+            LocalNetworkGamer clientGamer = SessionHarness.LocalOf(client);
+
+            clientGamer.SendData(new byte[] { 0xEF }, SendDataOptions.ReliableInOrder);
+
+            Assert.That(await lan.WaitUntilAsync(() => hostGamer.IsDataAvailable), "the host never got it");
+            Assert.That(clientGamer.IsDataAvailable, Is.True, "the client did not receive its own packet");
         }
 
         [Test]

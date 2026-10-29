@@ -146,8 +146,9 @@ namespace Microsoft.Xna.Framework.Net.Tests
             NetworkSession client = await JoinAsync(host);
             Assert.That(await PumpUntilAsync(() => host.AllGamers.Count == 2));
 
-            host.LocalGamers[0].SendData(new byte[] { 1, 2, 3 }, SendDataOptions.ReliableInOrder);
-            client.LocalGamers[0].SendData(new byte[] { 9, 8 }, SendDataOptions.ReliableInOrder);
+            // to the other gamer: data for everyone would also come back to the sender
+            host.LocalGamers[0].SendData(new byte[] { 1, 2, 3 }, SendDataOptions.ReliableInOrder, host.RemoteGamers[0]);
+            client.LocalGamers[0].SendData(new byte[] { 9, 8 }, SendDataOptions.ReliableInOrder, client.Host);
 
             Assert.That(await PumpUntilAsync(() => client.LocalGamers[0].IsDataAvailable && host.LocalGamers[0].IsDataAvailable));
             var buffer = new byte[16];

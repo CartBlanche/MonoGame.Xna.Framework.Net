@@ -207,7 +207,8 @@ namespace Microsoft.Xna.Framework.Net
         }
 
         /// <summary>
-        /// Sends data to other gamers in the session.
+        /// Sends data to all gamers in the session, which includes this gamer, as in XNA: it receives its own data
+        /// like any other, with itself as the sender (<see cref="IsLocal"/> is true), so games discard it.
         /// </summary>
         /// <param name="data">The data to send.</param>
         /// <param name="options">Send options.</param>
@@ -268,7 +269,7 @@ namespace Microsoft.Xna.Framework.Net
         }
 
         /// <summary>
-        /// Sends data using PacketWriter.
+        /// Sends data using PacketWriter to all gamers in the session, this gamer included (see <see cref="SendData(byte[], SendDataOptions)"/>).
         /// </summary>
         /// <param name="data">The data to send.</param>
         /// <param name="options">Send options.</param>
@@ -363,11 +364,21 @@ namespace Microsoft.Xna.Framework.Net
                 case NetworkSessionType.SystemLink:
                 case NetworkSessionType.PlayerMatch:
                 case NetworkSessionType.Ranked:
-                    // Everyone but the sender: a gamer never receives what it sent itself, as in XNA
+                    // Data for all gamers includes the sender, and any other local gamer: XNA documents it so, and
+                    // its samples discard what local gamers sent. That data never leaves the machine.
+                    var local = new HashSet<NetworkGamer>();
                     foreach (var recipient in recipients)
                     {
-                        if (recipient == null || recipient == this)
+                        if (recipient == null)
                             continue;
+
+                        if (recipient.IsLocal)
+                        {
+                            if (local.Add(recipient))
+                                DeliverLocally(recipient, data, dataLength);
+                            continue;
+                        }
+
                         session.SendDataToGamer(recipient, data, dataLength, options);
                     }
                     break;
@@ -378,20 +389,26 @@ namespace Microsoft.Xna.Framework.Net
                     var delivered = new HashSet<NetworkGamer>();
                     foreach (var recipient in recipients)
                     {
-                        if (recipient == null || recipient == this || !recipient.IsLocal)
+                        if (recipient == null || !recipient.IsLocal)
                             continue;
                         if (!delivered.Add(recipient))
                             continue; // avoid duplicate enqueue if recipients enumerates same gamer twice
 
-                        var clone = new byte[dataLength];
-                        Buffer.BlockCopy(data, 0, clone, 0, dataLength);
-                        recipient.EnqueueIncomingPacket(clone, this);
+                        DeliverLocally(recipient, data, dataLength);
                     }
                     break;
 
                 default:
                     throw new ArgumentOutOfRangeException(null, $"Unsupported session type: {session.SessionType}");
             }
+        }
+
+        // puts a copy of the data in a local gamer's own queue, as if it had arrived, with this gamer as the sender
+        private void DeliverLocally(NetworkGamer recipient, byte[] data, int dataLength)
+        {
+            var copy = new byte[dataLength];
+            Buffer.BlockCopy(data, 0, copy, 0, dataLength);
+            recipient.EnqueueIncomingPacket(copy, this);
         }
 
         /// <summary>

@@ -22,8 +22,11 @@ namespace Microsoft.Xna.Framework.Net
         /// Starts announcing a session on the LAN. Opening the socket and finding the networks to announce on happen
         /// before this returns, so a failure there is thrown to the caller. The returned task is the announcing
         /// loop, which runs until the session is full, closed or <paramref name="cancellationToken"/> is cancelled.
+        /// <paramref name="gamePort"/> is the port the session's own transport is bound to, which is where joiners
+        /// are told to send their join request. It is not always <see cref="GamePort"/>: a second session on the
+        /// same machine finds that port taken and binds another.
         /// </summary>
-        public static Task AdvertiseSessionAsync(ISessionAdvertiser session, CancellationToken cancellationToken)
+        public static Task AdvertiseSessionAsync(ISessionAdvertiser session, int gamePort, CancellationToken cancellationToken)
         {
             var udpClient = new UdpClient(AddressFamily.InterNetwork);
             IReadOnlyList<IPAddress> subnetBroadcasts;
@@ -59,7 +62,7 @@ namespace Microsoft.Xna.Framework.Net
                     {
                         var propertiesBytes = NetworkSession.SerializePropertiesBinary(ad.Properties);
                         // Include gameplay port in the header so joiners know where to send join requests
-                        var header = $"SESSION:{ad.GameId}:{ad.SessionId}:{ad.MaxGamers}:{ad.PrivateGamerSlots}:{ad.CurrentGamerCount}:{(ad.IsPasswordProtected ? 1 : 0)}:{(ad.HostGamertag ?? "Host").Replace(':', '_')}:{GamePort}:";
+                        var header = $"SESSION:{ad.GameId}:{ad.SessionId}:{ad.MaxGamers}:{ad.PrivateGamerSlots}:{ad.CurrentGamerCount}:{(ad.IsPasswordProtected ? 1 : 0)}:{(ad.HostGamertag ?? "Host").Replace(':', '_')}:{gamePort}:";
                         var headerBytes = Encoding.UTF8.GetBytes(header);
                         var message = new byte[headerBytes.Length + propertiesBytes.Length];
                         Buffer.BlockCopy(headerBytes, 0, message, 0, headerBytes.Length);

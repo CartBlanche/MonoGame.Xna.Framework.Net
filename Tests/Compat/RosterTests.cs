@@ -75,7 +75,7 @@ namespace Microsoft.Xna.Framework.Net.CompatTests
         }
 
         [Test]
-        public async Task DataSentToEveryone_ReachesEveryoneElse_AndNotTheSender()
+        public async Task DataSentToEveryone_ReachesEveryone_TheSenderIncluded()
         {
             LocalNetworkGamer a = SessionHarness.LocalOf(clientA);
             LocalNetworkGamer b = SessionHarness.LocalOf(clientB);
@@ -84,8 +84,7 @@ namespace Microsoft.Xna.Framework.Net.CompatTests
             a.SendData(new byte[] { 1 }, SendDataOptions.ReliableInOrder);
 
             Assert.That(await lan.WaitUntilAsync(() => b.IsDataAvailable && h.IsDataAvailable), "someone missed it");
-            await lan.WaitUntilAsync(() => false, 500);
-            Assert.That(a.IsDataAvailable, Is.False, "the sender received its own packet");
+            Assert.That(a.IsDataAvailable, Is.True, "the sender did not receive its own packet (XNA: \"This includes the gamer sending the packet\")");
         }
 
         [Test]

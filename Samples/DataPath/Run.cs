@@ -36,7 +36,8 @@ public static class Run
             while (me.IsDataAvailable)
             {
                 me.ReceiveData(reader, out NetworkGamer? sender);
-                if (sender == null)
+                // data for everyone also comes back to the sender (as in XNA); it is not a peer's data
+                if (sender == null || sender.IsLocal)
                     continue;
                 PeerStats stats = StatsFor(sender);
 

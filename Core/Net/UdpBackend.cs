@@ -35,7 +35,10 @@ namespace Microsoft.Xna.Framework.Net
         public Task AdvertiseAsync(ISessionAdvertiser session, IPeerTransport transport, CancellationToken stopToken)
         {
             // opening the socket happens in this call, so a failure to start is thrown to the caller
-            Task announcing = SystemLinkSessionManager.AdvertiseSessionAsync(session, stopToken);
+            // joiners are told the port this session's transport is really bound to: a second session on the machine
+            // does not get the usual game port, and announcing it would send its joiners to the first session
+            int gamePort = (transport as UdpTransport)?.LocalEndPoint?.Port ?? SystemLinkSessionManager.GamePort;
+            Task announcing = SystemLinkSessionManager.AdvertiseSessionAsync(session, gamePort, stopToken);
 
             // the loop runs until stopToken is cancelled or the session closes; completing here only means it has started
             announcing.ContinueWith(
