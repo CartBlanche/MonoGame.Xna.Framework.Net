@@ -1,11 +1,11 @@
-using System.Collections.ObjectModel;
+using Microsoft.Xna.Framework.GamerServices;
 
 namespace Microsoft.Xna.Framework.Net
 {
 	/// <summary>
 	/// Collection of network gamers in a session.
 	/// </summary>
-	public class GamerCollection : ReadOnlyCollection<NetworkGamer>
+	public class GamerCollection : GamerCollection<NetworkGamer>
     {
         internal GamerCollection(IList<NetworkGamer> list) : base(list) { }
 

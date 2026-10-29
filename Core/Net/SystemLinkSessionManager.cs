@@ -120,7 +120,7 @@ namespace Microsoft.Xna.Framework.Net
                     udpClient.EnableBroadcast = true;
                     // DON'T set ReceiveTimeout - it interferes with ReceiveAsync()
 
-                    // Phase 1: Listen for 1.5 seconds to catch at least 1 broadcast cycle (hosts broadcast every 1 second)
+                    // Listen for 1.5 seconds to catch at least 1 broadcast cycle (hosts broadcast every 1 second)
                     // Reduced from 2.5s for faster discovery while still being reliable
                     var startTime = DateTime.UtcNow;
                     var endTime = startTime.AddSeconds(1.5);
@@ -256,7 +256,7 @@ namespace Microsoft.Xna.Framework.Net
 
         public static async Task<NetworkSession> JoinSessionAsync(AvailableNetworkSession availableSession, IPeerTransport transport, CancellationToken cancellationToken, string password = null)
         {
-            // Phase 1: Reliable join with timeout and retry
+            // Reliable join with timeout and retry
             const int MAX_RETRIES = 3;
             const int TIMEOUT_MS = 300; // Faster timeout for LAN (reduced from 500ms)
 
@@ -269,7 +269,7 @@ namespace Microsoft.Xna.Framework.Net
                 false,
                 availableSession.SessionId,
                 transport);
-            session.sessionState = NetworkSessionState.Joining; // Phase 1: Use new Joining state
+            session.sessionState = NetworkSessionState.Joining; // Use new Joining state
 
             // Copy session properties from AvailableNetworkSession to NetworkSession
             foreach (var kvp in availableSession.SessionProperties)
@@ -292,7 +292,7 @@ namespace Microsoft.Xna.Framework.Net
 
             // The host gamer is added when the host accepts us and says who it is
 
-            // Phase 1: Send join request with retry logic
+            // Send join request with retry logic
             for (int attempt = 0; attempt < MAX_RETRIES; attempt++)
             {
                 Debug.WriteLine($"[JOIN] Sending join request (attempt {attempt + 1}/{MAX_RETRIES})");
@@ -322,7 +322,7 @@ namespace Microsoft.Xna.Framework.Net
                     if (session.sessionState == NetworkSessionState.Lobby)
                     {
                         Debug.WriteLine($"[JOIN] Successfully joined session after {attempt + 1} attempt(s)");
-                        // Phase 1: Start connection monitoring for client
+                        // Start connection monitoring for client
                         session.StartConnectionMonitoring();
                         return session;
                     }

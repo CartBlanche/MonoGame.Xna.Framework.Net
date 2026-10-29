@@ -229,7 +229,9 @@ No auth exists in `Core/Net`: `SessionInfo.IsPasswordProtected` is never enforce
 
 ---
 
-## Phase 7: Voice (in scope)
+## Phase 7: Voice (optional, DEFERRED until after Phase 9)
+
+Deferred 2026-10-29 at the owner's call: nothing else depends on it, so Phases 8 and 9 (and the first NuGet publish) come first. The numbering stays so references still work.
 
 XNA's voice API is only status: `NetworkGamer.HasVoice/IsTalking/IsMutedByLocalUser`, `LocalNetworkGamer.IsSendingData`,
 and `GamerPrivileges.AllowCommunication`. Capture, encode, transport and playback were the platform's job, not the game's.
@@ -258,9 +260,9 @@ Tasks
 
 - [ ] 8.1 Replace `Debug.WriteLine` with injectable `ILogger`/`INetworkLogger` adapter
 - [ ] 8.2 Instance-based service container behind the static `NetworkServiceProvider`/registries (statics remain as the facade)
-- [ ] 8.3 Remove empty `Core/Net/NetworkMessages.cs`; consolidate duplicate `GamerCollection` and `MessageReceivedEventArgs`
-- [ ] 8.4 Move game-specific `PlayerMoveMessage` out of the framework
-- [ ] 8.5 Remove "Phase 1/Phase 2" comments and legacy duplicate `GameStateChangeMessage` broadcast once protocol v3 lands
+- [x] 8.3 Removed the empty `NetworkMessages.cs` and the empty duplicate `MessageReceivedEventArgs.cs`; `Net.GamerCollection` now derives from `GamerCollection<NetworkGamer>` (the XNA type), so `GamerCollection<NetworkGamer> all = session.AllGamers` compiles
+- [x] 8.4 `PlayerMoveMessage` deleted (nothing used it; wire id 1 is now unassigned)
+- [x] 8.5 "Phase N" comments removed; the legacy `GameStateChangeMessage` broadcast was already gone
 - [ ] 8.6 Document sync-over-async wrappers; add `ConfigureAwait(false)` throughout Core
 - [ ] 8.7 Nullable reference types and analyzers on Core
 - [ ] 8.8 EOS: decide whether the generated 9.6k-line binding stays vendored or becomes a package reference
@@ -324,6 +326,7 @@ Exit criteria: a containerised server accepts clients from another network and s
 | 2026-10-28 | `INetworkBackend.AdvertiseAsync` completes once advertising has started and then runs until the session's token is cancelled | Lets a strict back-end (Steam) fail session creation by throwing, while LAN advertising keeps its endless loop |
 | 2026-10-29 | Without a password the link key travels in the clear: forgery from off the path is stopped, a reader of the LAN is not | A key exchange with no shared secret cannot stop a man in the middle; the password is the opt-in for that. Replays are left to the channel, which discards duplicates |
 | 2026-10-29 | EOS republishes the password flag only when properties change; Steam keeps it in step every second | A password set after creation is rare; the EOS loop only updates the lobby on a property change |
+| 2026-10-29 | Voice (Phase 7) deferred until after Phase 9; work continues with Phase 8 | Optional, and nothing in Phases 8 to 10 depends on it |
 | 2026-10-28 | Events move to `Update()` | This matches XNA's behaviour, so it is also a compat fix |
 | 2026-10-28 | Phase 2 shipped as one commit, not the two planned (A and B) | The event queue and the per-session local gamer change the same lines of `NetworkSession.cs` |
 | 2026-10-28 | `SessionEnded` is raised at most once per session | Previously a client whose host left, then disposed in the handler, got it twice (HostEndedSession then ClientSignedOut) |

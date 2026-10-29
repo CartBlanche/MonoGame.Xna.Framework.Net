@@ -47,7 +47,6 @@ namespace Microsoft.Xna.Framework.Net
         private Task receiveTask;
         private CancellationTokenSource cancellationTokenSource;
 
-        // Phase 1 additions
         private ConnectionHealthMonitor connectionMonitor;
         internal ConnectionHealthMonitor ConnectionMonitor => connectionMonitor;
         private NetworkDiagnostics diagnostics;
@@ -108,9 +107,6 @@ namespace Microsoft.Xna.Framework.Net
         /// </summary>
         private NetworkSession(NetworkSessionType sessionType, int maxGamers, int privateGamerSlots, bool isHost, IPeerTransport transport = null)
         {
-            // Register message types (can be moved to static constructor)
-            NetworkMessageRegistry.Register<PlayerMoveMessage>(1);
-
             this.sessionType = sessionType;
             this.maxGamers = maxGamers;
             this.privateGamerSlots = privateGamerSlots;
@@ -126,7 +122,7 @@ namespace Microsoft.Xna.Framework.Net
             networkTransport = transport ?? new UdpTransport(SystemLinkSessionManager.GamePort);
             cancellationTokenSource = new CancellationTokenSource();
 
-            // Phase 1: Initialize diagnostics and logging
+            // Initialize diagnostics and logging
             diagnostics = new NetworkDiagnostics();
             logger = new ConsoleNetworkLogger();
             connectionMonitor = new ConnectionHealthMonitor();
@@ -657,7 +653,7 @@ namespace Microsoft.Xna.Framework.Net
         }
 
         /// <summary>
-        /// Phase 2: Broadcasts session state change to all gamers.
+        /// Broadcasts session state change to all gamers.
         /// </summary>
         private void BroadcastSessionState(NetworkSessionState newState, string reason)
         {
@@ -688,7 +684,7 @@ namespace Microsoft.Xna.Framework.Net
                 sessionState = NetworkSessionState.Playing;
                 OnGameStarted();
 
-                // Phase 2: Broadcast state change
+                // Broadcast state change
                 if (IsHost)
                 {
                     BroadcastSessionState(NetworkSessionState.Playing, "Host started game");
@@ -706,7 +702,7 @@ namespace Microsoft.Xna.Framework.Net
                 sessionState = NetworkSessionState.Lobby;
                 OnGameEnded();
 
-                // Phase 2: Broadcast state change
+                // Broadcast state change
                 if (IsHost)
                 {
                     BroadcastSessionState(NetworkSessionState.Lobby, "Game ended");
@@ -767,7 +763,7 @@ namespace Microsoft.Xna.Framework.Net
                     return;
                 }
 
-                // Phase 1: Check protocol version
+                // Check protocol version
                 if (joinRequest.ProtocolVersion != JoinRequestMessage.CURRENT_PROTOCOL_VERSION)
                 {
                     logger?.LogWarning($"Join request from {joinRequest.Gamertag} has protocol version {joinRequest.ProtocolVersion}, expected {JoinRequestMessage.CURRENT_PROTOCOL_VERSION}");
@@ -808,7 +804,7 @@ namespace Microsoft.Xna.Framework.Net
                     }
                 }
 
-                // Phase 1: Check if session is full
+                // Check if session is full
                 if (AllGamers.Count >= MaxGamers)
                 {
                     logger?.LogWarning($"Join request from {joinRequest.Gamertag} rejected: session is full ({AllGamers.Count}/{MaxGamers})");
@@ -864,7 +860,7 @@ namespace Microsoft.Xna.Framework.Net
                     }
                 }
 
-                // Phase 1 FIX: Check if gamer already exists (from previous retry)
+                // Check if gamer already exists (from previous retry)
                 // CRITICAL: Keep the check and add in the same lock to prevent race conditions
                 NetworkGamer existingGamer = null;
                 bool isNewGamer = false;
@@ -1032,7 +1028,7 @@ namespace Microsoft.Xna.Framework.Net
                     foreach (var entry in joinAccepted.Others)
                         AddPeer(entry.Id, entry.GamerId, entry.Gamertag);
                     
-                    // Phase 1: Transition to Lobby state when join is accepted
+                    // Transition to Lobby state when join is accepted
                     sessionState = NetworkSessionState.Lobby;
                     logger?.LogInfo("Successfully joined session, now in Lobby state");
                 }
@@ -1069,7 +1065,7 @@ namespace Microsoft.Xna.Framework.Net
             }
             else if (e.Message is JoinRejectedMessage joinRejected)
             {
-                // Phase 1: Handle join rejection
+                // Handle join rejection
                 logger?.LogError($"Join rejected: {joinRejected.Reason} (Error: {joinRejected.ErrorCode})");
 
                 // Session state remains in Joining; JoinSessionAsync notices the rejection and
@@ -1078,30 +1074,6 @@ namespace Microsoft.Xna.Framework.Net
                 {
                     joinRejectedError = joinRejected.ErrorCode;
                     joinRejectedReason = joinRejected.Reason;       // written last: readers check this one
-                }
-            }
-            else if (e.Message is PlayerMoveMessage moveMessage)
-            {
-                // Identify sender by endpoint mapping
-                NetworkGamer sourceGamer = null;
-                lock (lockObject)
-                {
-                    if (e.RemotePeer.IsValid)
-                        sourceGamer = gamers.FirstOrDefault(g => gamerPeers.TryGetValue(g.GamerId, out var ep) && ep == e.RemotePeer);
-                }
-
-                if (sourceGamer != null)
-                {
-                    // Update position (mock) and broadcast to others
-                    Debug.WriteLine($"Player {sourceGamer.Gamertag} moved to ({moveMessage.X}, {moveMessage.Y}, {moveMessage.Z})");
-
-                    // Only the host rebroadcasts to others
-                    if (IsHost)
-                    {
-                        var writer = new PacketWriter();
-                        moveMessage.Serialize(writer);
-                        SendMessageToAll(writer, SendDataOptions.Reliable, sourceGamer);
-                    }
                 }
             }
             else if (e.Message is ReadinessUpdateMessage readiness)
@@ -1145,7 +1117,7 @@ namespace Microsoft.Xna.Framework.Net
             {
                 if (GamerAt(e.RemotePeer)?.GamerId == heartbeatReply.GamerId)
                 {
-                    // Phase 1: Handle heartbeat reply for RTT calculation
+                    // Handle heartbeat reply for RTT calculation
                     connectionMonitor?.OnHeartbeatReplyReceived(heartbeatReply.GamerId, heartbeatReply);
 
                     // Update diagnostics
@@ -1162,7 +1134,7 @@ namespace Microsoft.Xna.Framework.Net
             }
             else if (e.Message is GamerLeavingMessage leaveMessage)
             {
-                // Phase 2: Handle graceful leave - immediate gamer removal
+                // Handle graceful leave - immediate gamer removal
                 logger?.LogInfo($"Received leave notification from gamer {leaveMessage.GamerId}: {leaveMessage.Reason}");
                 
                 NetworkGamer leavingGamer = null;
@@ -1201,7 +1173,7 @@ namespace Microsoft.Xna.Framework.Net
             }
             else if (e.Message is SessionStateMessage stateMessage)
             {
-                // Phase 2: Handle session state synchronization from host. Only the host decides the
+                // Handle session state synchronization from host. Only the host decides the
                 // state; a forged "the game has started" from anybody else is ignored.
                 if (!IsHost && IsFromHost(e.RemotePeer))
                 {
@@ -1265,7 +1237,7 @@ namespace Microsoft.Xna.Framework.Net
         }
 
         /// <summary>
-        /// Phase 2: Gracefully leaves the session with immediate notification to all gamers.
+        /// Gracefully leaves the session with immediate notification to all gamers.
         /// Sends GamerLeavingMessage to all remote gamers before disposing.
         /// </summary>
         /// <param name="reason">Optional reason for leaving (e.g., "User quit").</param>
@@ -1328,7 +1300,7 @@ namespace Microsoft.Xna.Framework.Net
                 
                 try { cancellationTokenSource?.Cancel(); } catch { /* Already disposed */ }
                 
-                // Phase 1: Stop connection monitoring
+                // Stop connection monitoring
                 connectionMonitor?.StopMonitoring();
                 StopReliableChannels();
                 
@@ -1353,7 +1325,7 @@ namespace Microsoft.Xna.Framework.Net
                 
                 try { cancellationTokenSource?.Cancel(); } catch { /* Already disposed */ }
                 
-                // Phase 1: Stop connection monitoring
+                // Stop connection monitoring
                 connectionMonitor?.StopMonitoring();
                 StopReliableChannels();
                 
@@ -1624,7 +1596,7 @@ namespace Microsoft.Xna.Framework.Net
             }
             lock (reliableLock)
                 reliableChannels.Remove(gamer.GamerId);
-            // Phase 1: Notify connection monitor
+            // Notify connection monitor
             connectionMonitor?.OnGamerLeft(gamer);
             OnGamerLeft(gamer);
 
@@ -1951,12 +1923,12 @@ namespace Microsoft.Xna.Framework.Net
             try
             {
                 networkTransport.Send(endpoint, data, data.Length);
-                // Phase 1: Record sent packet in diagnostics
+                // Record sent packet in diagnostics
                 diagnostics?.RecordPacketSent(data.Length);
             }
             catch (Exception ex)
             {
-                // Phase 1: Use logger
+                // Use logger
                 logger?.LogError($"Failed to send data to gamer {gamerId}: {ex.Message}", ex);
             }
         }
@@ -2291,7 +2263,7 @@ namespace Microsoft.Xna.Framework.Net
 
                 try
                 {
-                    // Phase 1: Record received packet in diagnostics
+                    // Record received packet in diagnostics
                     diagnostics?.RecordPacketReceived(data.Length);
 
                     ProcessIncomingDatagram(data, sender);

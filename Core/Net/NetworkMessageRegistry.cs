@@ -50,8 +50,8 @@ namespace Microsoft.Xna.Framework.Net
             Register<JoinRejectedMessage>(6);
             Register<HeartbeatMessage>(7);
             Register<HeartbeatReplyMessage>(8);
-            Register<GamerLeavingMessage>(9); // Phase 2: Graceful leave protocol
-            Register<SessionStateMessage>(10); // Phase 2: Session state synchronization
+            Register<GamerLeavingMessage>(9); // Graceful leave protocol
+            Register<SessionStateMessage>(10); // Session state synchronization
             Register<GamerJoinedMessage>(11);
             Register<RemovedFromSessionMessage>(12);
             Register<PasswordChallengeMessage>(13);
