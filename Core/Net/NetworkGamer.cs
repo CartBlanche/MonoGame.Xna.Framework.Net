@@ -9,7 +9,7 @@ namespace Microsoft.Xna.Framework.Net
     /// <summary>
     /// Represents a player in a network session.
     /// </summary>
-    public class NetworkGamer
+    public class NetworkGamer : Gamer
     {
         private readonly NetworkSession session;
         private readonly string id;
@@ -18,7 +18,6 @@ namespace Microsoft.Xna.Framework.Net
         private readonly bool isHost;
         private string gamertag;
         private bool isReady;
-        private object? tag;
 
         // Network performance properties
         private TimeSpan roundtripTime = TimeSpan.Zero;
@@ -58,13 +57,9 @@ namespace Microsoft.Xna.Framework.Net
         public bool IsHost => isHost;
 
         /// <summary>
-        /// Gets or sets the gamertag for this gamer.
+        /// Gets the gamertag for this gamer.
         /// </summary>
-        public string Gamertag
-        {
-            get => gamertag;
-            set => gamertag = value ?? throw new ArgumentNullException(nameof(value));
-        }
+        public override string Gamertag => gamertag;
 
         /// <summary>
         /// Gets or sets whether this gamer is ready to start the game.
@@ -84,15 +79,6 @@ namespace Microsoft.Xna.Framework.Net
                     }
                 }
             }
-        }
-
-        /// <summary>
-        /// Gets or sets custom data associated with this gamer.
-        /// </summary>
-        public object? Tag
-        {
-            get => tag;
-            set => tag = value;
         }
 
         /// <summary>
@@ -215,7 +201,7 @@ namespace Microsoft.Xna.Framework.Net
         {
             ArgumentNullException.ThrowIfNull(data);
 
-            if (!Enum.IsDefined(options))
+            if (!IsValid(options))
                 throw new ArgumentOutOfRangeException(nameof(options), "Invalid send data option.");
 
             SendDataInternal(data, options, session.AllGamers);
@@ -231,7 +217,7 @@ namespace Microsoft.Xna.Framework.Net
         {
             ArgumentNullException.ThrowIfNull(data);
 
-            if (!Enum.IsDefined(options))
+            if (!IsValid(options))
                 throw new ArgumentOutOfRangeException(nameof(options), "Invalid send data option.");
 
             SendDataInternal(data, options, recipients);
@@ -248,7 +234,7 @@ namespace Microsoft.Xna.Framework.Net
             if (data == null)
                 throw new ArgumentNullException(nameof(data), "PacketWriter cannot be null.");
 
-            if (!Enum.IsDefined(options))
+            if (!IsValid(options))
                 throw new ArgumentOutOfRangeException(nameof(options), "Invalid send data option.");
 
             ArgumentNullException.ThrowIfNull(recipients);
@@ -341,6 +327,10 @@ namespace Microsoft.Xna.Framework.Net
         {
             return gamer?.SignedInGamer;
         }
+
+        // every combination of the defined flags is allowed; anything else is a mistake
+        private static bool IsValid(SendDataOptions options) =>
+            (options & ~(SendDataOptions.ReliableInOrder | SendDataOptions.Chat)) == 0;
 
         private void SendDataInternal(byte[] data, SendDataOptions options, IEnumerable<NetworkGamer> recipients)
         {

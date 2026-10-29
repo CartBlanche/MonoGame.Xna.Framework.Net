@@ -1,4 +1,4 @@
-namespace Microsoft.Xna.Framework.Net
+namespace Microsoft.Xna.Framework.GamerServices
 {
 	/// <summary>
 	/// Exception thrown when gamer privilege operations fail.

@@ -34,7 +34,7 @@ How closely this library follows XNA Game Studio 4.0's `Microsoft.Xna.Framework.
 |----------|------|
 | `NetworkSession`, `LocalNetworkGamer`, `NetworkGamer`, `NetworkMachine`, `AvailableNetworkSession`, `AvailableNetworkSessionCollection`, `NetworkSessionProperties`, `PacketReader`, `PacketWriter`, `QualityOfService` | Yes, with the differences below |
 | `GameEndedEventArgs`, `GameStartedEventArgs`, `GamerJoinedEventArgs`, `GamerLeftEventArgs`, `NetworkSessionEndedEventArgs`, `NetworkSessionJoinException` | Yes |
-| `HostChangedEventArgs` | Missing |
+| `HostChangedEventArgs` | Yes (but never raised, see `HostChanged`) |
 | `WriteLeaderboardsEventArgs` | n/a |
 | `NetworkSessionType`, `NetworkSessionState`, `NetworkSessionEndReason`, `NetworkSessionJoinError`, `SendDataOptions` | Yes, see Enums |
 
@@ -46,6 +46,7 @@ How closely this library follows XNA Game Studio 4.0's `Microsoft.Xna.Framework.
 | `MaxGamers`, `PrivateGamerSlots`, `SessionState`, `SessionType` | Yes | |
 | `AllowJoinInProgress` | Yes | |
 | `AllowHostMigration` | Differs | Accepted, but migration is not built |
+
 | `SessionProperties` | Differs | `IDictionary<string, object>`, not `NetworkSessionProperties` (the blocking `Create` and `Find` do take `NetworkSessionProperties`) |
 | `BytesPerSecondReceived`, `BytesPerSecondSent` | Differs | Average since the session started |
 | `SimulatedLatency`, `SimulatedPacketLoss` | Differs | Can be set; nothing uses them yet |
@@ -55,22 +56,22 @@ How closely this library follows XNA Game Studio 4.0's `Microsoft.Xna.Framework.
 | `BeginCreate`/`EndCreate`, `BeginFind`/`EndFind`, `BeginJoin`/`EndJoin`, `BeginJoinInvited`/`EndJoinInvited` | Differs | Replaced by `CreateAsync`, `FindAsync`, `JoinAsync`, `JoinInvitedAsync` |
 | `Dispose`, `StartGame`, `EndGame`, `Update` | Yes | |
 | `AddLocalGamer` | Missing | |
+| `ResetReady` | Yes | Host only, as in XNA: throws `InvalidOperationException` elsewhere |
 | `FindGamerById` | Differs | On the collection: `session.AllGamers.FindGamerById(id)` |
-| `ResetReady` | Missing | |
-| `GameStarted`, `GameEnded`, `GamerJoined`, `GamerLeft`, `SessionEnded`, static `InviteAccepted` | Yes | Raised from `Update()`. `InviteAcceptedEventArgs` is in `Net` here, in `GamerServices` in XNA |
-| `HostChanged` | Missing | |
+| `GameStarted`, `GameEnded`, `GamerJoined`, `GamerLeft`, `SessionEnded`, static `InviteAccepted` | Yes | Raised from `Update()` |
+| `HostChanged` | Differs | Can be subscribed to, but is never raised: it is only raised by host migration, which is not built |
 | `WriteArbitratedLeaderboard`, `WriteTrueSkill`, `WriteUnarbitratedLeaderboard` | n/a | |
 | (none) | Extra | `CreateAsync` with a `password`, `JoinAsync` with a `password`, `Password`, `IsPasswordProtected`, `Leave`, `Cancel`, `DisposeAsync`, `MessageReceived`, `EventDispatchMode`, `Logger`, `Diagnostics`, `NetworkTransport` |
 
 ### `NetworkGamer` and `LocalNetworkGamer`
 
-`NetworkGamer` does **not** derive from `Gamer` here (it does in XNA), so `Gamer g = networkGamer;` does not compile.
+`NetworkGamer` derives from `Gamer`, as in XNA.
 
 | XNA member | Here | Notes |
 |------------|------|-------|
-| `Gamertag`, `Tag`, `Id`, `IsHost`, `IsLocal`, `IsReady`, `Machine`, `RoundtripTime` | Yes | `Id` is a `byte`, as in XNA |
+| `DisplayName`, `Gamertag`, `Tag`, `Id`, `IsHost`, `IsLocal`, `IsReady`, `Machine`, `RoundtripTime` | Yes | `Id` is a `byte`, as in XNA |
 | `HasVoice`, `IsTalking`, `IsMutedByLocalUser` | Differs | Always `false` |
-| `DisplayName`, `IsDisposed`, `LeaderboardWriter`, `GetProfile`/`BeginGetProfile`/`EndGetProfile` | Missing | |
+| `IsDisposed`, `LeaderboardWriter`, `GetProfile`/`BeginGetProfile`/`EndGetProfile` | Missing | |
 | `HasLeftSession`, `IsGuest`, `IsPrivateSlot`, `Session` | Missing | |
 | `IsDataAvailable`, `ReceiveData`, `SendData` | Yes | On every `NetworkGamer`, not only `LocalNetworkGamer` (a superset) |
 | `SignedInGamer` | Yes | On every `NetworkGamer`; `null` for remote gamers |
@@ -83,11 +84,9 @@ How closely this library follows XNA Game Studio 4.0's `Microsoft.Xna.Framework.
 |------------|------|-------|
 | `CurrentGamerCount`, `HostGamertag`, `OpenPrivateGamerSlots`, `OpenPublicGamerSlots` | Yes | |
 | `SessionProperties` | Differs | `IDictionary<string, object>` |
-| `QualityOfService` | Differs | Placeholder values |
+| `QualityOfService` | Differs | Placeholder values (see the next rows for its members) |
 | (none) | Extra | `SessionId`, `SessionName`, `HostPeer`, `IsPasswordProtected`, and a public constructor |
-| `QualityOfService.IsAvailable` | Yes | |
-| `QualityOfService.AverageRoundtripTime`, `MinimumRoundtripTime` | Differs | Named `AverageRoundTripTime` and `MinimumRoundTripTime` (capital `T`) |
-| `QualityOfService.BytesPerSecondDownstream`, `BytesPerSecondUpstream` | Differs | Named `BytesPerSecondReceived` and `BytesPerSecondSent` |
+| `QualityOfService.IsAvailable`, `AverageRoundtripTime`, `MinimumRoundtripTime`, `BytesPerSecondDownstream`, `BytesPerSecondUpstream` | Yes | Fixed placeholder values. `MaximumRoundtripTime` is an extra |
 
 ### Other classes
 
@@ -107,9 +106,8 @@ How closely this library follows XNA Game Studio 4.0's `Microsoft.Xna.Framework.
 | `NetworkSessionState`: `Lobby`, `Playing`, `Ended` | Yes, plus `Creating`, `Joining` |
 | `NetworkSessionEndReason`: `ClientSignedOut`, `HostEndedSession`, `RemovedByHost`, `Disconnected` | Yes, plus `NetworkError` |
 | `NetworkSessionJoinError`: `SessionNotFound`, `SessionNotJoinable`, `SessionFull` | Yes, plus `Unknown`, `ProtocolVersionMismatch`, `Timeout`, `PasswordRequired`, `WrongPassword` |
-| `SendDataOptions`: `None`, `Reliable`, `InOrder`, `ReliableInOrder`, `Chat` | Differs: `Chat` is missing |
-| `NetworkException`, `GamerPrivilegeException` | Differs: in `Microsoft.Xna.Framework.Net` here, in `GamerServices` in XNA |
-| `NetworkNotAvailableException` | Yes |
+| `SendDataOptions`: `None`, `Reliable`, `InOrder`, `ReliableInOrder`, `Chat` | Yes. `Chat` combines with the others and changes nothing (every link is authenticated) |
+| `NetworkException`, `NetworkNotAvailableException`, `GamerPrivilegeException`, `InviteAcceptedEventArgs` | Yes (in `GamerServices`, as in XNA) |
 | `GamerServicesNotAvailableException`, `GuideAlreadyVisibleException`, `GameUpdateRequiredException` | Missing |
 
 ## `Microsoft.Xna.Framework.GamerServices`
@@ -132,6 +130,10 @@ How closely this library follows XNA Game Studio 4.0's `Microsoft.Xna.Framework.
 ## Migrating from earlier versions of this library
 
 - `NetworkGamer.Id` is now XNA's `byte`. The string that used to be `Id` is `GamerId`.
+- `NetworkGamer.Gamertag` is read-only, and `NetworkGamer` derives from `Gamer`.
+- `QualityOfService` uses XNA's names: `AverageRoundtripTime`, `MinimumRoundtripTime`, `BytesPerSecondDownstream` (was `...Received`) and `BytesPerSecondUpstream` (was `...Sent`).
+- `NetworkException`, `GamerPrivilegeException` and `InviteAcceptedEventArgs` moved from `Microsoft.Xna.Framework.Net` to `Microsoft.Xna.Framework.GamerServices`, where XNA has them.
+- `SendDataOptions` is a `[Flags]` enum with `Chat`.
 - `AvailableNetworkSession` takes a `PeerId` for the host, not an `IPEndPoint`: `UdpTransport.ToPeer(endpoint)`.
 - `PacketWriter.Write(byte[])` writes the raw bytes. Use `WriteLengthPrefixed` and `ReadLengthPrefixedBytes` for the old behaviour; `ReadBytes()` without a count is gone.
 - `INetworkSession` is gone. Games use `NetworkSession`; a platform supplies an `INetworkBackend`.

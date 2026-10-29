@@ -1,6 +1,5 @@
-using Microsoft.Xna.Framework.GamerServices;
 
-namespace Microsoft.Xna.Framework.Net
+namespace Microsoft.Xna.Framework.GamerServices
 {
 	/// <summary>
 	/// Event arguments for when an invite is accepted.
@@ -18,7 +17,7 @@ namespace Microsoft.Xna.Framework.Net
         /// </summary>
         public bool IsCurrentSession { get; internal set; }
 
-        internal InviteAcceptedEventArgs(SignedInGamer gamer, bool isCurrentSession)
+        public InviteAcceptedEventArgs(SignedInGamer gamer, bool isCurrentSession)
         {
             Gamer = gamer;
             IsCurrentSession = isCurrentSession;

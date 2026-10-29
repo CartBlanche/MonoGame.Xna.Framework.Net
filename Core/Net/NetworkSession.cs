@@ -74,6 +74,14 @@ namespace Microsoft.Xna.Framework.Net
         public event EventHandler<GamerJoinedEventArgs>? GamerJoined;
 
         public event EventHandler<GamerLeftEventArgs>? GamerLeft;
+
+        /// <summary>
+        /// XNA raises this when host migration picks a new host. Host migration is not built (see
+        /// <see cref="AllowHostMigration"/>), so nothing raises it yet; it is here so code that subscribes compiles.
+        /// </summary>
+#pragma warning disable CS0067 // never raised until host migration exists; kept so XNA code that subscribes compiles
+        public event EventHandler<HostChangedEventArgs>? HostChanged;
+#pragma warning restore CS0067
         public event EventHandler<NetworkSessionEndedEventArgs>? SessionEnded;
 
         // Static event for invite acceptance
@@ -737,6 +745,33 @@ namespace Microsoft.Xna.Framework.Net
                 if (IsHost)
                 {
                     BroadcastSessionState(NetworkSessionState.Lobby, "Game ended");
+                }
+            }
+        }
+
+        /// <summary>
+        /// Marks every gamer in the session as not ready, for the host to call when it wants everybody to
+        /// confirm again. The change is sent to every machine.
+        /// </summary>
+        /// <exception cref="ObjectDisposedException">The session has been disposed.</exception>
+        /// <exception cref="InvalidOperationException">This machine is not the host.</exception>
+        public void ResetReady()
+        {
+            ObjectDisposedException.ThrowIf(disposed, this);
+            if (!IsHost)
+                throw new InvalidOperationException("Only the host can reset readiness.");
+
+            foreach (var gamer in gamers.Where(g => g.IsReady).ToArray())
+            {
+                bool local = gamer.IsLocal;
+                gamer.IsReady = false;   // a local gamer announces its own change
+
+                if (!local)
+                {
+                    // a remote gamer's flag changes silently here, so the host says it for them
+                    var writer = new PacketWriter();
+                    new ReadinessUpdateMessage { GamerId = gamer.GamerId, IsReady = false }.Serialize(writer);
+                    SendMessageToAll(writer, SendDataOptions.Reliable, null);
                 }
             }
         }
