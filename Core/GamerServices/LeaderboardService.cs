@@ -179,7 +179,7 @@ namespace Microsoft.Xna.Framework.GamerServices
 
     internal sealed class PersistentLocalLeaderboardProvider : ILeaderboardProvider
     {
-        private sealed class Submission
+        internal sealed class Submission
         {
             public string GamerKey { get; set; } = string.Empty;
             public string Gamertag { get; set; } = string.Empty;
@@ -187,7 +187,7 @@ namespace Microsoft.Xna.Framework.GamerServices
             public DateTime UpdatedUtc { get; set; }
         }
 
-        private sealed class StorageModel
+        internal sealed class StorageModel
         {
             public Dictionary<string, List<Submission>> Tables { get; set; } = new(StringComparer.Ordinal);
         }
@@ -343,7 +343,7 @@ namespace Microsoft.Xna.Framework.GamerServices
                 if (string.IsNullOrWhiteSpace(json))
                     return;
 
-                var model = System.Text.Json.JsonSerializer.Deserialize<StorageModel>(json);
+                var model = System.Text.Json.JsonSerializer.Deserialize(json, LocalStorageJson.Default.LeaderboardStorage);
                 if (model?.Tables == null)
                     return;
 
@@ -373,7 +373,7 @@ namespace Microsoft.Xna.Framework.GamerServices
                     StringComparer.Ordinal)
             };
 
-            var json = System.Text.Json.JsonSerializer.Serialize(model);
+            var json = System.Text.Json.JsonSerializer.Serialize(model, LocalStorageJson.Default.LeaderboardStorage);
             File.WriteAllText(storagePath, json);
         }
     }

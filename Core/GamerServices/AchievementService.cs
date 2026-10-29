@@ -246,7 +246,7 @@ namespace Microsoft.Xna.Framework.GamerServices
 
     internal sealed class PersistentLocalAchievementProvider : IAchievementProvider
     {
-        private sealed class StorageModel
+        internal sealed class StorageModel
         {
             public Dictionary<string, List<AchievementState>> GamerAchievements { get; set; } = new(StringComparer.Ordinal);
         }
@@ -481,7 +481,7 @@ namespace Microsoft.Xna.Framework.GamerServices
                 if (string.IsNullOrWhiteSpace(json))
                     return;
 
-                var model = System.Text.Json.JsonSerializer.Deserialize<StorageModel>(json);
+                var model = System.Text.Json.JsonSerializer.Deserialize(json, LocalStorageJson.Default.AchievementStorage);
                 if (model?.GamerAchievements == null)
                     return;
 
@@ -523,7 +523,7 @@ namespace Microsoft.Xna.Framework.GamerServices
                     StringComparer.Ordinal)
             };
 
-            var json = System.Text.Json.JsonSerializer.Serialize(model);
+            var json = System.Text.Json.JsonSerializer.Serialize(model, LocalStorageJson.Default.AchievementStorage);
             File.WriteAllText(storagePath, json);
         }
     }
