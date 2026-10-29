@@ -8,7 +8,7 @@ This file is the single source of truth for progress. Update it in the same comm
 
 Legend: `[-]` dropped · `[ ]` todo · `[~]` in progress · `[x]` done · `[?]` needs verification before work starts · `(!)` decision needed
 
-_Last updated: 2026-10-29 (Phases 0-5 complete; Steam/EOS lobbies and invites, and the EOS/Android/iOS transports, are unverified on real runtimes; the iOS test app needs attention)_
+_Last updated: 2026-10-29 (Phases 0-6 and 8 complete, 7 deferred, 9 in progress; Steam finding/joining and invites, and the EOS/Android/iOS platform paths, are unverified on real runtimes; the iOS test app needs attention)_
 
 ---
 
@@ -22,10 +22,10 @@ _Last updated: 2026-10-29 (Phases 0-5 complete; Steam/EOS lobbies and invites, a
 | 3 | XNA API parity (gamers, packets, sessions) | Done (2 deferred, 1 dropped) | 16/19 |
 | 4 | Backend unification (one public API, peer-id transport) | Done (4.4 unverified on devices) | 6/6 |
 | 5 | Online session types, matchmaking, invites | Done (Steam/EOS paths unverified live) | 5/5 |
-| 6 | Security and robustness | Not started | 0/5 |
-| 7 | Voice (pluggable) | Not started | 0/7 |
-| 8 | Modernisation and cleanup | Not started | 0/8 |
-| 9 | Samples, docs, release | Not started | 0/5 |
+| 6 | Security and robustness | **Done** | 5/5 |
+| 7 | Voice (pluggable) | Deferred until after 9 | 0/7 |
+| 8 | Modernisation and cleanup | **Done** (8.2 skipped) | 7/8 |
+| 9 | Samples, docs, release | In progress (9.3, 9.4 done) | 2/6 |
 | 10 | Dedicated/headless server (optional) | Not started | 0/6 |
 
 ### Baseline (already done, commit `20aa893` "Lan fixes for more reliable UDP")
@@ -272,7 +272,8 @@ Tasks
 
 - [ ] 9.1 `NetworkStateManagement` (`/Users/dominique/Development/CartBlanche/MonoGame-Samples/NetworkStateManagement`) runs unmodified-as-possible on UDP, Steam, then EOS/Android/iOS. Note: it exercises the session lifecycle (create/find/join/invite/lobby/end reasons) but **not** `SendData`/`ReceiveData`
 - [ ] 9.2 Add a small data-path sample (movement sync over reliable + unreliable) so the data path has a real acceptance test beyond ShipGame
-- [ ] 9.3 (include a migration list from the pre-0.4 API: `NetworkGamer.Id` is a `byte` and the string identity is `GamerId`; `AvailableNetworkSession` takes a `PeerId`; `Write(byte[])` no longer length-prefixes; `INetworkSession` is gone) README: replace "covered by tests" with accurate per-back-end status; add compat matrix (XNA member → status)
+- [x] 9.3 `README.md` has an accurate per-back-end status table (what was run against the real platform and what was not), and short Security and Logging sections. `COMPATIBILITY.md` is the XNA compatibility matrix, checked against the archived XNA 4.0 member lists on Microsoft Learn (NetworkSession, NetworkGamer, LocalNetworkGamer, AvailableNetworkSession, QualityOfService, NetworkMachine, NetworkSessionProperties, PacketReader/Writer, Gamer, SignedInGamer, Guide, five enums, and both namespaces' type lists), with the behaviour that differs and a migration list. Achievements, leaderboards, presence, `GamerCollection<T>`, `GamerPrivileges` and `GamerServicesComponent` were not compared member by member
+- [ ] 9.3b Close the gaps the matrix found that are worth closing before the API freeze (9.5), after the owner decides which. Cheap and clearly worth it: `QualityOfService` property names (`AverageRoundtripTime`, `MinimumRoundtripTime`, `BytesPerSecondDownstream/Upstream`), `SendDataOptions.Chat`, `NetworkSessionType.LocalWithLeaderboards`, `NetworkSession.ResetReady/FindGamerById/AddLocalGamer/IsDisposed/PreviousGamers/MaxPreviousGamers/MaxSupportedGamers`, `HostChanged` and `HostChangedEventArgs`, `GamerServicesDispatcher`, `SignedInGamer.SignedIn/SignedOut`, `Guide.BeginShowKeyboardInput/EndShowKeyboardInput`, moving `NetworkException`, `GamerPrivilegeException` and `InviteAcceptedEventArgs` into `GamerServices` and `NetworkGamer` deriving from `Gamer`. Worth deciding: making `SessionProperties` a `NetworkSessionProperties`, making `SimulatedLatency/SimulatedPacketLoss` do something, `PacketReader/Writer` as `BinaryReader/Writer`. Skip: Xbox LIVE UI, avatars, friends, party, TrueSkill and arbitrated leaderboards
 - [x] 9.4 ShipGame (`~/Projects/MonoGame/MonoGame.Samples/ShipGame`, referencing this repo's Core by project reference) updated for the intentional API changes and builds with 0 errors (Core and DesktopGL), its 44 tests pass, as do this repo's 53 compat tests. It needed two changes, neither `Write(byte[])`: `NetworkGamer.Id` is now XNA's `byte`, so its string identity use moved to `GamerId` (12 sites in 5 files), and `AvailableNetworkSession` takes a `PeerId` for the host (`UdpTransport.ToPeer(endpoint)`). The edits are NOT committed in ShipGame (its tree has the owner's other uncommitted work). A two-machine play-through has not been done
 - [ ] 9.4b Other games that use this library (the owner will give the folders once ShipGame is confirmed working on two machines): build each against the current library and make the same kind of tweaks (`Id` to `GamerId`, `PeerId`, nullable annotations, anything else the compiler or a play-through shows)
 - [ ] 9.5 Before the first NuGet publish: freeze the public API surface, decide the compatibility/semver policy, set protocol-version negotiation if multi-version interop is wanted, then publish versioned previews for each package
