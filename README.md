@@ -66,7 +66,28 @@ All five share the same `NetworkSession`: the lobby, readiness, reliable and ord
 
 ## Compatibility with XNA
 
-The API follows XNA Game Studio 4.0's `Microsoft.Xna.Framework.Net` and `GamerServices`. [COMPATIBILITY.md](COMPATIBILITY.md) lists every member that is the same, different or missing, the behaviour that differs, and what to change when moving from an earlier version of this library.
+The API follows XNA Game Studio 4.0's `Microsoft.Xna.Framework.Net` and `GamerServices`. [COMPATIBILITY.md](https://github.com/CartBlanche/MonoGame.Xna.Framework.Net/blob/main/COMPATIBILITY.md) lists every member that is the same, different or missing, the behaviour that differs, and what to change when moving from an earlier version of this library.
+
+### What's not in this library
+
+These XNA features are missing, or differ, and are not planned. The full list is in [COMPATIBILITY.md](https://github.com/CartBlanche/MonoGame.Xna.Framework.Net/blob/main/COMPATIBILITY.md).
+
+- **Xbox LIVE services:** avatars, friends, party, TrueSkill matchmaking and arbitrated leaderboards.
+- **The blocking `Begin...`/`End...` calls** (`BeginCreate`/`EndCreate`, `BeginFind`/`EndFind`, `BeginJoin`/`EndJoin`) are replaced by `CreateAsync`, `FindAsync` and `JoinAsync`.
+- **`SessionProperties`** is an `IDictionary<string, object>`, not `NetworkSessionProperties`.
+- **`QualityOfService`** returns fixed placeholder numbers, not a measurement.
+- **Host migration:** if the host leaves, every client's session ends with `HostEndedSession`. `AllowHostMigration` and `HostChanged` exist so XNA code compiles, but they do nothing.
+- **Voice:** `HasVoice`, `IsTalking` and `IsMutedByLocalUser` are always `false`.
+
+### On the roadmap
+
+Optional and not promised, and none of it is in 1.0. Adding it should not break the API.
+
+- **Host migration**, so a session can survive the host leaving.
+- **Voice**, as a pluggable add-on.
+- **Joining over the internet** by address or name, and a lobby or directory service, not only the LAN and the platform lobbies.
+- **A web back-end**, so browser games (for example with KNI) can play each other.
+- **A MonoGame-free core**, so the library can be used outside MonoGame.
 
 ## Telling games apart on a LAN
 
