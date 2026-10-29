@@ -72,8 +72,10 @@ formats that never shipped); they are not safe to mix with a release, even the o
 ## What is supported
 
 - **.NET 10** (`net10.0`, `net10.0-android36.0`, `net10.0-ios26.0`). Android and iOS accept only the current platform version
-  of the .NET 10 workloads, so a game targeting them needs those. Older .NET versions are not supported (open: whether to add
-  `net8.0` for the core, Steam and EOS packages).
+  of the .NET 10 workloads, so a game targeting them needs those.
+- **.NET 8, best effort, for the core, Steam and EOS packages** (`net8.0`). MonoGame 3.8.x itself still targets `net8.0`, so
+  this lets those games use the library. .NET 8 leaves Microsoft support on 10 November 2026; the `net8.0` target will be
+  dropped when MonoGame 3.8.x moves on. It is compiled in CI but the tests run on .NET 10 only.
 - **MonoGame 3.8.x.** The packages compile against MonoGame but do not depend on it, so the game must reference
   `MonoGame.Framework` for its platform. Older MonoGame versions are untested.
 - Platforms and what has actually been run against them are in the README.
