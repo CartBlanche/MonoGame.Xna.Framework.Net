@@ -341,7 +341,7 @@ namespace Microsoft.Xna.Framework.Net
             if (sessionType == NetworkSessionType.Local)
             {
                 // Local session: in-memory only
-                await Task.Delay(5, cancellationToken);
+                await Task.Delay(5, cancellationToken).ConfigureAwait(false);
                 session = new NetworkSession(sessionType, maxGamers, privateGamerSlots, true);
                 session.sessionState = NetworkSessionState.Lobby;
                 // Register in local session list for FindAsync
@@ -386,6 +386,11 @@ namespace Microsoft.Xna.Framework.Net
         /// <summary>
         /// Synchronous wrapper for CreateAsync (for XNA compatibility).
         /// </summary>
+        /// <remarks>
+        /// Blocks the calling thread until the asynchronous version finishes, as XNA's blocking calls did. The framework's own awaits
+        /// use <c>ConfigureAwait(false)</c>, so this does not deadlock on a thread with a synchronization context, but the thread is
+        /// stalled meanwhile: prefer the asynchronous version where you can.
+        /// </remarks>
         public static NetworkSession Create(NetworkSessionType sessionType, int maxLocalGamers, int maxGamers, int privateGamerSlots, NetworkSessionProperties sessionProperties)
         {
             return CreateAsync(sessionType, maxLocalGamers, maxGamers, privateGamerSlots, sessionProperties?.ToDictionary()).GetAwaiter().GetResult();
@@ -412,7 +417,7 @@ namespace Microsoft.Xna.Framework.Net
         {
             if (sessionType == NetworkSessionType.Local)
             {
-                await Task.Delay(5, cancellationToken);
+                await Task.Delay(5, cancellationToken).ConfigureAwait(false);
                 // Return sessions in local registry
                 var localSessions = LocalSessionRegistry.FindSessions(maxLocalGamers).Where(s => MatchesSearch(s, sessionProperties)).ToList();
                 return new AvailableNetworkSessionCollection(localSessions);
@@ -435,6 +440,11 @@ namespace Microsoft.Xna.Framework.Net
         /// <summary>
         /// Synchronous wrapper for FindAsync (for XNA compatibility).
         /// </summary>
+        /// <remarks>
+        /// Blocks the calling thread until the asynchronous version finishes, as XNA's blocking calls did. The framework's own awaits
+        /// use <c>ConfigureAwait(false)</c>, so this does not deadlock on a thread with a synchronization context, but the thread is
+        /// stalled meanwhile: prefer the asynchronous version where you can.
+        /// </remarks>
         public static AvailableNetworkSessionCollection Find(NetworkSessionType sessionType, int maxLocalGamers, NetworkSessionProperties searchProperties)
         {
             return FindAsync(sessionType, maxLocalGamers, searchProperties?.ToDictionary()).GetAwaiter().GetResult();
@@ -481,7 +491,7 @@ namespace Microsoft.Xna.Framework.Net
             try
             {
                 membership = await backend.PrepareJoinAsync(availableSession, joinTransport, cancellationToken).ConfigureAwait(false);
-                joinedSession = await SystemLinkSessionManager.JoinSessionAsync(availableSession, joinTransport, cancellationToken, password);
+                joinedSession = await SystemLinkSessionManager.JoinSessionAsync(availableSession, joinTransport, cancellationToken, password).ConfigureAwait(false);
                 if (joinedSession == null)
                     throw new NetworkSessionJoinException(NetworkSessionJoinError.SessionNotFound);
             }
@@ -541,6 +551,11 @@ namespace Microsoft.Xna.Framework.Net
         /// <summary>
         /// Creates a new network session synchronously with default properties.
         /// </summary>
+        /// <remarks>
+        /// Blocks the calling thread until the asynchronous version finishes, as XNA's blocking calls did. The framework's own awaits
+        /// use <c>ConfigureAwait(false)</c>, so this does not deadlock on a thread with a synchronization context, but the thread is
+        /// stalled meanwhile: prefer the asynchronous version where you can.
+        /// </remarks>
         public static NetworkSession Create(NetworkSessionType sessionType, int maxLocalGamers, int maxGamers)
         {
             return CreateAsync(sessionType, maxLocalGamers, maxGamers, 0, new Dictionary<string, object>()).GetAwaiter().GetResult();
@@ -551,6 +566,11 @@ namespace Microsoft.Xna.Framework.Net
         /// <summary>
         /// Finds available network sessions synchronously with default properties.
         /// </summary>
+        /// <remarks>
+        /// Blocks the calling thread until the asynchronous version finishes, as XNA's blocking calls did. The framework's own awaits
+        /// use <c>ConfigureAwait(false)</c>, so this does not deadlock on a thread with a synchronization context, but the thread is
+        /// stalled meanwhile: prefer the asynchronous version where you can.
+        /// </remarks>
         public static AvailableNetworkSessionCollection Find(NetworkSessionType sessionType, int maxLocalGamers)
         {
             return FindAsync(sessionType, maxLocalGamers, new Dictionary<string, object>()).GetAwaiter().GetResult();
@@ -561,11 +581,24 @@ namespace Microsoft.Xna.Framework.Net
         /// <summary>
         /// Joins an available network session synchronously.
         /// </summary>
+        /// <remarks>
+        /// Blocks the calling thread until the asynchronous version finishes, as XNA's blocking calls did. The framework's own awaits
+        /// use <c>ConfigureAwait(false)</c>, so this does not deadlock on a thread with a synchronization context, but the thread is
+        /// stalled meanwhile: prefer the asynchronous version where you can.
+        /// </remarks>
         public static NetworkSession Join(AvailableNetworkSession availableSession)
         {
             return JoinAsync(availableSession).GetAwaiter().GetResult();
         }
 
+        /// <summary>
+        /// Joins the session the user was invited to, synchronously.
+        /// </summary>
+        /// <remarks>
+        /// Blocks the calling thread until <see cref="JoinInvitedAsync"/> finishes. The framework's own awaits
+        /// use <c>ConfigureAwait(false)</c>, so this does not deadlock on a thread with a synchronization context, but the thread is
+        /// stalled meanwhile: prefer the asynchronous version where you can.
+        /// </remarks>
         public static NetworkSession JoinInvited(IEnumerable<SignedInGamer> localGamers, object state = null)
         {
             return JoinInvitedAsync(localGamers, state).GetAwaiter().GetResult();
@@ -1331,14 +1364,14 @@ namespace Microsoft.Xna.Framework.Net
                 
                 // Dispose transport first to unblock any pending ReceiveAsync
                 if (networkTransport is IAsyncDisposable asyncTransport)
-                    await asyncTransport.DisposeAsync();
+                    await asyncTransport.DisposeAsync().ConfigureAwait(false);
                 else
                     networkTransport?.Dispose();
                 try { backendMembership?.Dispose(); } catch { /* the back-end's lobby is best effort */ }
                     
                 if (receiveTask != null)
                 {
-                    await Task.WhenAny(receiveTask, Task.Delay(1000));
+                    await Task.WhenAny(receiveTask, Task.Delay(1000)).ConfigureAwait(false);
                 }
                 
                 try { cancellationTokenSource?.Dispose(); } catch { /* Already disposed */ }
@@ -2220,7 +2253,7 @@ namespace Microsoft.Xna.Framework.Net
                         networkTransport.Bind();
                     }
 
-                    (data, sender) = await networkTransport.ReceiveAsync();
+                    (data, sender) = await networkTransport.ReceiveAsync().ConfigureAwait(false);
                     failures = 0;
                 }
                 catch (ObjectDisposedException)
@@ -2253,7 +2286,7 @@ namespace Microsoft.Xna.Framework.Net
                     }
 
                     // back off, so a transport that fails at once does not become a busy loop
-                    try { await Task.Delay(50 * failures, cancellationToken); }
+                    try { await Task.Delay(50 * failures, cancellationToken).ConfigureAwait(false); }
                     catch (OperationCanceledException) { break; }
                     continue;
                 }

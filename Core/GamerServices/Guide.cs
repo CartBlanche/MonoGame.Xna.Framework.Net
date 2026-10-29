@@ -97,7 +97,9 @@ namespace Microsoft.Xna.Framework.GamerServices
 
             try
             {
-                await Task.Yield();
+                // a hop to the thread pool rather than Task.Yield(), which would resume on the caller's synchronization
+                // context and so deadlock ShowMessageBox when it blocks that context
+                await Task.Run(() => { }, cancellationToken).ConfigureAwait(false);
 
                 if (focusButton < 0 || focusButton >= buttonList.Count)
                     return 0;
@@ -113,6 +115,11 @@ namespace Microsoft.Xna.Framework.GamerServices
         /// <summary>
         /// Synchronous wrapper for ShowMessageBoxAsync.
         /// </summary>
+        /// <remarks>
+        /// Blocks the calling thread until the asynchronous version finishes, as XNA's blocking calls did. The framework's own awaits
+        /// use <c>ConfigureAwait(false)</c>, so this does not deadlock on a thread with a synchronization context, but the thread is
+        /// stalled meanwhile: prefer the asynchronous version where you can.
+        /// </remarks>
         public static int? ShowMessageBox(
             string title,
             string text,
@@ -148,6 +155,11 @@ namespace Microsoft.Xna.Framework.GamerServices
         /// <summary>
         /// Shows the sign-in interface (synchronous version).
         /// </summary>
+        /// <remarks>
+        /// Blocks the calling thread until the asynchronous version finishes, as XNA's blocking calls did. The framework's own awaits
+        /// use <c>ConfigureAwait(false)</c>, so this does not deadlock on a thread with a synchronization context, but the thread is
+        /// stalled meanwhile: prefer the asynchronous version where you can.
+        /// </remarks>
         public static void ShowSignIn(int paneCount, bool onlineOnly)
         {
             ShowSignInAsync(paneCount, onlineOnly).GetAwaiter().GetResult();

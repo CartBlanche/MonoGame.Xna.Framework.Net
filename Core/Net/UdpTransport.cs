@@ -65,7 +65,7 @@ namespace Microsoft.Xna.Framework.Net
 
         public async Task<(byte[] Data, PeerId Sender)> ReceiveAsync()
         {
-            var result = await udpClient.ReceiveAsync();
+            var result = await udpClient.ReceiveAsync().ConfigureAwait(false);
             return (result.Buffer, ToPeer(result.RemoteEndPoint));
         }
 

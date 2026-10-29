@@ -38,7 +38,7 @@ namespace Microsoft.Xna.Framework.Net
             if (sessionType != NetworkSessionType.SystemLink)
                 return new List<AvailableNetworkSession>();
 
-            return (await SystemLinkSessionManager.DiscoverSessionsAsync(maxLocalGamers, cancellationToken)).ToList();
+            return (await SystemLinkSessionManager.DiscoverSessionsAsync(maxLocalGamers, cancellationToken).ConfigureAwait(false)).ToList();
         }
 
         public Task<IDisposable> PrepareJoinAsync(AvailableNetworkSession session, IPeerTransport transport, CancellationToken cancellationToken) => Task.FromResult<IDisposable>(null);

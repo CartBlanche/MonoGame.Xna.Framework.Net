@@ -49,7 +49,7 @@ namespace Microsoft.Xna.Framework.Net
                         // Send to broadcast address for LAN discovery
                         try
                         {
-                            await udpClient.SendAsync(message, message.Length, broadcastEndpoint);
+                            await udpClient.SendAsync(message, message.Length, broadcastEndpoint).ConfigureAwait(false);
                         }
                         catch (SocketException ex)
                         {
@@ -70,7 +70,7 @@ namespace Microsoft.Xna.Framework.Net
                         {
                             try
                             {
-                                await udpClient.SendAsync(message, message.Length, new IPEndPoint(subnetBroadcast, BroadcastPort));
+                                await udpClient.SendAsync(message, message.Length, new IPEndPoint(subnetBroadcast, BroadcastPort)).ConfigureAwait(false);
                             }
                             catch (SocketException ex)
                             {
@@ -81,7 +81,7 @@ namespace Microsoft.Xna.Framework.Net
                         // ALSO send to localhost for same-machine testing
                         try
                         {
-                            await udpClient.SendAsync(message, message.Length, localhostEndpoint);
+                            await udpClient.SendAsync(message, message.Length, localhostEndpoint).ConfigureAwait(false);
                             Debug.WriteLine("[LAN] " + $"Also sent advertisement to localhost (127.0.0.1:{BroadcastPort})");
                         }
                         catch (SocketException ex)
@@ -92,7 +92,7 @@ namespace Microsoft.Xna.Framework.Net
                         broadcastCount++;
                         Debug.WriteLine("[LAN] " + $"Sent broadcast #{broadcastCount} - SessionID: {ad.SessionId}, Gamers: {ad.CurrentGamerCount}/{ad.MaxGamers}");
 
-                        await Task.Delay(750, cancellationToken); // Broadcast every 750ms for faster discovery
+                        await Task.Delay(750, cancellationToken).ConfigureAwait(false); // Broadcast every 750ms for faster discovery
                     }
 
                     Debug.WriteLine("[LAN] " + "Stopped broadcasting. Cancelled=" + cancellationToken.IsCancellationRequested);
@@ -140,12 +140,12 @@ namespace Microsoft.Xna.Framework.Net
                             // Try to receive with reduced timeout for faster response
                             var receiveTask = pendingReceive ?? (pendingReceive = udpClient.ReceiveAsync());
                             var timeoutTask = Task.Delay(100, cancellationToken);
-                            var completedTask = await Task.WhenAny(receiveTask, timeoutTask);
+                            var completedTask = await Task.WhenAny(receiveTask, timeoutTask).ConfigureAwait(false);
 
                             if (completedTask == receiveTask)
                             {
                                 pendingReceive = null;
-                                var result = await receiveTask;
+                                var result = await receiveTask.ConfigureAwait(false);
                                 var buffer = result.Buffer;
                                 packetsReceived++;
 
@@ -338,7 +338,7 @@ namespace Microsoft.Xna.Framework.Net
                         throw new NetworkSessionJoinException(reason, error);
                     }
 
-                    await Task.Delay(50, cancellationToken);
+                    await Task.Delay(50, cancellationToken).ConfigureAwait(false);
                 }
 
                 Debug.WriteLine($"[JOIN] Attempt {attempt + 1} timed out");

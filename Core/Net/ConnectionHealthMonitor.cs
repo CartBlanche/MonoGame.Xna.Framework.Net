@@ -93,7 +93,7 @@ namespace Microsoft.Xna.Framework.Net
                     // Check for disconnections
                     CheckForTimeouts();
 
-                    await Task.Delay(HEARTBEAT_INTERVAL_MS);
+                    await Task.Delay(HEARTBEAT_INTERVAL_MS).ConfigureAwait(false);
                 }
                 catch (Exception ex)
                 {

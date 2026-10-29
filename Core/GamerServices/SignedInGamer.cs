@@ -317,6 +317,11 @@ namespace Microsoft.Xna.Framework.GamerServices
         /// <summary>
         /// Synchronous wrapper for WriteLeaderboardAsync.
         /// </summary>
+        /// <remarks>
+        /// Blocks the calling thread until the asynchronous version finishes, as XNA's blocking calls did. The framework's own awaits
+        /// use <c>ConfigureAwait(false)</c>, so this does not deadlock on a thread with a synchronization context, but the thread is
+        /// stalled meanwhile: prefer the asynchronous version where you can.
+        /// </remarks>
         public void WriteLeaderboard(LeaderboardWriter writer)
         {
             WriteLeaderboardAsync(writer).GetAwaiter().GetResult();
@@ -350,6 +355,11 @@ namespace Microsoft.Xna.Framework.GamerServices
         /// <summary>
         /// Synchronous wrapper for GetLeaderboardAsync.
         /// </summary>
+        /// <remarks>
+        /// Blocks the calling thread until the asynchronous version finishes, as XNA's blocking calls did. The framework's own awaits
+        /// use <c>ConfigureAwait(false)</c>, so this does not deadlock on a thread with a synchronization context, but the thread is
+        /// stalled meanwhile: prefer the asynchronous version where you can.
+        /// </remarks>
         public LeaderboardReader GetLeaderboard(LeaderboardIdentity leaderboard, int pageStart, int pageSize)
         {
             return GetLeaderboardAsync(leaderboard, pageStart, pageSize).GetAwaiter().GetResult();
@@ -358,6 +368,11 @@ namespace Microsoft.Xna.Framework.GamerServices
         /// <summary>
         /// Synchronous wrapper for gamer-centered GetLeaderboardAsync.
         /// </summary>
+        /// <remarks>
+        /// Blocks the calling thread until the asynchronous version finishes, as XNA's blocking calls did. The framework's own awaits
+        /// use <c>ConfigureAwait(false)</c>, so this does not deadlock on a thread with a synchronization context, but the thread is
+        /// stalled meanwhile: prefer the asynchronous version where you can.
+        /// </remarks>
         public LeaderboardReader GetLeaderboard(LeaderboardIdentity leaderboard, int pageSize)
         {
             return GetLeaderboardAsync(leaderboard, pageSize).GetAwaiter().GetResult();
@@ -375,6 +390,11 @@ namespace Microsoft.Xna.Framework.GamerServices
         /// <summary>
         /// Synchronous wrapper for GetAchievementsAsync.
         /// </summary>
+        /// <remarks>
+        /// Blocks the calling thread until the asynchronous version finishes, as XNA's blocking calls did. The framework's own awaits
+        /// use <c>ConfigureAwait(false)</c>, so this does not deadlock on a thread with a synchronization context, but the thread is
+        /// stalled meanwhile: prefer the asynchronous version where you can.
+        /// </remarks>
         public AchievementCollection GetAchievements()
         {
             return GetAchievementsAsync().GetAwaiter().GetResult();
@@ -395,6 +415,11 @@ namespace Microsoft.Xna.Framework.GamerServices
         /// <summary>
         /// Synchronous wrapper for SetAchievementProgressAsync.
         /// </summary>
+        /// <remarks>
+        /// Blocks the calling thread until the asynchronous version finishes, as XNA's blocking calls did. The framework's own awaits
+        /// use <c>ConfigureAwait(false)</c>, so this does not deadlock on a thread with a synchronization context, but the thread is
+        /// stalled meanwhile: prefer the asynchronous version where you can.
+        /// </remarks>
         public void SetAchievementProgress(string achievementKey, float percentComplete)
         {
             SetAchievementProgressAsync(achievementKey, percentComplete).GetAwaiter().GetResult();
@@ -412,6 +437,11 @@ namespace Microsoft.Xna.Framework.GamerServices
         /// <summary>
         /// Synchronous wrapper for UnlockAchievementAsync.
         /// </summary>
+        /// <remarks>
+        /// Blocks the calling thread until the asynchronous version finishes, as XNA's blocking calls did. The framework's own awaits
+        /// use <c>ConfigureAwait(false)</c>, so this does not deadlock on a thread with a synchronization context, but the thread is
+        /// stalled meanwhile: prefer the asynchronous version where you can.
+        /// </remarks>
         public void UnlockAchievement(string achievementKey)
         {
             UnlockAchievementAsync(achievementKey).GetAwaiter().GetResult();
@@ -431,6 +461,11 @@ namespace Microsoft.Xna.Framework.GamerServices
         /// <summary>
         /// Synchronous wrapper for GetAchievementIconAsync.
         /// </summary>
+        /// <remarks>
+        /// Blocks the calling thread until the asynchronous version finishes, as XNA's blocking calls did. The framework's own awaits
+        /// use <c>ConfigureAwait(false)</c>, so this does not deadlock on a thread with a synchronization context, but the thread is
+        /// stalled meanwhile: prefer the asynchronous version where you can.
+        /// </remarks>
         public AchievementIcon GetAchievementIcon(string achievementKey)
         {
             return GetAchievementIconAsync(achievementKey).GetAwaiter().GetResult();
