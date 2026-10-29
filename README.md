@@ -60,6 +60,10 @@ What each back-end has actually been run against, as of 2026-10-29. "Written" me
 
 All five share the same `NetworkSession`: the lobby, readiness, reliable and ordered delivery, fragmentation, relaying and security are the same code whichever back-end carries the datagrams. Only discovery and the transport are platform code.
 
+## Trying the data path
+
+[`Samples/DataPath`](Samples/DataPath/README.md) is a console app that checks `SendData` and `ReceiveData` between a host and several clients (positions, an in-order stream, reliable events and a large split message), with packet loss and latency injected if you like. `dotnet run --project Samples/DataPath -- selftest` runs it in one process; `host` and `join` run it across real machines.
+
 ## Compatibility with XNA
 
 The API follows XNA Game Studio 4.0's `Microsoft.Xna.Framework.Net` and `GamerServices`. [COMPATIBILITY.md](COMPATIBILITY.md) lists every member that is the same, different or missing, the behaviour that differs, and what to change when moving from an earlier version of this library.

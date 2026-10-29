@@ -21,7 +21,7 @@ How closely this library follows XNA Game Studio 4.0's `Microsoft.Xna.Framework.
 - **`AllowHostMigration` is accepted but migration is not built.** If the host leaves, the session ends with `HostEndedSession`.
 - **No voice.** `HasVoice`, `IsTalking` and `IsMutedByLocalUser` exist but are always `false` (planned as an optional add-on).
 - **`QualityOfService` returns fixed placeholder numbers**, not a measurement.
-- **`SimulatedLatency` and `SimulatedPacketLoss` act on what this machine sends**, not on what it receives: set them on both machines to affect both directions.
+- **`SimulatedLatency` and `SimulatedPacketLoss` act on what this machine sends**, not on what it receives: set them on both machines to affect both directions. A fixed latency keeps datagrams in the order they were sent.
 - **`BytesPerSecondReceived` and `BytesPerSecondSent` are averages over the whole life of the session**, not a recent rate.
 - **`Begin*`/`End*` pairs are replaced by `*Async` methods** (`CreateAsync`, `FindAsync`, `JoinAsync`, `JoinInvitedAsync`). The blocking `Create`, `Find`, `Join` and `JoinInvited` remain.
 - **Disposing a session tells the other machines at once** (one datagram each; if it is lost they find out by the 9-second heartbeat timeout). A process that crashes says nothing, so the others notice only after that timeout.

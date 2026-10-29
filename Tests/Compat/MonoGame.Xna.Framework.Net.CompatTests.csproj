@@ -13,6 +13,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\Core\MonoGame.Xna.Framework.Net.csproj" />
+    <!-- the data-path sample: its self-test runs here as an acceptance test -->
+    <ProjectReference Include="..\..\Samples\DataPath\DataPath.csproj" />
   </ItemGroup>
 
   <ItemGroup>

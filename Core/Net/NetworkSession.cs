@@ -1,4 +1,5 @@
 using System;
+using System.Threading.Channels;
 using System.Collections.Concurrent;
 using System.Net;
 using System.Collections.Generic;
@@ -1777,7 +1778,9 @@ namespace Microsoft.Xna.Framework.Net
                 return;
 
             TimeSpan latency = immediate ? TimeSpan.Zero : simulatedLatency;
-            if (latency <= TimeSpan.Zero)
+            // while anything is still waiting, new datagrams queue behind it even if the latency has since been lowered
+            bool queued = delayedSends != null && delayedSends.Reader.TryPeek(out _);
+            if (latency <= TimeSpan.Zero && (immediate || !queued))
             {
                 networkTransport.Send(peer, data, data.Length);
                 return;
@@ -1785,14 +1788,42 @@ namespace Microsoft.Xna.Framework.Net
 
             // the buffer may be reused by the caller once we return
             byte[] copy = (byte[])data.Clone();
-            IPeerTransport transport = networkTransport;
-            _ = Task.Delay(latency).ContinueWith(_ =>
+            lock (delayedLock)
             {
-                if (disposed)
-                    return;
-                try { transport.Send(peer, copy, copy.Length); }
-                catch (Exception ex) { logger?.LogWarning($"A delayed datagram could not be sent: {ex.Message}"); }
-            }, TaskScheduler.Default);
+                if (delayedSends == null)
+                {
+                    delayedSends = Channel.CreateUnbounded<(DateTime Due, PeerId Peer, byte[] Data)>(new UnboundedChannelOptions { SingleReader = true });
+                    _ = Task.Run(() => PumpDelayedSendsAsync(delayedSends.Reader, networkTransport, cancellationTokenSource.Token));
+                }
+                delayedSends.Writer.TryWrite((DateTime.UtcNow + latency, peer, copy));
+            }
+        }
+
+        // The delayed datagrams of this session, sent one by one in the order they were handed over: a fixed latency
+        // delays everything by the same time and must not reorder it (separate timers would, and in-order data would
+        // then be dropped as stale).
+        private Channel<(DateTime Due, PeerId Peer, byte[] Data)>? delayedSends;
+        private readonly object delayedLock = new();
+
+        private async Task PumpDelayedSendsAsync(ChannelReader<(DateTime Due, PeerId Peer, byte[] Data)> reader, IPeerTransport transport, CancellationToken cancellationToken)
+        {
+            try
+            {
+                await foreach (var item in reader.ReadAllAsync(cancellationToken).ConfigureAwait(false))
+                {
+                    TimeSpan wait = item.Due - DateTime.UtcNow;
+                    if (wait > TimeSpan.Zero)
+                        await Task.Delay(wait, cancellationToken).ConfigureAwait(false);
+                    if (disposed)
+                        return;
+                    try { transport.Send(item.Peer, item.Data, item.Data.Length); }
+                    catch (Exception ex) { logger?.LogWarning($"A delayed datagram could not be sent: {ex.Message}"); }
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                // the session is going away
+            }
         }
 
         private bool IsFromHost(PeerId endpoint)

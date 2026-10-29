@@ -158,6 +158,28 @@ namespace Microsoft.Xna.Framework.Net.Tests
         }
 
         [Test]
+        public async Task SimulatedLatency_KeepsDatagramsInTheOrderTheyWereSent()
+        {
+            var (host, transport, _) = await HostWithGamerAsync();
+            host.SimulatedLatency = TimeSpan.FromMilliseconds(80);
+            int before = transport.Count;
+
+            // sent back to back, as a relay does: separate timers would let some overtake others
+            for (byte i = 0; i < 60; i++)
+                host.LocalGamers[0].SendData(new byte[] { i }, SendDataOptions.None);
+
+            DateTime deadline = DateTime.UtcNow.AddSeconds(5);
+            while (transport.Count < before + 60 && DateTime.UtcNow < deadline)
+                await Task.Delay(20);
+
+            byte[][] sent;
+            lock (transport.Sent) sent = transport.Sent.Skip(before).ToArray();
+            Assert.That(sent.Length, Is.EqualTo(60));
+            // the datagram ends with the one byte of data
+            Assert.That(sent.Select(d => d[^1]), Is.EqualTo(Enumerable.Range(0, 60).Select(i => (byte)i)), "datagrams left in a different order");
+        }
+
+        [Test]
         public async Task TheGoodbye_IsNotDelayed_ByASimulatedLatency()
         {
             var (host, transport, _) = await HostWithGamerAsync();
