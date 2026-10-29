@@ -8,12 +8,12 @@ namespace Microsoft.Xna.Framework.Net
         /// <summary>
         /// Gets the gamer who left.
         /// </summary>
-        public INetworkGamer Gamer { get; internal set; }
+        public NetworkGamer Gamer { get; internal set; }
 
         /// <summary>
         /// Initializes a new instance of GamerLeftEventArgs.
         /// </summary>
-        internal GamerLeftEventArgs(INetworkGamer gamer)
+        internal GamerLeftEventArgs(NetworkGamer gamer)
         {
             Gamer = gamer;
         }

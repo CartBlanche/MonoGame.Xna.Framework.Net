@@ -86,12 +86,10 @@ SteamRuntime.RunCallbacks();
 ## Sending a reliable gameplay message
 
 ```csharp
-using Microsoft.Xna.Framework.Net;
-using Microsoft.Xna.Framework.Net.Steam;
-
-var session = NetworkServiceProvider.SessionFactory.CreateSession();
-var message = new PlayerMoveMessage(playerId: 1, x: 10, y: 20);
-session.SendMessage(message, MessageDelivery.Reliable);
+var writer = new PacketWriter();
+writer.Write(10);
+writer.Write(20);
+session.LocalGamers[0].SendData(writer, SendDataOptions.ReliableInOrder);
 ```
 
 ## Verify your setup

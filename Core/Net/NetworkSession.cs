@@ -39,6 +39,7 @@ namespace Microsoft.Xna.Framework.Net
         private NetworkMachine localMachine;
         private readonly Dictionary<string, NetworkMachine> remoteMachines = new Dictionary<string, NetworkMachine>();
         private IPeerTransport networkTransport;
+        private IDisposable backendMembership;   // e.g. the back-end's lobby, left when the session ends
         internal NetworkSessionState sessionState;
         internal bool disposed;
         private bool isHost;
@@ -352,7 +353,7 @@ namespace Microsoft.Xna.Framework.Net
                     try
                     {
                         // the session's own token, so advertising stops when the session does
-                        await backend.AdvertiseAsync(session, session.cancellationTokenSource.Token).ConfigureAwait(false);
+                        await backend.AdvertiseAsync(session, session.networkTransport, session.cancellationTokenSource.Token).ConfigureAwait(false);
                     }
                     catch
                     {
@@ -445,8 +446,21 @@ namespace Microsoft.Xna.Framework.Net
                 case NetworkSessionType.SystemLink:
                     // Connect to host via network
                     var backend = NetworkServiceProvider.Backend;
-                    await backend.PrepareJoinAsync(availableSession, cancellationToken).ConfigureAwait(false);
-                    var joinedSession = await SystemLinkSessionManager.JoinSessionAsync(availableSession, backend.CreateTransport(), cancellationToken);
+                    var joinTransport = backend.CreateTransport();
+                    IDisposable membership = null;
+                    NetworkSession joinedSession;
+                    try
+                    {
+                        membership = await backend.PrepareJoinAsync(availableSession, joinTransport, cancellationToken).ConfigureAwait(false);
+                        joinedSession = await SystemLinkSessionManager.JoinSessionAsync(availableSession, joinTransport, cancellationToken);
+                    }
+                    catch
+                    {
+                        membership?.Dispose();
+                        joinTransport.Dispose();
+                        throw;
+                    }
+                    joinedSession.backendMembership = membership;
                     if (joinedSession == null)
                         throw new NetworkSessionJoinException(NetworkSessionJoinError.SessionNotFound);
 
@@ -1100,6 +1114,7 @@ namespace Microsoft.Xna.Framework.Net
                 
                 // Dispose transport first to unblock ReceiveAsync
                 networkTransport?.Dispose();
+                try { backendMembership?.Dispose(); } catch { /* the back-end's lobby is best effort */ }
                 
                 try { receiveTask?.Wait(1000); } catch { /* ignore */ }
                 
@@ -1127,6 +1142,7 @@ namespace Microsoft.Xna.Framework.Net
                     await asyncTransport.DisposeAsync();
                 else
                     networkTransport?.Dispose();
+                try { backendMembership?.Dispose(); } catch { /* the back-end's lobby is best effort */ }
                     
                 if (receiveTask != null)
                 {

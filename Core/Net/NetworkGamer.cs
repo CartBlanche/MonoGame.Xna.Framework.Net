@@ -9,7 +9,7 @@ namespace Microsoft.Xna.Framework.Net
     /// <summary>
     /// Represents a player in a network session.
     /// </summary>
-    public class NetworkGamer : INetworkGamer
+    public class NetworkGamer
     {
         private readonly NetworkSession session;
         private readonly string id;
@@ -41,8 +41,6 @@ namespace Microsoft.Xna.Framework.Net
         /// Gets the globally unique identifier for this gamer, the one that goes on the wire.
         /// </summary>
         public string GamerId => id;
-
-        string INetworkGamer.Id => id;
 
         internal bool HasShortId => shortId != null;
 

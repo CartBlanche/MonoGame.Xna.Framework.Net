@@ -16,7 +16,6 @@ namespace Microsoft.Xna.Framework.Net.Android
         public static void Configure(
             string gameName,
             IGuideSignInProvider signInProvider = null,
-            INetworkSessionFactory sessionFactory = null,
             Func<ILeaderboardProvider> liveProviderFactoryOverride = null,
             Func<IAchievementProvider> achievementLiveProviderFactoryOverride = null,
             Func<IAchievementMediaProvider> achievementMediaLiveProviderFactoryOverride = null,
@@ -38,7 +37,6 @@ namespace Microsoft.Xna.Framework.Net.Android
             }
 
             Guide.SignInProvider = signInProvider ?? new AndroidSignInProvider();
-            NetworkServiceProvider.SetSessionFactory(sessionFactory ?? new AndroidNetworkSessionFactory(fallbackMode));
             NetworkServiceProvider.SetBackend(backend ?? new AndroidBackend(fallbackMode));
 
             lock (Gate)

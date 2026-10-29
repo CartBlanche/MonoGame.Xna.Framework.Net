@@ -6,24 +6,6 @@ namespace Microsoft.Xna.Framework.Net.Tests
     [TestFixture]
     public class EOSRealRuntimeSmokeTests
     {
-        private const byte TestMessageType = 247;
-
-        private sealed class TestReliableMessage : INetworkMessage
-        {
-            public byte MessageType => TestMessageType;
-            public string Payload { get; set; }
-
-            public void Serialize(PacketWriter writer)
-            {
-                writer.Write(Payload ?? string.Empty);
-            }
-
-            public void Deserialize(PacketReader reader)
-            {
-                Payload = reader.ReadString();
-            }
-        }
-
         [Test]
         [Category("Smoke")]
         public void EOSRuntime_Initialize_RunCallbacks_Shutdown_Smoke()
@@ -46,7 +28,7 @@ namespace Microsoft.Xna.Framework.Net.Tests
 
         [Test]
         [Category("Smoke")]
-        public async Task EOSNetworking_ReliableMessage_Smoke()
+        public async Task EOSBackend_HostsALobby_AndClosesIt_Smoke()
         {
             var smokeEnabled = string.Equals(
                 Environment.GetEnvironmentVariable("MGNET_EOS_SMOKE"),
@@ -55,61 +37,25 @@ namespace Microsoft.Xna.Framework.Net.Tests
 
             if (!smokeEnabled)
             {
-                Assert.Ignore("EOSNetworking_ReliableMessage_Smoke: Requires MGNET_EOS_SMOKE=1 and valid EOS runtime configuration.");
+                Assert.Ignore("EOSBackend_HostsALobby_AndClosesIt_Smoke: Requires MGNET_EOS_SMOKE=1 and valid EOS runtime configuration.");
             }
 
-            NetworkMessageRegistry.Register<TestReliableMessage>(TestMessageType);
+            // Finding and joining the lobby needs a second Epic account (EOS will not connect an account to
+            // itself), so this checks the half one account can: create a lobby through the back-end, then close it.
             EOSRuntime.Initialize(initialPlayerId: "eos-smoke", initialGamertag: "EOSSmoke");
+            var original = NetworkServiceProvider.Backend;
+            NetworkServiceProvider.SetBackend(new EOSBackend(EOSFallbackMode.Strict));
 
-            var factory = new EOSNetworkSessionFactory();
-            var host = factory.CreateSession();
-            var client = factory.CreateSession();
-
+            NetworkSession host = null;
             try
             {
-                await host.CreateAsync(NetworkSessionType.SystemLink, maxGamers: 4, privateGamerSlots: 0);
-
-                SessionInfo sessionInfo = null;
-                for (var attempt = 0; attempt < 8 && sessionInfo == null; attempt++)
-                {
-                    var sessions = (await factory.FindSessionsAsync(NetworkSessionType.SystemLink)).ToList();
-                    sessionInfo = sessions.FirstOrDefault();
-                    if (sessionInfo == null)
-                    {
-                        await Task.Delay(150);
-                    }
-                }
-
-                Assert.That(sessionInfo, Is.Not.Null);
-                await client.JoinAsync(sessionInfo.JoinAddress);
-
-                var receivedPayload = (string)null;
-                client.MessageReceived += (_, args) =>
-                {
-                    if (args.Message is TestReliableMessage message)
-                    {
-                        receivedPayload = message.Payload;
-                    }
-                };
-
-                host.BroadcastMessage(new TestReliableMessage { Payload = "eos-smoke" });
-
-                for (var attempt = 0; attempt < 20 && receivedPayload == null; attempt++)
-                {
-                    host.Update(new Microsoft.Xna.Framework.GameTime());
-                    client.Update(new Microsoft.Xna.Framework.GameTime());
-                    if (receivedPayload == null)
-                    {
-                        await Task.Delay(50);
-                    }
-                }
-
-                Assert.That(receivedPayload, Is.EqualTo("eos-smoke"));
+                host = await NetworkSession.CreateAsync(NetworkSessionType.SystemLink, 1, 4, 0, null);
+                Assert.That(host.SessionState, Is.EqualTo(NetworkSessionState.Lobby));
             }
             finally
             {
-                await client.CloseAsync();
-                await host.CloseAsync();
+                host?.Dispose();
+                NetworkServiceProvider.SetBackend(original);
                 EOSRuntime.Shutdown();
             }
         }

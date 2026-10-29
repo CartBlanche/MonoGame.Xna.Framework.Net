@@ -46,12 +46,12 @@ namespace Microsoft.Xna.Framework.Net
             return lan.CreateTransport();
         }
 
-        public async Task AdvertiseAsync(ISessionAdvertiser session, CancellationToken stopToken)
+        public async Task AdvertiseAsync(ISessionAdvertiser session, IPeerTransport transport, CancellationToken stopToken)
         {
             if (!SteamRuntime.IsInitialized)
             {
                 ThrowIfStrict("session creation");
-                await lan.AdvertiseAsync(session, stopToken).ConfigureAwait(false);
+                await lan.AdvertiseAsync(session, transport, stopToken).ConfigureAwait(false);
                 return;
             }
 
@@ -115,22 +115,22 @@ namespace Microsoft.Xna.Framework.Net
             }
         }
 
-        public async Task PrepareJoinAsync(AvailableNetworkSession session, CancellationToken cancellationToken)
+        public async Task<IDisposable> PrepareJoinAsync(AvailableNetworkSession session, IPeerTransport transport, CancellationToken cancellationToken)
         {
             if (IsStrict && !SteamRuntime.IsInitialized)
                 throw new InvalidOperationException("Steam runtime is not initialized for strict Steam session join.");
 
             if (!SteamRuntime.IsInitialized)
-                return;
+                return null;
 
             if (!ulong.TryParse(session.SessionId, out var lobbyIdRaw))
             {
                 if (IsStrict)
                     throw new InvalidOperationException("Session id is not a valid Steam lobby id in strict mode.");
-                return;
+                return null;
             }
 
-            // Join the Steam lobby (for presence and invites).
+            // Join the Steam lobby (for presence and invites); leave it again when the session ends.
             try
             {
                 var lobbyId = new CSteamID(lobbyIdRaw);
@@ -142,11 +142,20 @@ namespace Microsoft.Xna.Framework.Net
                 }
 
                 await AwaitCallResultAsync<LobbyEnter_t>(SteamMatchmaking.JoinLobby(lobbyId)).ConfigureAwait(false);
+                return new LobbyMembership(lobbyId);
             }
             catch (Exception ex) when (!IsStrict)
             {
                 Debug.WriteLine($"[Steam] JoinLobby failed (non-fatal): {ex.Message}");
+                return null;
             }
+        }
+
+        private sealed class LobbyMembership : IDisposable
+        {
+            private readonly CSteamID lobbyId;
+            public LobbyMembership(CSteamID lobbyId) => this.lobbyId = lobbyId;
+            public void Dispose() => SteamMatchmaking.LeaveLobby(lobbyId);
         }
 
         private async Task AdvertiseLobbyAsync(int maxGamers)

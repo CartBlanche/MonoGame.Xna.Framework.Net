@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -15,7 +16,7 @@ namespace Microsoft.Xna.Framework.Net
 
         public IPeerTransport CreateTransport() => new UdpTransport(SystemLinkSessionManager.GamePort);
 
-        public Task AdvertiseAsync(ISessionAdvertiser session, CancellationToken stopToken)
+        public Task AdvertiseAsync(ISessionAdvertiser session, IPeerTransport transport, CancellationToken stopToken)
         {
             // runs until stopToken is cancelled or the session closes; completing here only means it has started
             _ = SystemLinkSessionManager.AdvertiseSessionAsync(session, stopToken);
@@ -30,6 +31,6 @@ namespace Microsoft.Xna.Framework.Net
             return (await SystemLinkSessionManager.DiscoverSessionsAsync(maxLocalGamers, cancellationToken)).ToList();
         }
 
-        public Task PrepareJoinAsync(AvailableNetworkSession session, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task<IDisposable> PrepareJoinAsync(AvailableNetworkSession session, IPeerTransport transport, CancellationToken cancellationToken) => Task.FromResult<IDisposable>(null);
     }
 }

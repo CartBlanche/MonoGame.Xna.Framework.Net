@@ -6,8 +6,7 @@ This package keeps the same shared networking API as the core library while wiri
 
 ## What this package provides
 
-- EOSNetworkSessionFactory
-- EOSNetworkSession
+- EOSBackend: EOS lobbies for discovery, EOS P2P for gameplay (`EOSP2PTransport`)
 - EOSPlatformBootstrap
 - EOSRuntime
 
@@ -97,11 +96,9 @@ public static async Task<bool> SignInAndEnableLiveAsync()
     return await EOSPlatformBootstrap.TrySignInAndEnableLiveAsync().ConfigureAwait(false);
 }
 
-public static async Task CreateSessionAsync()
+public static async Task<NetworkSession> CreateSessionAsync()
 {
-    var session = NetworkServiceProvider.SessionFactory.CreateSession();
-    await session.CreateAsync(NetworkSessionType.SystemLink, maxGamers: 4, privateGamerSlots: 0)
-        .ConfigureAwait(false);
+    return await NetworkSession.CreateAsync(NetworkSessionType.SystemLink, 1, 4, 0, null);
 }
 ```
 
@@ -114,12 +111,10 @@ EOSRuntime.RunCallbacks();
 ## Sending a reliable gameplay message
 
 ```csharp
-using Microsoft.Xna.Framework.Net;
-using Microsoft.Xna.Framework.Net.EOS;
-
-var session = NetworkServiceProvider.SessionFactory.CreateSession();
-var message = new PlayerMoveMessage(playerId: 1, x: 10, y: 20);
-session.BroadcastMessage(message);
+var writer = new PacketWriter();
+writer.Write(10);
+writer.Write(20);
+session.LocalGamers[0].SendData(writer, SendDataOptions.ReliableInOrder);
 ```
 
 ## Verify your setup

@@ -11,8 +11,7 @@ namespace Microsoft.Xna.Framework.Net.Tests
         private ILeaderboardProvider originalLiveProvider;
         private IAchievementProvider originalAchievementLiveProvider;
         private IAchievementMediaProvider originalAchievementMediaLiveProvider;
-        private INetworkSessionFactory originalSessionFactory;
-        private bool hadSessionFactory;
+        private INetworkBackend originalBackend;
 
         private sealed class StubSignInProvider : IGuideSignInProvider
         {
@@ -38,11 +37,7 @@ namespace Microsoft.Xna.Framework.Net.Tests
             originalAchievementLiveProvider = AchievementService.LiveProvider;
             originalAchievementMediaLiveProvider = AchievementMediaService.LiveProvider;
 
-            hadSessionFactory = NetworkServiceProvider.IsConfigured;
-            if (hadSessionFactory)
-            {
-                originalSessionFactory = NetworkServiceProvider.SessionFactory;
-            }
+            originalBackend = NetworkServiceProvider.Backend;
 
             SignedInGamer.Current.SetSignedInToLive(false);
             LeaderboardService.LiveProvider = null;
@@ -58,14 +53,7 @@ namespace Microsoft.Xna.Framework.Net.Tests
             AchievementService.LiveProvider = originalAchievementLiveProvider;
             AchievementMediaService.LiveProvider = originalAchievementMediaLiveProvider;
 
-            if (hadSessionFactory && originalSessionFactory != null)
-            {
-                NetworkServiceProvider.SetSessionFactory(originalSessionFactory);
-            }
-            else
-            {
-                NetworkServiceProvider.ResetToDefault();
-            }
+            NetworkServiceProvider.SetBackend(originalBackend);
 
             SignedInGamer.Current.SetSignedInToLive(false);
             EOSRuntime.Shutdown();
@@ -88,7 +76,7 @@ namespace Microsoft.Xna.Framework.Net.Tests
             Assert.That(LeaderboardService.LiveProvider, Is.TypeOf<EOSLeaderboardProvider>());
             Assert.That(AchievementService.LiveProvider, Is.TypeOf<EOSAchievementProvider>());
             Assert.That(AchievementMediaService.LiveProvider, Is.TypeOf<EOSAchievementMediaProvider>());
-            Assert.That(NetworkServiceProvider.SessionFactory, Is.TypeOf<EOSNetworkSessionFactory>());
+            Assert.That(NetworkServiceProvider.Backend, Is.TypeOf<EOSBackend>());
             Assert.That(NetworkServiceProvider.ActiveBackendName, Is.EqualTo("EOS"));
         }
     }

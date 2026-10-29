@@ -23,17 +23,20 @@ It keeps the familiar Microsoft.Xna.Framework.Net and GamerServices APIs while m
 
 ## Core networking model
 
-The main extension point is INetworkSessionFactory.
+Games use `NetworkSession` (the XNA-shaped API) and never talk to a platform directly. What changes between
+platforms is the back-end, `INetworkBackend`, which only supplies what is platform-specific:
 
-At runtime, the game selects one active factory through NetworkServiceProvider.
+- a transport (`IPeerTransport`) that moves datagrams to peers named by an opaque `PeerId`
+- a way to advertise a hosted session and to find sessions to join
 
-- NetworkServiceProvider.SetSessionFactory(...) selects the active back-end.
-- NetworkServiceProvider.SessionFactory.CreateSession() creates a session for that back-end.
-- NetworkServiceProvider.SessionFactory.FindSessionsAsync(...) discovers joinable sessions.
+Everything else (the lobby, readiness, reliable and ordered delivery, fragmentation, relaying between
+clients, gamer ids) is `NetworkSession`, the same on every back-end.
 
-All back-ends expose sessions through INetworkSession and gamers through INetworkGamer and ILocalNetworkGamer.
+- `NetworkServiceProvider.SetBackend(...)` selects the active back-end; each platform package's
+  `...PlatformBootstrap.Configure(...)` does it for you.
+- `NetworkSession.CreateAsync`, `FindAsync` and `JoinAsync` then run over that back-end.
 
-That means your game loop and message handlers can remain the same while the transport changes.
+That means your game loop and message handlers stay the same while the transport changes.
 
 ## Default back-end
 

@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
@@ -24,8 +25,10 @@ namespace Microsoft.Xna.Framework.Net
         /// Makes a hosted session discoverable. Completes once advertising has started, or faults if it
         /// cannot start; advertising then carries on in the background until <paramref name="stopToken"/>
         /// is cancelled (the session ended). <paramref name="session"/> can be asked at any time what to say.
+        /// <paramref name="transport"/> is the one <see cref="CreateTransport"/> made for this session, for
+        /// back-ends whose transport has to be told to accept connections.
         /// </summary>
-        Task AdvertiseAsync(ISessionAdvertiser session, CancellationToken stopToken);
+        Task AdvertiseAsync(ISessionAdvertiser session, IPeerTransport transport, CancellationToken stopToken);
 
         /// <summary>
         /// Finds sessions that can be joined. Each result carries the <see cref="PeerId"/> of its host.
@@ -38,9 +41,11 @@ namespace Microsoft.Xna.Framework.Net
 
         /// <summary>
         /// Anything the back-end must do before the session connects to the host, such as entering the
-        /// back-end's own lobby. Most back-ends have nothing to do.
+        /// back-end's own lobby. Returns a handle the session disposes when it ends (to leave that lobby
+        /// again), or null if there is nothing to undo. <paramref name="transport"/> is the one
+        /// <see cref="CreateTransport"/> made for the session being joined.
         /// </summary>
-        Task PrepareJoinAsync(AvailableNetworkSession session, CancellationToken cancellationToken);
+        Task<IDisposable> PrepareJoinAsync(AvailableNetworkSession session, IPeerTransport transport, CancellationToken cancellationToken);
     }
 
     /// <summary>

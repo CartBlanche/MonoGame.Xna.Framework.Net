@@ -18,8 +18,7 @@ namespace Microsoft.Xna.Framework.Net.Tests
         private ILeaderboardProvider originalLiveProvider;
         private IAchievementProvider originalAchievementLiveProvider;
         private IAchievementMediaProvider originalAchievementMediaLiveProvider;
-        private INetworkSessionFactory originalSessionFactory;
-        private bool hadSessionFactory;
+        private INetworkBackend originalBackend;
 
         private sealed class TestReliableMessage : INetworkMessage
         {
@@ -64,11 +63,7 @@ namespace Microsoft.Xna.Framework.Net.Tests
             originalAchievementLiveProvider = AchievementService.LiveProvider;
             originalAchievementMediaLiveProvider = AchievementMediaService.LiveProvider;
 
-            hadSessionFactory = NetworkServiceProvider.IsConfigured;
-            if (hadSessionFactory)
-            {
-                originalSessionFactory = NetworkServiceProvider.SessionFactory;
-            }
+            originalBackend = NetworkServiceProvider.Backend;
 
             SignedInGamer.Current.SetSignedInToLive(false);
             LeaderboardService.LiveProvider = null;
@@ -84,14 +79,7 @@ namespace Microsoft.Xna.Framework.Net.Tests
             AchievementService.LiveProvider = originalAchievementLiveProvider;
             AchievementMediaService.LiveProvider = originalAchievementMediaLiveProvider;
 
-            if (hadSessionFactory && originalSessionFactory != null)
-            {
-                NetworkServiceProvider.SetSessionFactory(originalSessionFactory);
-            }
-            else
-            {
-                NetworkServiceProvider.ResetToDefault();
-            }
+            NetworkServiceProvider.SetBackend(originalBackend);
 
             SignedInGamer.Current.SetSignedInToLive(false);
             IOSRuntime.Shutdown();
@@ -113,35 +101,9 @@ namespace Microsoft.Xna.Framework.Net.Tests
             Assert.That(LeaderboardService.LiveProvider, Is.TypeOf<IOSLeaderboardProvider>());
             Assert.That(AchievementService.LiveProvider, Is.TypeOf<IOSAchievementProvider>());
             Assert.That(AchievementMediaService.LiveProvider, Is.TypeOf<IOSAchievementMediaProvider>());
-            Assert.That(NetworkServiceProvider.SessionFactory, Is.TypeOf<IOSNetworkSessionFactory>());
+            Assert.That(NetworkServiceProvider.Backend, Is.TypeOf<IOSBackend>());
             Assert.That(NetworkServiceProvider.ActiveBackendName, Is.EqualTo("iOS"));
         }
 
-        [Test]
-        public void Networking_DefaultFactory_SupportsHostFindAndJoin()
-        {
-            IOSRuntime.Initialize();
-            var factory = new IOSNetworkSessionFactory();
-            NetworkServiceProvider.SetSessionFactory(factory);
-
-            var host = factory.CreateSession();
-            var client = factory.CreateSession();
-
-            try
-            {
-                var hostSession = host as AvailableNetworkSession;
-                var clientSession = client as AvailableNetworkSession;
-
-                Assert.That(hostSession, Is.Not.Null);
-                Assert.That(clientSession, Is.Not.Null);
-                Assert.That(hostSession.SessionProperties, Is.Not.Null);
-                Assert.That(clientSession.SessionProperties, Is.Not.Null);
-            }
-            finally
-            {
-                host?.Dispose();
-                client?.Dispose();
-            }
-        }
     }
 }

@@ -6,9 +6,7 @@ This package keeps the same shared networking API as the core library, while con
 
 ## What this package provides
 
-- AndroidNetworkSessionFactory
-- AndroidNetworkSession
-- AndroidNetworkGamer runtime integration
+- AndroidBackend: Google Nearby Connections for discovery and gameplay (`AndroidNearbyTransport`)
 - AndroidPlatformBootstrap
 - AndroidRuntime
 
@@ -56,7 +54,6 @@ AndroidRuntime.Initialize(
 	initialPlayerId: "player-id",
 	initialGamertag: "Player");
 AndroidPlatformBootstrap.Configure(gameName: "MyGame");
-NetworkServiceProvider.SetSessionFactory(new AndroidNetworkSessionFactory());
 ```
 
 ## Typical app integration
@@ -73,13 +70,11 @@ protected override void OnCreate(Bundle? savedInstanceState)
 
 	AndroidRuntime.Initialize(this, initialGamertag: "Player");
 	AndroidPlatformBootstrap.Configure(gameName: "MyGame");
-	NetworkServiceProvider.SetSessionFactory(new AndroidNetworkSessionFactory());
-}
+	}
 
-public static async Task CreateSessionAsync()
+public static async Task<NetworkSession> CreateSessionAsync()
 {
-	var session = NetworkServiceProvider.SessionFactory.CreateSession();
-	await session.CreateAsync(sessionProperties: null, maxGamers: 4).ConfigureAwait(false);
+	return await NetworkSession.CreateAsync(NetworkSessionType.SystemLink, 1, 4, 0, null);
 }
 ```
 
@@ -92,12 +87,10 @@ AndroidRuntime.RunCallbacks();
 ## Sending a reliable gameplay message
 
 ```csharp
-using Microsoft.Xna.Framework.Net;
-using Microsoft.Xna.Framework.Net.Android;
-
-var session = NetworkServiceProvider.SessionFactory.CreateSession();
-var message = new PlayerMoveMessage(playerId: 1, x: 10, y: 20);
-session.SendMessage(message, MessageDelivery.Reliable);
+var writer = new PacketWriter();
+writer.Write(10);
+writer.Write(20);
+session.LocalGamers[0].SendData(writer, SendDataOptions.ReliableInOrder);
 ```
 
 ## Verify your setup

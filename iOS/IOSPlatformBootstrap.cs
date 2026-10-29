@@ -16,7 +16,6 @@ namespace Microsoft.Xna.Framework.Net.iOS
         public static void Configure(
             string gameName,
             IGuideSignInProvider signInProvider = null,
-            INetworkSessionFactory sessionFactory = null,
             Func<ILeaderboardProvider> liveProviderFactoryOverride = null,
             Func<IAchievementProvider> achievementLiveProviderFactoryOverride = null,
             Func<IAchievementMediaProvider> achievementMediaLiveProviderFactoryOverride = null,
@@ -38,7 +37,6 @@ namespace Microsoft.Xna.Framework.Net.iOS
             }
 
             Guide.SignInProvider = signInProvider ?? new IOSSignInProvider();
-            NetworkServiceProvider.SetSessionFactory(sessionFactory ?? new IOSNetworkSessionFactory(fallbackMode));
             NetworkServiceProvider.SetBackend(backend ?? new IOSBackend(fallbackMode));
 
             lock (Gate)

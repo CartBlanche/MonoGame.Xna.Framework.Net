@@ -1,15 +1,17 @@
-using System;
-using System.Collections.Generic;
-using System.Threading;
-using System.Threading.Tasks;
-
 namespace Microsoft.Xna.Framework.Net.iOS
 {
     /// <summary>
-    /// The iOS back-end. Until a iOS transport exists (plan task 4.4) sessions run over the
-    /// LAN (UDP) exactly as they did through the old provider; what this adds is strict mode, which
-    /// refuses to create, find or join sessions when the iOS runtime is not initialised.
+    /// The iOS back-end: sessions are Game Center matches (<see cref="GameKitTransport"/>); everything
+    /// above that is <see cref="NetworkSession"/>.
     /// </summary>
+    /// <remarks>
+    /// GameKit has no way to browse for matches, so <see cref="FindAsync"/> finds nothing: a game
+    /// joins by building an <see cref="AvailableNetworkSession"/> from a session id it was given (an
+    /// invite, a code) with <see cref="GameKitTransport.HostPeer"/> as its host. When the iOS runtime
+    /// is not initialised, <see cref="IOSFallbackMode.PreferFallback"/> (the default) uses the LAN
+    /// back-end instead; <see cref="IOSFallbackMode.Strict"/> fails instead. Not exercised on a device
+    /// from this repository.
+    /// </remarks>
     public sealed class IOSBackend : INetworkBackend
     {
         private readonly UdpBackend lan = new UdpBackend();
@@ -22,36 +24,54 @@ namespace Microsoft.Xna.Framework.Net.iOS
 
         public string Name => "iOS";
 
-        public IPeerTransport CreateTransport()
+        private bool UseGameKit(string what)
         {
-            Check("session creation or join");
-            return lan.CreateTransport();
+            if (IOSRuntime.IsInitialized)
+                return true;
+            if (fallbackMode == IOSFallbackMode.Strict)
+                throw new InvalidOperationException($"iOS runtime is not initialized for strict {what}.");
+            return false;
         }
 
-        public Task AdvertiseAsync(ISessionAdvertiser session, CancellationToken stopToken)
+        public IPeerTransport CreateTransport() =>
+            UseGameKit("session creation or join") ? new GameKitTransport() : lan.CreateTransport();
+
+        public async Task AdvertiseAsync(ISessionAdvertiser session, IPeerTransport transport, CancellationToken stopToken)
         {
-            Check("session creation");
-            return lan.AdvertiseAsync(session, stopToken);
+            if (transport is GameKitTransport gameKit)
+            {
+                var ad = session.GetAdvertisement();
+                await gameKit.StartMatchAsync(ad.SessionId, ad.MaxGamers, asHost: true).ConfigureAwait(false);
+                return;
+            }
+
+            UseGameKit("session creation");
+            await lan.AdvertiseAsync(session, transport, stopToken).ConfigureAwait(false);
         }
 
         public Task<IReadOnlyList<AvailableNetworkSession>> FindAsync(NetworkSessionType sessionType, int maxLocalGamers, CancellationToken cancellationToken)
         {
-            Check("session discovery");
-            return lan.FindAsync(sessionType, maxLocalGamers, cancellationToken);
+            if (!UseGameKit("session discovery"))
+                return lan.FindAsync(sessionType, maxLocalGamers, cancellationToken);
+
+            // GameKit does not expose a session-browse API
+            return Task.FromResult<IReadOnlyList<AvailableNetworkSession>>(new List<AvailableNetworkSession>());
         }
 
-        public Task PrepareJoinAsync(AvailableNetworkSession session, CancellationToken cancellationToken)
+        public async Task<IDisposable> PrepareJoinAsync(AvailableNetworkSession session, IPeerTransport transport, CancellationToken cancellationToken)
         {
             if (session == null)
                 throw new ArgumentNullException(nameof(session));
-            Check("session join");
-            return lan.PrepareJoinAsync(session, cancellationToken);
-        }
 
-        private void Check(string what)
-        {
-            if (fallbackMode == IOSFallbackMode.Strict && !IOSRuntime.IsInitialized)
-                throw new InvalidOperationException("iOS runtime is not initialized for strict {what}.".Replace("{what}", what));
+            if (transport is GameKitTransport gameKit)
+            {
+                int max = session.CurrentGamerCount + session.OpenPublicGamerSlots + session.OpenPrivateGamerSlots;
+                await gameKit.StartMatchAsync(session.SessionId, max, asHost: false).ConfigureAwait(false);
+                return null;
+            }
+
+            UseGameKit("session join");
+            return await lan.PrepareJoinAsync(session, transport, cancellationToken).ConfigureAwait(false);
         }
     }
 }

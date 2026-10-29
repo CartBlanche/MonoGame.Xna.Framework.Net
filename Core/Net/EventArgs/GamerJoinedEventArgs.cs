@@ -8,12 +8,12 @@ namespace Microsoft.Xna.Framework.Net
         /// <summary>
         /// Gets the gamer who joined.
         /// </summary>
-        public INetworkGamer Gamer { get; internal set; }
+        public NetworkGamer Gamer { get; internal set; }
 
         /// <summary>
         /// Initializes a new instance of GamerJoinedEventArgs.
         /// </summary>
-        internal GamerJoinedEventArgs(INetworkGamer gamer)
+        internal GamerJoinedEventArgs(NetworkGamer gamer)
         {
             Gamer = gamer;
         }

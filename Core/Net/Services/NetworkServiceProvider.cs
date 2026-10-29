@@ -2,55 +2,14 @@ using System;
 
 namespace Microsoft.Xna.Framework.Net
 {
+    /// <summary>
+    /// Chooses the back-end that carries <see cref="NetworkSession"/>s. A networking plugin's bootstrap
+    /// sets its back-end at start-up; until then sessions run over the LAN.
+    /// </summary>
     public static class NetworkServiceProvider
     {
-        private static INetworkSessionFactory sessionFactory;
         private static INetworkBackend backend;
         private static readonly object lockObject = new object();
-
-        public static INetworkSessionFactory SessionFactory
-        {
-            get
-            {
-                lock (lockObject)
-                {
-                    if (sessionFactory == null)
-                        throw new InvalidOperationException("Network session factory not configured. Call NetworkServiceProvider.SetSessionFactory() during game initialization.");
-                    return sessionFactory;
-                }
-            }
-        }
-
-        public static string ActiveBackendName
-        {
-            get
-            {
-                lock (lockObject)
-                {
-                    return sessionFactory?.BackendName;
-                }
-            }
-        }
-
-        public static void SetSessionFactory(INetworkSessionFactory factory)
-        {
-            if (factory == null) throw new ArgumentNullException(nameof(factory));
-            lock (lockObject)
-            {
-                sessionFactory = factory;
-                System.Diagnostics.Debug.WriteLine($"[Network] Using {factory.BackendName} backend");
-            }
-        }
-
-        public static void ResetToDefault()
-        {
-            lock (lockObject)
-            {
-                sessionFactory = new UdpNetworkSessionFactory();
-                backend = new UdpBackend();
-                System.Diagnostics.Debug.WriteLine("[Network] Reset to default UDP backend");
-            }
-        }
 
         /// <summary>
         /// The back-end that carries sessions: LAN (UDP) unless a plugin has set another.
@@ -65,6 +24,11 @@ namespace Microsoft.Xna.Framework.Net
         }
 
         /// <summary>
+        /// The name of the back-end in use, e.g. "Steam".
+        /// </summary>
+        public static string ActiveBackendName => Backend.Name;
+
+        /// <summary>
         /// Chooses the back-end that <see cref="NetworkSession"/> creates, finds and joins sessions through.
         /// </summary>
         public static void SetBackend(INetworkBackend newBackend)
@@ -77,14 +41,15 @@ namespace Microsoft.Xna.Framework.Net
             }
         }
 
-        public static bool IsConfigured
+        /// <summary>
+        /// Goes back to the default LAN (UDP) back-end.
+        /// </summary>
+        public static void ResetToDefault()
         {
-            get
+            lock (lockObject)
             {
-                lock (lockObject)
-                {
-                    return sessionFactory != null;
-                }
+                backend = new UdpBackend();
+                System.Diagnostics.Debug.WriteLine("[Network] Reset to default UDP backend");
             }
         }
     }

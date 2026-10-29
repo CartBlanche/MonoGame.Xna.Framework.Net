@@ -47,7 +47,7 @@ namespace Microsoft.Xna.Framework.Net.Tests
             Assert.That(LeaderboardService.LiveProvider, Is.TypeOf<IOSLeaderboardProvider>());
             Assert.That(AchievementService.LiveProvider, Is.TypeOf<IOSAchievementProvider>());
             Assert.That(AchievementMediaService.LiveProvider, Is.TypeOf<IOSAchievementMediaProvider>());
-            Assert.That(NetworkServiceProvider.SessionFactory, Is.TypeOf<IOSNetworkSessionFactory>());
+            Assert.That(NetworkServiceProvider.Backend, Is.TypeOf<IOSBackend>());
             Assert.That(NetworkServiceProvider.ActiveBackendName, Is.EqualTo("iOS"));
         }
 

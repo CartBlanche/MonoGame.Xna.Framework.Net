@@ -17,7 +17,6 @@ namespace Microsoft.Xna.Framework.Net.EOS
             string gameName,
             EOSCredentials credentials = null,
             IGuideSignInProvider signInProvider = null,
-            INetworkSessionFactory sessionFactory = null,
             Func<ILeaderboardProvider> liveProviderFactoryOverride = null,
             Func<IAchievementProvider> achievementLiveProviderFactoryOverride = null,
             Func<IAchievementMediaProvider> achievementMediaLiveProviderFactoryOverride = null,
@@ -44,7 +43,6 @@ namespace Microsoft.Xna.Framework.Net.EOS
             }
 
             Guide.SignInProvider = signInProvider ?? new EOSSignInProvider();
-            NetworkServiceProvider.SetSessionFactory(sessionFactory ?? new EOSNetworkSessionFactory(fallbackMode));
             NetworkServiceProvider.SetBackend(backend ?? new EOSBackend(fallbackMode));
 
             lock (Gate)

@@ -22,4 +22,8 @@
     <PackageReference Include="MonoGame.Framework.Android" Version="3.8.*" PrivateAssets="all" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Compile Include="..\Conformance\BackendConformanceTests.cs" Link="BackendConformanceTests.cs" />
+  </ItemGroup>
+
 </Project>
