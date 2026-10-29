@@ -27,4 +27,8 @@
     <Compile Include="..\Core\PublicApi.cs" Link="PublicApi.cs" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Compile Include="..\Conformance\UdpPortLock.cs" Link="UdpPortLock.cs" />
+  </ItemGroup>
+
 </Project>
