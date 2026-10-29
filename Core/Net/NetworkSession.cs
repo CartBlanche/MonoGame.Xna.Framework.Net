@@ -197,6 +197,16 @@ namespace Microsoft.Xna.Framework.Net
         public NetworkGamer? Host => AllGamers.Host;
 
         /// <summary>
+        /// Gets whether this session has been disposed.
+        /// </summary>
+        public bool IsDisposed => disposed;
+
+        /// <summary>
+        /// Looks up the gamer with this <see cref="NetworkGamer.Id"/>; null if there is none.
+        /// </summary>
+        public NetworkGamer? FindGamerById(byte gamerId) => AllGamers.FindGamerById(gamerId);
+
+        /// <summary>
         /// Gets whether this machine is the host.
         /// </summary>
         public bool IsHost => isHost;
@@ -296,7 +306,9 @@ namespace Microsoft.Xna.Framework.Net
         private float simulatedPacketLoss = 0.0f;
 
         /// <summary>
-        /// Gets or sets the simulated network latency for testing purposes.
+        /// Gets or sets the simulated network latency for testing: every datagram this machine sends is held back
+        /// by this long. Datagrams from the other machines are not delayed, so a round trip between two machines that
+        /// both set it takes twice as long.
         /// </summary>
         public TimeSpan SimulatedLatency
         {
@@ -305,7 +317,8 @@ namespace Microsoft.Xna.Framework.Net
         }
 
         /// <summary>
-        /// Gets or sets the simulated packet loss percentage for testing purposes.
+        /// Gets or sets the simulated packet loss for testing, from 0 (none) to 1 (everything): this fraction of the
+        /// datagrams this machine sends is dropped. Reliable data is resent as it would be after a real loss.
         /// </summary>
         public float SimulatedPacketLoss
         {
@@ -1330,7 +1343,7 @@ namespace Microsoft.Xna.Framework.Net
 
             foreach (string gamerId in recipients)
             {
-                try { SendRawToGamer(gamerId, data); }
+                try { SendRawToGamer(gamerId, data, immediate: true); }
                 catch (Exception ex) { logger?.LogError($"Failed to send leave notification to {gamerId}", ex); }
             }
         }
@@ -1752,7 +1765,34 @@ namespace Microsoft.Xna.Framework.Net
         // a datagram as it is, outside any channel, to a peer
         private void SendTo(PeerId peer, byte[] data)
         {
-            networkTransport.Send(peer, data, data.Length);
+            Transmit(peer, data);
+        }
+
+        // Every datagram leaves through here, so the simulated latency and loss apply to all of them.
+        // (`immediate` is for the goodbye of a session that is going away: it must leave before the transport does)
+        private void Transmit(PeerId peer, byte[] data, bool immediate = false)
+        {
+            float loss = immediate ? 0 : simulatedPacketLoss;
+            if (loss > 0 && Random.Shared.NextDouble() < loss)
+                return;
+
+            TimeSpan latency = immediate ? TimeSpan.Zero : simulatedLatency;
+            if (latency <= TimeSpan.Zero)
+            {
+                networkTransport.Send(peer, data, data.Length);
+                return;
+            }
+
+            // the buffer may be reused by the caller once we return
+            byte[] copy = (byte[])data.Clone();
+            IPeerTransport transport = networkTransport;
+            _ = Task.Delay(latency).ContinueWith(_ =>
+            {
+                if (disposed)
+                    return;
+                try { transport.Send(peer, copy, copy.Length); }
+                catch (Exception ex) { logger?.LogWarning($"A delayed datagram could not be sent: {ex.Message}"); }
+            }, TaskScheduler.Default);
         }
 
         private bool IsFromHost(PeerId endpoint)
@@ -1976,7 +2016,7 @@ namespace Microsoft.Xna.Framework.Net
         }
 
         // sends a datagram as it is, to the endpoint of the gamer with this id
-        private void SendRawToGamer(string gamerId, byte[] data)
+        private void SendRawToGamer(string gamerId, byte[] data, bool immediate = false)
         {
             PeerId endpoint;
             lock (lockObject)
@@ -1992,7 +2032,7 @@ namespace Microsoft.Xna.Framework.Net
 
             try
             {
-                networkTransport.Send(endpoint, data, data.Length);
+                Transmit(endpoint, data, immediate);
                 // Record sent packet in diagnostics
                 diagnostics?.RecordPacketSent(data.Length);
             }

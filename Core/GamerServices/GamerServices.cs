@@ -16,8 +16,10 @@ namespace Microsoft.Xna.Framework.GamerServices
         /// <param name="game">The game instance.</param>
         public GamerServicesComponent(Game game)
         {
-            // Mock implementation
+            this.game = game;
         }
+
+        private readonly Game? game;
 
         /// <summary>
         /// Updates the gamer services.
@@ -25,8 +27,7 @@ namespace Microsoft.Xna.Framework.GamerServices
         /// <param name="gameTime">Game timing information.</param>
         public void Update(GameTime gameTime)
         {
-            // invitations accepted in the platform's UI are raised here, on the game's thread
-            NetworkServiceProvider.DispatchInvites();
+            GamerServicesDispatcher.Update();
         }
 
         /// <summary>
@@ -34,7 +35,8 @@ namespace Microsoft.Xna.Framework.GamerServices
         /// </summary>
         public void Initialize()
         {
-            // Mock implementation
+            if (game != null)
+                GamerServicesDispatcher.Initialize(game.Services);
         }
     }
 }

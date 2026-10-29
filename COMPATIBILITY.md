@@ -21,7 +21,7 @@ How closely this library follows XNA Game Studio 4.0's `Microsoft.Xna.Framework.
 - **`AllowHostMigration` is accepted but migration is not built.** If the host leaves, the session ends with `HostEndedSession`.
 - **No voice.** `HasVoice`, `IsTalking` and `IsMutedByLocalUser` exist but are always `false` (planned as an optional add-on).
 - **`QualityOfService` returns fixed placeholder numbers**, not a measurement.
-- **`SimulatedLatency` and `SimulatedPacketLoss` can be set but have no effect.**
+- **`SimulatedLatency` and `SimulatedPacketLoss` act on what this machine sends**, not on what it receives: set them on both machines to affect both directions.
 - **`BytesPerSecondReceived` and `BytesPerSecondSent` are averages over the whole life of the session**, not a recent rate.
 - **`Begin*`/`End*` pairs are replaced by `*Async` methods** (`CreateAsync`, `FindAsync`, `JoinAsync`, `JoinInvitedAsync`). The blocking `Create`, `Find`, `Join` and `JoinInvited` remain.
 - **Disposing a session tells the other machines at once** (one datagram each; if it is lost they find out by the 9-second heartbeat timeout). A process that crashes says nothing, so the others notice only after that timeout.
@@ -50,15 +50,15 @@ How closely this library follows XNA Game Studio 4.0's `Microsoft.Xna.Framework.
 
 | `SessionProperties` | Differs | `IDictionary<string, object>`, not `NetworkSessionProperties` (the blocking `Create` and `Find` do take `NetworkSessionProperties`) |
 | `BytesPerSecondReceived`, `BytesPerSecondSent` | Differs | Average since the session started |
-| `SimulatedLatency`, `SimulatedPacketLoss` | Differs | Can be set; nothing uses them yet |
-| `IsDisposed` | Missing | |
+| `SimulatedLatency`, `SimulatedPacketLoss` | Yes | Applied to every datagram this machine sends (see above). `SimulatedPacketLoss` is a fraction from 0 to 1 |
+| `IsDisposed` | Yes | |
 | `MaxPreviousGamers`, `MaxSupportedGamers`, `PreviousGamers` | Missing | |
 | `Create`, `Find`, `Join`, `JoinInvited` | Yes | Blocking |
 | `BeginCreate`/`EndCreate`, `BeginFind`/`EndFind`, `BeginJoin`/`EndJoin`, `BeginJoinInvited`/`EndJoinInvited` | Differs | Replaced by `CreateAsync`, `FindAsync`, `JoinAsync`, `JoinInvitedAsync` |
 | `Dispose`, `StartGame`, `EndGame`, `Update` | Yes | |
 | `AddLocalGamer` | Missing | |
 | `ResetReady` | Yes | Host only, as in XNA: throws `InvalidOperationException` elsewhere |
-| `FindGamerById` | Differs | On the collection: `session.AllGamers.FindGamerById(id)` |
+| `FindGamerById` | Yes | Also on the collection: `session.AllGamers.FindGamerById(id)` |
 | `GameStarted`, `GameEnded`, `GamerJoined`, `GamerLeft`, `SessionEnded`, static `InviteAccepted` | Yes | Raised from `Update()` |
 | `HostChanged` | Differs | Can be subscribed to, but is never raised: it is only raised by host migration, which is not built |
 | `WriteArbitratedLeaderboard`, `WriteTrueSkill`, `WriteUnarbitratedLeaderboard` | n/a | |
@@ -72,7 +72,8 @@ How closely this library follows XNA Game Studio 4.0's `Microsoft.Xna.Framework.
 |------------|------|-------|
 | `DisplayName`, `Gamertag`, `Tag`, `Id`, `IsHost`, `IsLocal`, `IsReady`, `Machine`, `RoundtripTime` | Yes | `Id` is a `byte`, as in XNA |
 | `HasVoice`, `IsTalking`, `IsMutedByLocalUser` | Differs | Always `false` |
-| `IsDisposed`, `LeaderboardWriter`, `GetProfile`/`BeginGetProfile`/`EndGetProfile` | Missing | |
+| `IsDisposed` | Yes | True once the session is disposed |
+| `LeaderboardWriter`, `GetProfile`/`BeginGetProfile`/`EndGetProfile` | Missing | |
 | `HasLeftSession`, `IsGuest`, `IsPrivateSlot`, `Session` | Missing | |
 | `IsDataAvailable`, `ReceiveData`, `SendData` | Yes | On every `NetworkGamer`, not only `LocalNetworkGamer` (a superset) |
 | `SignedInGamer` | Yes | On every `NetworkGamer`; `null` for remote gamers |
@@ -115,13 +116,13 @@ How closely this library follows XNA Game Studio 4.0's `Microsoft.Xna.Framework.
 
 | XNA type | Here | Notes |
 |----------|------|-------|
-| `Gamer` | Differs | Has `DisplayName`, `Gamertag`, `Tag` and static `SignedInGamers`. Missing: `IsDisposed`, `LeaderboardWriter`, `GetProfile`, `GetFromGamertag` and their `Begin`/`End` pairs |
+| `Gamer` | Differs | Has `DisplayName`, `Gamertag`, `IsDisposed`, `Tag` and static `SignedInGamers`. Missing: `LeaderboardWriter`, `GetProfile`, `GetFromGamertag` and their `Begin`/`End` pairs |
 | `SignedInGamer` | Differs | Has `Gamertag`, `DisplayName`, `IsGuest`, `IsSignedInToLive`, `PlayerIndex`, `Presence`, `Privileges`, `GetAchievements`. Missing: `GameDefaults`, `PartySize`, `GetFriends`, `IsFriend`, `IsHeadset`, `AwardAchievement` and the `Begin`/`End` achievement methods, and the static `SignedIn` and `SignedOut` events. Extras: `Current`, `*Async` methods, `WriteLeaderboard`, `GetLeaderboard` |
 | `GamerCollection<T>` | Present | Not compared member by member |
 | `GamerPresence` | Present | Has `PresenceMode` and `PresenceValue`; not compared member by member |
 | `GamerPrivileges` | Differs | Only `AllowOnlineSessions` (true while signed in to the online service) |
 | `GamerServicesComponent` | Present | Not compared member by member |
-| `GamerServicesDispatcher` | Missing | |
+| `GamerServicesDispatcher` | Yes | `Initialize`, `Update`, `IsInitialized`, `WindowHandle`; `InstallingTitleUpdate` can be subscribed to but is never raised |
 | `Guide` | Differs | Has `IsVisible`, `IsTrialMode`, `IsScreenSaverEnabled`, `ShowSignIn`, `ShowMarketplace`, `ShowMessageBox`. Missing: `NotificationPosition`, `SimulateTrialMode`, `BeginShowKeyboardInput`/`EndShowKeyboardInput`, `BeginShowMessageBox`/`EndShowMessageBox` (use `ShowMessageBoxAsync`), `DelayNotifications` and the `ShowFriends`, `ShowGameInvite`, `ShowGamerCard`, `ShowMessages`, `ShowParty`, `ShowPlayers`... family |
 | `Achievement`, `AchievementCollection` | Differs | Not compared member by member; backed by Steam, EOS or Play Games achievements, or a local file |
 | `LeaderboardIdentity`, `LeaderboardReader`, `LeaderboardWriter`, `LeaderboardEntry` | Differs | Not the XNA shape; backed by the platform's leaderboards or a local file. Not compared member by member |

@@ -16,6 +16,11 @@ namespace Microsoft.Xna.Framework.GamerServices
         public virtual string DisplayName => Gamertag;
 
         /// <summary>
+        /// Gets whether this gamer is disposed: for a network gamer, when its session has been disposed.
+        /// </summary>
+        public virtual bool IsDisposed => false;
+
+        /// <summary>
         /// Gets custom data associated with this gamer.
         /// </summary>
         public object? Tag { get; set; }

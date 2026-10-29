@@ -114,6 +114,93 @@ namespace Microsoft.Xna.Framework.Net.Tests
         }
 
         [Test]
+        public async Task SimulatedPacketLoss_DropsThatShareOfWhatIsSent()
+        {
+            var (host, transport, _) = await HostWithGamerAsync();
+            var me = host.LocalGamers[0];
+
+            host.SimulatedPacketLoss = 1f;
+            int before = transport.Count;
+            for (int i = 0; i < 20; i++)
+                me.SendData(new byte[] { 1 }, SendDataOptions.None);
+            Assert.That(transport.Count, Is.EqualTo(before), "everything should be lost");
+
+            host.SimulatedPacketLoss = 0.5f;
+            before = transport.Count;
+            for (int i = 0; i < 400; i++)
+                me.SendData(new byte[] { 1 }, SendDataOptions.None);
+            Assert.That(transport.Count - before, Is.InRange(120, 280), "about half should get through");
+
+            host.SimulatedPacketLoss = 0f;
+            before = transport.Count;
+            me.SendData(new byte[] { 1 }, SendDataOptions.None);
+            Assert.That(transport.Count, Is.EqualTo(before + 1));
+        }
+
+        [Test]
+        public async Task SimulatedLatency_HoldsDatagramsBack()
+        {
+            var (host, transport, _) = await HostWithGamerAsync();
+            host.SimulatedLatency = TimeSpan.FromMilliseconds(400);
+            int before = transport.Count;
+
+            var data = new byte[] { 7 };
+            host.LocalGamers[0].SendData(data, SendDataOptions.None);
+            data[0] = 99;   // the caller may reuse its buffer at once
+
+            await Task.Delay(100);
+            Assert.That(transport.Count, Is.EqualTo(before), "it should not have left yet");
+
+            DateTime deadline = DateTime.UtcNow.AddSeconds(3);
+            while (transport.Count == before && DateTime.UtcNow < deadline)
+                await Task.Delay(20);
+            Assert.That(transport.Count, Is.GreaterThan(before), "it should leave after the delay");
+        }
+
+        [Test]
+        public async Task TheGoodbye_IsNotDelayed_ByASimulatedLatency()
+        {
+            var (host, transport, _) = await HostWithGamerAsync();
+            host.SimulatedLatency = TimeSpan.FromSeconds(5);
+            int before = transport.Count;
+
+            host.Dispose();
+
+            Assert.That(transport.Count, Is.GreaterThan(before), "the goodbye must leave before the session is gone");
+        }
+
+        [Test]
+        public async Task FindGamerById_AndIsDisposed()
+        {
+            var (host, _, remote) = await HostWithGamerAsync();
+
+            Assert.That(host.FindGamerById(remote.Id), Is.SameAs(remote));
+            Assert.That(host.FindGamerById(250), Is.Null);
+            Assert.That(host.IsDisposed, Is.False);
+            Assert.That(remote.IsDisposed, Is.False);
+
+            host.Dispose();
+
+            Assert.That(host.IsDisposed, Is.True);
+            Assert.That(remote.IsDisposed, Is.True);
+        }
+
+        [Test]
+        public void GamerServicesDispatcher_InitializesAndUpdates()
+        {
+            Assert.Throws<ArgumentNullException>(() => GamerServicesDispatcher.Initialize(null));
+
+            GamerServicesDispatcher.Initialize(new System.ComponentModel.Design.ServiceContainer());
+            Assert.That(GamerServicesDispatcher.IsInitialized, Is.True);
+
+            GamerServicesDispatcher.WindowHandle = new IntPtr(42);
+            Assert.That(GamerServicesDispatcher.WindowHandle, Is.EqualTo(new IntPtr(42)));
+
+            Assert.DoesNotThrow(() => GamerServicesDispatcher.Update());
+            GamerServicesDispatcher.InstallingTitleUpdate += (s, e) => { };
+        }
+
+        [Test]
         public async Task HostChanged_CanBeSubscribedTo_AndItsArgumentsCarryBothHosts()
         {
             var (host, _, remote) = await HostWithGamerAsync();

@@ -62,6 +62,11 @@ namespace Microsoft.Xna.Framework.Net
         public override string Gamertag => gamertag;
 
         /// <summary>
+        /// Gets whether the session this gamer was in has been disposed.
+        /// </summary>
+        public override bool IsDisposed => session?.IsDisposed ?? false;
+
+        /// <summary>
         /// Gets or sets whether this gamer is ready to start the game.
         /// </summary>
         public bool IsReady
