@@ -93,11 +93,11 @@ jobs:
             10.0.x
 
       - name: Install .NET Android workload
-        run: dotnet workload install android
+        run: dotnet workload install android --from-rollback-file .github/workload-rollback.json
 
       - name: Install .NET iOS workload
         if: runner.os == 'macOS'
-        run: dotnet workload install ios
+        run: dotnet workload install ios --from-rollback-file .github/workload-rollback.json
 
       - name: Restore
         run: |
@@ -213,7 +213,7 @@ jobs:
             10.0.x
 
       - name: Install .NET Android workload
-        run: dotnet workload install android
+        run: dotnet workload install android --from-rollback-file .github/workload-rollback.json
 
       - name: Compute package versions
         id: version
@@ -355,7 +355,7 @@ jobs:
             10.0.x
 
       - name: Install .NET iOS workload
-        run: dotnet workload install ios
+        run: dotnet workload install ios --from-rollback-file .github/workload-rollback.json
 
       - name: Restore iOS package project
         run: dotnet restore iOS/MonoGame.Xna.Framework.Net.iOS.csproj
