@@ -24,6 +24,7 @@ How closely this library follows XNA Game Studio 4.0's `Microsoft.Xna.Framework.
 - **`SimulatedLatency` and `SimulatedPacketLoss` can be set but have no effect.**
 - **`BytesPerSecondReceived` and `BytesPerSecondSent` are averages over the whole life of the session**, not a recent rate.
 - **`Begin*`/`End*` pairs are replaced by `*Async` methods** (`CreateAsync`, `FindAsync`, `JoinAsync`, `JoinInvitedAsync`). The blocking `Create`, `Find`, `Join` and `JoinInvited` remain.
+- **Disposing a session tells the other machines at once** (one datagram each; if it is lost they find out by the 9-second heartbeat timeout). A process that crashes says nothing, so the others notice only after that timeout.
 - **Sessions can have a password and every datagram on a link is authenticated** (see the README). XNA had neither.
 
 ## `Microsoft.Xna.Framework.Net`

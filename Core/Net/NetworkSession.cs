@@ -1303,6 +1303,38 @@ namespace Microsoft.Xna.Framework.Net
                 Raise(Notify);
         }
 
+        // why we are going, for the goodbye that disposing sends
+        private string? leaveReason;
+
+        /// <summary>
+        /// Tells every other machine this gamer is going, so they need not wait for a timeout to find out. One
+        /// datagram each, outside the reliable channel (which is going away); if one is lost the timeout still
+        /// catches it. Nothing is sent for a session that has already ended or never used the network.
+        /// </summary>
+        private void SayGoodbye()
+        {
+            if (sessionState == NetworkSessionState.Ended || sessionType == NetworkSessionType.Local)
+                return;
+
+            var localGamer = LocalGamers.FirstOrDefault();
+            if (localGamer == null || networkTransport == null || !networkTransport.IsBound)
+                return;
+
+            var writer = new PacketWriter();
+            new GamerLeavingMessage { GamerId = localGamer.GamerId, Reason = leaveReason ?? "Session disposed" }.Serialize(writer);
+            byte[] data = writer.GetData();
+
+            string[] recipients;
+            lock (lockObject)
+                recipients = gamers.Where(g => !g.IsLocal && gamerPeers.ContainsKey(g.GamerId)).Select(g => g.GamerId).ToArray();
+
+            foreach (string gamerId in recipients)
+            {
+                try { SendRawToGamer(gamerId, data); }
+                catch (Exception ex) { logger?.LogError($"Failed to send leave notification to {gamerId}", ex); }
+            }
+        }
+
         /// <summary>
         /// Gracefully leaves the session with immediate notification to all gamers.
         /// Sends GamerLeavingMessage to all remote gamers before disposing.
@@ -1314,45 +1346,9 @@ namespace Microsoft.Xna.Framework.Net
                 return;
 
             logger?.LogInfo($"Leaving session: {reason}");
+            leaveReason = reason;
 
-            // Send leave notification to all remote gamers
-            var localGamer = LocalGamers.FirstOrDefault();
-            if (localGamer != null && networkTransport != null && networkTransport.IsBound)
-            {
-                var leaveMessage = new GamerLeavingMessage
-                {
-                    GamerId = localGamer.GamerId,
-                    Reason = reason
-                };
-
-                var writer = new PacketWriter();
-                leaveMessage.Serialize(writer);
-                var data = writer.GetData();
-
-                // Send to all remote gamers
-                lock (lockObject)
-                {
-                    foreach (var gamer in gamers.Where(g => !g.IsLocal))
-                    {
-                        try
-                        {
-                            if (gamerPeers.ContainsKey(gamer.GamerId))
-                            {
-                                // protected like everything after the handshake; outside the channel, which is going away
-                                SendRawToGamer(gamer.GamerId, data);
-                                logger?.LogInfo($"Sent leave notification to {gamer.Gamertag}");
-                            }
-                        }
-                        catch (Exception ex)
-                        {
-                            logger?.LogError($"Failed to send leave notification to {gamer.Gamertag}", ex);
-                        }
-                    }
-                }
-
-            }
-
-            // Now dispose normally
+            // disposing says goodbye, with this reason
             Dispose();
         }
 
@@ -1364,6 +1360,9 @@ namespace Microsoft.Xna.Framework.Net
             GC.SuppressFinalize(this);
             if (!disposed)
             {
+                // tell the others while the transport still works: they would otherwise wait out a timeout
+                try { SayGoodbye(); } catch { /* best effort */ }
+
                 disposed = true; // Set BEFORE cleanup to prevent re-entry
                 
                 try { cancellationTokenSource?.Cancel(); } catch { /* Already disposed */ }
@@ -1390,6 +1389,8 @@ namespace Microsoft.Xna.Framework.Net
             GC.SuppressFinalize(this);
             if (!disposed)
             {
+                try { SayGoodbye(); } catch { /* best effort */ }
+
                 disposed = true; // Set BEFORE cleanup to prevent re-entry
                 
                 try { cancellationTokenSource?.Cancel(); } catch { /* Already disposed */ }

@@ -237,6 +237,65 @@ namespace Microsoft.Xna.Framework.Net.Tests
         }
 
         [Test]
+        public async Task AClientThatSaysGoodbye_IsGoneFromTheHostAtOnce([Values(false, true)] bool dispose)
+        {
+            var host = await HostAsync("hunter2");
+            var client = await JoinAsync("hunter2");
+            Assert.That(await PumpUntil(() => host.RemoteGamers.Count == 1, host, client), Is.True);
+
+            var left = new List<string>();
+            host.GamerLeft += (s, e) => left.Add(e.Gamer.Gamertag);
+
+            if (dispose)
+                client.Dispose();
+            else
+                client.Leave("bye");
+
+            Assert.That(await PumpUntil(() => left.Count == 1, host), Is.True, "a goodbye must reach the host within a moment, not after a timeout");
+            Assert.That(host.RemoteGamers.Count, Is.EqualTo(0));
+        }
+
+        [Test]
+        public async Task AHostThatDisposes_EndsTheClientsSessionAtOnce()
+        {
+            var host = await HostAsync("hunter2");
+            var client = await JoinAsync("hunter2");
+            Assert.That(await PumpUntil(() => host.RemoteGamers.Count == 1, host, client), Is.True);
+
+            NetworkSessionEndReason? reason = null;
+            client.SessionEnded += (s, e) => reason = e.EndReason;
+
+            host.Dispose();
+
+            Assert.That(await PumpUntil(() => reason != null, client), Is.True, "the client should not have to wait for a timeout");
+            Assert.That(reason, Is.EqualTo(NetworkSessionEndReason.HostEndedSession));
+        }
+
+        [Test]
+        public async Task AClientThatCrashes_IsDroppedByTheHost_AndTheHostIsTold()
+        {
+            var host = await HostAsync("hunter2");
+            var client = await JoinAsync("hunter2");
+            Assert.That(await PumpUntil(() => host.RemoteGamers.Count == 1, host, client), Is.True);
+
+            var left = new List<string>();
+            host.GamerLeft += (s, e) => left.Add(e.Gamer.Gamertag);
+
+            // a crash: the process is gone, so nothing more is sent and no goodbye is said
+            client.NetworkTransport.Dispose();
+
+            DateTime deadline = DateTime.UtcNow.AddSeconds(20);
+            while (left.Count == 0 && DateTime.UtcNow < deadline)
+            {
+                host.Update();
+                await Task.Delay(50);
+            }
+
+            Assert.That(left, Has.Count.EqualTo(1), "the host never noticed the client had gone");
+            Assert.That(host.RemoteGamers.Count, Is.EqualTo(0));
+        }
+
+        [Test]
         public async Task ATamperedDatagram_IsDropped_AndTheLinkKeepsWorking()
         {
             var host = await HostAsync("hunter2");
