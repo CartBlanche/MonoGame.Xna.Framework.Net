@@ -25,7 +25,7 @@ _Last updated: 2026-10-29 (Phases 0-6 and 8 complete, 7 deferred, 9 in progress;
 | 6 | Security and robustness | **Done** | 5/5 |
 | 7 | Voice (pluggable) | Deferred until after 9 | 0/7 |
 | 8 | Modernisation and cleanup | **Done** (8.2 skipped) | 7/8 |
-| 9 | Samples, docs, release | In progress (9.3, 9.4 done) | 2/6 |
+| 9 | Samples, docs, release | In progress (9.3, 9.4 done) | 2/7 |
 | 10 | Dedicated/headless server (optional) | Not started | 0/6 |
 
 ### Baseline (already done, commit `20aa893` "Lan fixes for more reliable UDP")
