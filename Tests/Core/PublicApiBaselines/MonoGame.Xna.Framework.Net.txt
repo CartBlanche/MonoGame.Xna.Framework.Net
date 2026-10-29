@@ -351,7 +351,7 @@ class Net.JoinRequestMessage : Net.INetworkMessage
     prop MessageType : Byte { get }
     prop Proof : Byte[] { get; set }
     prop ProtocolVersion : Byte { get; set }
-    static const field CURRENT_PROTOCOL_VERSION : Byte = 5
+    static const field CURRENT_PROTOCOL_VERSION : Byte = 1
 class Net.LocalGamerCollection : Collections.ObjectModel.ReadOnlyCollection<Net.LocalNetworkGamer>
     FindGamerById(Byte id) : Net.LocalNetworkGamer
     prop Host : Net.LocalNetworkGamer { get }

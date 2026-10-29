@@ -2,9 +2,11 @@
 
 Newest first. See `VERSIONING.md` for what a version number means.
 
-## Unreleased (since 0.3.1)
+## Unreleased: the first public release
 
-Wire protocol **5** (0.3.1 was 1): old and new peers refuse each other's joins.
+Wire protocol **1**. Nothing has been published before this, so the breaking changes below are relative to the development builds the
+playground games were written against (version 0.3.1 in the project files), and matter to those games, not to anyone else.
+Development builds used protocol numbers 1 to 5 for formats that never shipped; do not mix them with this release.
 
 ### Breaking changes
 

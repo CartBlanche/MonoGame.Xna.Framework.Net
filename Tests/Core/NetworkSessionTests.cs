@@ -557,20 +557,25 @@ namespace Microsoft.Xna.Framework.Net.Tests
         }
 
         [Test]
-        public async Task Host_RejectsAnOlderProtocolVersion()
+        [TestCase(0)]
+        [TestCase(2)]
+        [TestCase(255)]
+        public async Task Host_RejectsAnyOtherProtocolVersion(byte clientVersion)
         {
             var host = await NetworkSession.CreateAsync(NetworkSessionType.Local, 1, 4, 0, new Dictionary<string, object>());
             var transport = new FakeNetworkTransport();
             host.NetworkTransport = transport;
             host.ProtectLinks = false;
 
-            // before the reliable channel existed (version 1) data was not wrapped, so the two cannot talk
+            // peers must be on the same protocol, older or newer: the first published one is 1, and anything else cannot talk to it
             host.DispatchIncomingMessage(new MessageReceivedEventArgs(
-                new JoinRequestMessage { GamerId = "old", Gamertag = "Old", ProtocolVersion = 1 },
+                new JoinRequestMessage { GamerId = "old", Gamertag = "Old", ProtocolVersion = clientVersion },
                 Peer(12345)));
 
             Assert.IsFalse(host.AllGamers.Any(g => g.GamerId == "old"));
-            Assert.That(LastRejection(transport).ErrorCode, Is.EqualTo(NetworkSessionJoinError.ProtocolVersionMismatch));
+            JoinRejectedMessage rejection = LastRejection(transport);
+            Assert.That(rejection.ErrorCode, Is.EqualTo(NetworkSessionJoinError.ProtocolVersionMismatch));
+            Assert.That(rejection.Reason, Does.Contain($"Host: v{JoinRequestMessage.CURRENT_PROTOCOL_VERSION}").And.Contain($"Client: v{clientVersion}"), "the player should be told both numbers");
             await host.DisposeAsync();
         }
 

@@ -45,7 +45,7 @@ The network protocol has its own numbers, separate from the package version:
 
 | What | Constant | Now |
 |------|----------|-----|
-| Joining and session messages | `JoinRequestMessage.CURRENT_PROTOCOL_VERSION` | 5 |
+| Joining and session messages | `JoinRequestMessage.CURRENT_PROTOCOL_VERSION` | 1 |
 | LAN discovery packets | `DiscoveryPacket.PROTOCOL_VERSION` | 1 |
 
 Rules:
@@ -53,17 +53,19 @@ Rules:
 - **Any change to what goes on the wire bumps the number.** This includes new or reordered fields, a new framing, or a change to
   the encryption.
 - **Peers must have the same number.** A host refuses a join from a different one with `NetworkSessionJoinError.ProtocolVersionMismatch`,
-  and the message gives both numbers ("Host: v5, Client: v4"), so a game can tell the player which side to update.
+  and the message gives both numbers ("Host: v2, Client: v1"), so a game can tell the player which side to update.
 - **There is no negotiation between versions**, so a game's players all have to be on a library release with the same
   protocol number. This is the plan for 1.0: games of this kind ship to everyone at once, and supporting two protocols at
   the same time doubles the testing. It can be revisited if a game needs rolling updates.
 - A package release that changes the protocol number is listed as such in the changelog. At least a minor version bump, and
   a major one from 1.0 on.
 
+The first published release is protocol **1**. The builds that were used during development had other numbers (1 to 5, for
+formats that never shipped); they are not safe to mix with a release, even the one that also says 1.
+
 | Package version | Protocol |
 |-----------------|----------|
-| 0.3.1 | 1 |
-| 0.4.0 previews and later | 5 |
+| the first published release | 1 |
 
 ## What is supported
 
