@@ -334,3 +334,4 @@ Exit criteria: a containerised server accepts clients from another network and s
 3. ~~Headless/dedicated server?~~ Optional, tracked as Phase 10. 2.5 stays low priority until then
 4. ~~Voice in scope?~~ Yes. Design in Phase 7
 5. Minimum target: any need to support TFMs below `net10.0`?
+6. **NEEDS ATTENTION once everything else is done (parked 2026-10-29 at the owner's request):** the iOS test app (`Tests/iOS`) runs in the simulator but NUnitLite finds 0 tests, although its fixtures and `[Test]` methods are present at runtime (the same runner finds all 14 on Android). Not found yet: whether it is the interpreter, the trimmer or NUnitLite's discovery on the iOS runtime. Until fixed, `GameKitTransport`/`IOSBackend` have no on-platform test at all. Needs a Mac with Xcode (simulators for iOS 18.x are installed)
