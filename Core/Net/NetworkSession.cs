@@ -731,6 +731,15 @@ namespace Microsoft.Xna.Framework.Net
         {
             if (e.Message is JoinRequestMessage joinRequest)
             {
+                // Anybody can send these, from addresses they made up, and every one costs the host work and
+                // earns a reply. Each address gets a burst and then a trickle, and the host as a whole has a
+                // ceiling; what is over is dropped without an answer, so the host is not a megaphone either.
+                if (!joinRateLimitPerPeer.TryAcquire(e.RemotePeer.ToString()) || !joinRateLimitOverall.TryAcquire("all"))
+                {
+                    logger?.LogWarning($"Dropped a join request from {e.RemotePeer}: too many");
+                    return;
+                }
+
                 // Phase 1: Check protocol version
                 if (joinRequest.ProtocolVersion != JoinRequestMessage.CURRENT_PROTOCOL_VERSION)
                 {
@@ -1558,6 +1567,11 @@ namespace Microsoft.Xna.Framework.Net
             lock (lockObject)
                 return gamers.FirstOrDefault(g => !g.IsLocal && gamerPeers.TryGetValue(g.GamerId, out var p) && p == peer);
         }
+
+        // a join request is answered by a bigger message, so unanswered floods matter: 5 at once per address
+        // then one a second (a real client retries three times in about a second), 30 a second overall
+        private readonly RateLimiter joinRateLimitPerPeer = new RateLimiter(burst: 5, perSecond: 1);
+        private readonly RateLimiter joinRateLimitOverall = new RateLimiter(burst: 30, perSecond: 30, maxKeys: 1);
 
         // the address a joiner sent its join request to: the only one that may answer it
         internal PeerId JoinTargetPeer { get; set; }
