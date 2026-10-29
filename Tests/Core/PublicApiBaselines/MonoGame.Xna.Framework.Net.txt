@@ -477,6 +477,7 @@ class Net.NetworkSession : IAsyncDisposable, IDisposable, Net.ISessionAdvertiser
     static JoinInvited(Collections.Generic.IEnumerable<GamerServices.SignedInGamer> localGamers, Object state = null) : Net.NetworkSession
     static JoinInvitedAsync(Collections.Generic.IEnumerable<GamerServices.SignedInGamer> localGamers, Object state = null, Threading.CancellationToken cancellationToken = null) : Threading.Tasks.Task<Net.NetworkSession>
     static event InviteAccepted : EventHandler<GamerServices.InviteAcceptedEventArgs>
+    static prop GameId : String { get; set }
 enum Net.NetworkSessionEndReason
     ClientSignedOut = 0
     Disconnected = 3
@@ -643,6 +644,7 @@ class Net.RemovedFromSessionMessage : Net.INetworkMessage
 sealed class Net.SessionAdvertisement
     ctor()
     prop CurrentGamerCount : Int32 { get }
+    prop GameId : String { get }
     prop HostGamertag : String { get }
     prop IsClosed : Boolean { get }
     prop IsPasswordProtected : Boolean { get }

@@ -19,6 +19,7 @@ How closely this library follows XNA Game Studio 4.0's `Microsoft.Xna.Framework.
 - **The topology is a star.** Data between two clients goes through the host, which adds one hop.
 - **Unreliable and in-order-only datagrams are limited to 1100 bytes** (reliable data of any size is split for you).
 - **`AllowHostMigration` is accepted but migration is not built.** If the host leaves, the session ends with `HostEndedSession`.
+- **LAN sessions are scoped by `NetworkSession.GameId`**, which XNA did by the game's title. Set it once at start-up to the same text on every platform build of the game; it is empty by default, which only sees other sessions with no id. Steam and Epic keep games apart with the platform's own id.
 - **No voice.** `HasVoice`, `IsTalking` and `IsMutedByLocalUser` exist but are always `false` (planned as an optional add-on).
 - **`QualityOfService` returns fixed placeholder numbers**, not a measurement.
 - **`SimulatedLatency` and `SimulatedPacketLoss` act on what this machine sends**, not on what it receives: set them on both machines to affect both directions. A fixed latency keeps datagrams in the order they were sent.

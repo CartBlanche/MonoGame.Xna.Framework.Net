@@ -46,6 +46,7 @@ namespace Microsoft.Xna.Framework.Net
         internal bool disposed;
         private bool isHost;
         internal string sessionId;
+        private readonly string sessionGameId = GameId;   // what GameId was when this session was made
         private Task? receiveTask;
         private CancellationTokenSource cancellationTokenSource;
 
@@ -89,6 +90,32 @@ namespace Microsoft.Xna.Framework.Net
 #pragma warning restore CS0067
         /// <summary>Raised once, from <see cref="Update"/>, when the session ends, with the reason. A session that is disposed raises it straight away on the disposing thread instead.</summary>
         public event EventHandler<NetworkSessionEndedEventArgs>? SessionEnded;
+
+        private static string gameId = string.Empty;
+
+        /// <summary>
+        /// Names the game, so that on a local network a game finds only its own sessions and not those of
+        /// another game that uses this library. Set it once, before creating or finding a session, to the
+        /// same text in every build of the game (all platforms), for example <c>"NetRumble"</c>. A session
+        /// takes the value it finds when it is created.
+        /// </summary>
+        /// <remarks>
+        /// Empty by default, which finds only sessions that also have no id: games that never set it see
+        /// one another, as before. Only the LAN (<see cref="NetworkSessionType.SystemLink"/>) uses it. Steam and
+        /// Epic Online Services keep sessions apart by the game's own id with the platform. Colons are replaced
+        /// by underscores and the text is cut to 64 characters.
+        /// </remarks>
+        public static string GameId
+        {
+            get => gameId;
+            set => gameId = NormalizeGameId(value);
+        }
+
+        internal static string NormalizeGameId(string? value)
+        {
+            string text = (value ?? string.Empty).Trim().Replace(':', '_');
+            return text.Length > 64 ? text.Substring(0, 64) : text;
+        }
 
         // Static event for invite acceptance
         /// <summary>
@@ -1614,6 +1641,7 @@ namespace Microsoft.Xna.Framework.Net
             return new SessionAdvertisement
             {
                 SessionId = sessionId,
+                GameId = sessionGameId,
                 SessionType = sessionType,
                 HostGamertag = hostName,
                 MaxGamers = maxGamers,

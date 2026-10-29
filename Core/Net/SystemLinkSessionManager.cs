@@ -13,6 +13,9 @@ namespace Microsoft.Xna.Framework.Net
     {
         private const int BroadcastPort = 31337;
         internal const int GamePort = 31338; // Port for gameplay UDP traffic
+
+        // SESSION:gameId:sessionId:maxGamers:privateSlots:count:flags:hostGamertag:gamePort: and then the properties
+        private const int HeaderColons = 9;
         private static readonly List<AvailableNetworkSession> discoveredSessions = new List<AvailableNetworkSession>();
 
         /// <summary>
@@ -56,7 +59,7 @@ namespace Microsoft.Xna.Framework.Net
                     {
                         var propertiesBytes = NetworkSession.SerializePropertiesBinary(ad.Properties);
                         // Include gameplay port in the header so joiners know where to send join requests
-                        var header = $"SESSION:{ad.SessionId}:{ad.MaxGamers}:{ad.PrivateGamerSlots}:{ad.CurrentGamerCount}:{(ad.IsPasswordProtected ? 1 : 0)}:{(ad.HostGamertag ?? "Host").Replace(':', '_')}:{GamePort}:";
+                        var header = $"SESSION:{ad.GameId}:{ad.SessionId}:{ad.MaxGamers}:{ad.PrivateGamerSlots}:{ad.CurrentGamerCount}:{(ad.IsPasswordProtected ? 1 : 0)}:{(ad.HostGamertag ?? "Host").Replace(':', '_')}:{GamePort}:";
                         var headerBytes = Encoding.UTF8.GetBytes(header);
                         var message = new byte[headerBytes.Length + propertiesBytes.Length];
                         Buffer.BlockCopy(headerBytes, 0, message, 0, headerBytes.Length);
@@ -176,31 +179,39 @@ namespace Microsoft.Xna.Framework.Net
                                     if (buffer[i] == (byte)':')
                                     {
                                         colonCount++;
-                                        if (colonCount == 8)
+                                        if (colonCount == HeaderColons)
                                         {
-                                            headerEnd = i + 1; // header ends after the 7th colon (includes game port)
+                                            headerEnd = i + 1; // header ends after the last colon (which follows the game port)
                                             break;
                                         }
                                     }
                                 }
 
-                                if (colonCount == 8)
+                                if (colonCount == HeaderColons)
                                 {
                                     var headerString = Encoding.UTF8.GetString(buffer, 0, headerEnd);
                                     NetworkLogging.Logger.LogInfo($"[DISCOVERY] Parsed header: {headerString}");
 
                                     var parts = headerString.Split(':');
-                                    var sessionId = parts[1];
+
+                                    // another game's session: not for this game to list or join
+                                    if (parts[1] != NetworkSession.GameId)
+                                    {
+                                        NetworkLogging.Logger.LogInfo($"[DISCOVERY] Ignored a session of another game (\"{parts[1]}\", this is \"{NetworkSession.GameId}\")");
+                                        continue;
+                                    }
+
+                                    var sessionId = parts[2];
                                     // anybody on the LAN can broadcast garbage: a number that does not parse is a bad packet, not a crash
-                                    if (!int.TryParse(parts[2], out var maxGamers) || !int.TryParse(parts[3], out var privateSlots)
-                                        || !int.TryParse(parts[4], out var currentGamers) || !int.TryParse(parts[5], out var flags)
-                                        || !int.TryParse(parts[7], out var gamePort) || maxGamers < 1 || maxGamers > 1000
+                                    if (!int.TryParse(parts[3], out var maxGamers) || !int.TryParse(parts[4], out var privateSlots)
+                                        || !int.TryParse(parts[5], out var currentGamers) || !int.TryParse(parts[6], out var flags)
+                                        || !int.TryParse(parts[8], out var gamePort) || maxGamers < 1 || maxGamers > 1000
                                         || privateSlots < 0 || currentGamers < 0 || gamePort < 1 || gamePort > 65535)
                                     {
                                         NetworkLogging.Logger.LogWarning("[DISCOVERY] Ignored an advertisement with bad numbers");
                                         continue;
                                     }
-                                    var hostGamertag = parts[6];
+                                    var hostGamertag = parts[7];
 
                                     // Binary session properties start after headerEnd
                                     var propertiesBytes = new byte[buffer.Length - headerEnd];
@@ -229,7 +240,7 @@ namespace Microsoft.Xna.Framework.Net
                                 }
                                 else
                                 {
-                                    NetworkLogging.Logger.LogWarning($"[DISCOVERY] Invalid packet - expected 8 colons, found {colonCount}");
+                                    NetworkLogging.Logger.LogWarning($"[DISCOVERY] Invalid packet - expected {HeaderColons} colons, found {colonCount}");
                                 }
                             }
                             // If timeout occurs, continue listening until endTime

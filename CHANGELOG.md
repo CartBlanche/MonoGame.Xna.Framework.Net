@@ -35,6 +35,9 @@ Development builds used protocol numbers 1 to 5 for formats that never shipped; 
   `GamerServicesDispatcher`, `Gamer.IsDisposed`.
 - `SimulatedLatency` and `SimulatedPacketLoss` take effect on what a machine sends (a fixed latency keeps datagrams in order).
 - Nullable reference types and analyzers on the core package.
+- `NetworkSession.GameId` (and `SessionAdvertisement.GameId`): names the game, so that on a LAN a game finds only its own
+  sessions. Without it every game that uses the library listed, and could join, every other game's sessions. Empty by default;
+  set it to the same text in every build of the game.
 - `COMPATIBILITY.md` and `Samples/DataPath`, a data-path acceptance test.
 
 ### Fixed

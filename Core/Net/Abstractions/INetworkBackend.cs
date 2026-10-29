@@ -76,6 +76,8 @@ namespace Microsoft.Xna.Framework.Net
     {
         /// <summary>The session's unique id, as joiners and searchers see it.</summary>
         public string SessionId { get; internal set; } = string.Empty;
+        /// <summary>The game's <see cref="NetworkSession.GameId"/> when the session was created, empty if it set none. A back-end with no way to tell games apart on its own should announce it and ignore sessions with another.</summary>
+        public string GameId { get; internal set; } = string.Empty;
         /// <summary>The type of the session.</summary>
         public NetworkSessionType SessionType { get; internal set; }
         /// <summary>The host's gamertag, or null if it has none to show.</summary>

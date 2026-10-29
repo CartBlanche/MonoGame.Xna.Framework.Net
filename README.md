@@ -68,6 +68,10 @@ All five share the same `NetworkSession`: the lobby, readiness, reliable and ord
 
 The API follows XNA Game Studio 4.0's `Microsoft.Xna.Framework.Net` and `GamerServices`. [COMPATIBILITY.md](COMPATIBILITY.md) lists every member that is the same, different or missing, the behaviour that differs, and what to change when moving from an earlier version of this library.
 
+## Telling games apart on a LAN
+
+Every game that uses this library announces its sessions on the same UDP ports, so without help one game lists, and can join, another's sessions. Set `NetworkSession.GameId = "MyGame";` once at start-up, to the same text in every build of the game (desktop, Android, iOS). A game then finds only sessions with its own id. It is empty by default, which only finds other sessions with no id. Steam and Epic Online Services keep games apart with the platform's own id.
+
 ## Security
 
 - **Session password.** `NetworkSession.CreateAsync(..., password)` makes a session that joiners need a password for; `JoinAsync(session, password)` supplies it. The host challenges the joiner, who proves they know the password; the password never crosses the network. A wrong or missing password is refused with `NetworkSessionJoinError.WrongPassword` or `PasswordRequired`, and the lobby entry says a password is needed (`AvailableNetworkSession.IsPasswordProtected`).
