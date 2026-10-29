@@ -34,7 +34,6 @@ namespace Microsoft.Xna.Framework.Net.Tests
                 int exit;
                 try
                 {
-                    Console.WriteLine($"MGNET_TESTS types in the test assembly: {types.Length}, fixtures: {types.Count(t => t.GetCustomAttributes(typeof(NUnit.Framework.TestFixtureAttribute), true).Length > 0)}, [Test] methods: {types.SelectMany(t => t.GetMethods()).Count(m => m.GetCustomAttributes(typeof(NUnit.Framework.TestAttribute), true).Length > 0)}, in fixtures incl. inherited: {types.Where(t => t.GetCustomAttributes(typeof(NUnit.Framework.TestFixtureAttribute), true).Length > 0).SelectMany(t => t.GetMethods()).Count(m => m.GetCustomAttributes(typeof(NUnit.Framework.TestAttribute), true).Length > 0)}");
                     // no console input on iOS: pass a reader, or NUnitLite touches Console.In and fails
                     exit = new AutoRun(typeof(AppDelegate).Assembly).Execute(
                         new[] { "--labels=All" }, new ExtendedTextWrapper(Console.Out), TextReader.Null);
