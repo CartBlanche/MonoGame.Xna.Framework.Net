@@ -37,6 +37,15 @@ namespace Microsoft.Xna.Framework.Net
         internal void RecordPacketDropped() => System.Threading.Interlocked.Increment(ref packetsDropped);
 
         /// <summary>
+        /// Total datagrams refused for failing authentication: forged, damaged, or from a peer with no key.
+        /// </summary>
+        public long PacketsRejected => System.Threading.Interlocked.Read(ref packetsRejected);
+
+        private long packetsRejected;
+
+        internal void RecordPacketRejected() => System.Threading.Interlocked.Increment(ref packetsRejected);
+
+        /// <summary>
         /// Estimated packet loss rate (0.0 to 1.0).
         /// </summary>
         public float PacketLossRate { get; set; }

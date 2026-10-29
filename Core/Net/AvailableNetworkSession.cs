@@ -19,7 +19,8 @@ namespace Microsoft.Xna.Framework.Net
             NetworkSessionType sessionType,
             IDictionary<string, object> sessionProperties,
             string sessionId,
-            PeerId hostPeer = default)
+            PeerId hostPeer = default,
+            bool isPasswordProtected = false)
         {
             SessionName = sessionName;
             HostGamertag = hostGamertag;
@@ -30,6 +31,7 @@ namespace Microsoft.Xna.Framework.Net
             SessionProperties = new Dictionary<string, object>(sessionProperties);
             SessionId = sessionId;
             HostPeer = hostPeer;
+            IsPasswordProtected = isPasswordProtected;
         }
         /// <summary>
         /// Gets the unique session ID.
@@ -80,5 +82,10 @@ namespace Microsoft.Xna.Framework.Net
     /// Gets the host's network endpoint for SystemLink (LAN) sessions.
     /// </summary>
     public PeerId HostPeer { get; }
+
+    /// <summary>
+    /// Gets whether the host requires a password to join; pass it to <see cref="NetworkSession.JoinAsync(AvailableNetworkSession, string, System.Threading.CancellationToken)"/>.
+    /// </summary>
+    public bool IsPasswordProtected { get; }
     }
 }

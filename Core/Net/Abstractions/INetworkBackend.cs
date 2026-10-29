@@ -81,6 +81,9 @@ namespace Microsoft.Xna.Framework.Net
         public int PrivateGamerSlots { get; internal set; }
         public int CurrentGamerCount { get; internal set; }
 
+        /// <summary>True if joiners must know a password, which back-ends should show so searchers can ask for it.</summary>
+        public bool IsPasswordProtected { get; internal set; }
+
         /// <summary>The session's properties, keyed as <see cref="NetworkSessionProperties"/> slots ("0" to "7") or by name.</summary>
         public IReadOnlyDictionary<string, object> Properties { get; internal set; }
 

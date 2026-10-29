@@ -54,6 +54,7 @@ namespace Microsoft.Xna.Framework.Net
             Register<SessionStateMessage>(10); // Phase 2: Session state synchronization
             Register<GamerJoinedMessage>(11);
             Register<RemovedFromSessionMessage>(12);
+            Register<PasswordChallengeMessage>(13);
         }
     }
 }

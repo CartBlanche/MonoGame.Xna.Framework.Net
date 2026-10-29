@@ -221,11 +221,11 @@ Exit criteria: `NetworkStateManagement` create/find/join/invite flows work on St
 
 No auth exists in `Core/Net`: `SessionInfo.IsPasswordProtected` is never enforced; senders are trusted by endpoint.
 
-- [ ] 6.1 Join token / optional password in handshake; enforce `IsPasswordProtected`
-- [ ] 6.2 Per-session peer secret so spoofed `GamerLeaving`/`SessionState` from a LAN peer are rejected
-- [ ] 6.3 Parser hardening: size limits and exception safety on all message `Deserialize` paths; fuzz tests
-- [ ] 6.4 Rate-limit join requests and handshake replies
-- [ ] 6.5 (Optional) payload encryption/MAC for LAN and relay transports
+- [x] 6.1 Optional session password: the host challenges, the joiner proves it knows it; the password never crosses the network. `IsPasswordProtected` is enforced and advertised (LAN, Steam and EOS lobbies carry the flag)
+- [x] 6.2 Per-link key issued by the host at join, so a datagram that is not authenticated for its link is dropped (spoofed `GamerLeaving`/`SessionState` included)
+- [x] 6.3 Parser hardening: size limits and exception safety on all message `Deserialize` paths; fuzz tests
+- [x] 6.4 Rate-limit join requests: a burst and a trickle per address, and an overall ceiling
+- [x] 6.5 Every datagram on a link is AES-GCM protected (authenticated always; unreadable to an eavesdropper when there is a password)
 
 ---
 
@@ -322,6 +322,8 @@ Exit criteria: a containerised server accepts clients from another network and s
 | 2026-10-29 | Android/iOS/EOS slices deleted rather than kept until verified | The owner chose to remove `INetworkSession` after 4.4; their lobby/Nearby/GameKit code was carried into the backends and transports |
 | 2026-10-28 | (superseded 2026-10-29) EOS, Android and iOS get `*Backend` classes that run over the LAN (UDP) for now, with strict-mode checks | That is all their old provider path did: their real behaviour (Nearby, EOS sessions, Game Center) only existed in the `INetworkSession` slices. A genuine transport per platform is task 4.4 and cannot be verified without devices/credentials |
 | 2026-10-28 | `INetworkBackend.AdvertiseAsync` completes once advertising has started and then runs until the session's token is cancelled | Lets a strict back-end (Steam) fail session creation by throwing, while LAN advertising keeps its endless loop |
+| 2026-10-29 | Without a password the link key travels in the clear: forgery from off the path is stopped, a reader of the LAN is not | A key exchange with no shared secret cannot stop a man in the middle; the password is the opt-in for that. Replays are left to the channel, which discards duplicates |
+| 2026-10-29 | EOS republishes the password flag only when properties change; Steam keeps it in step every second | A password set after creation is rare; the EOS loop only updates the lobby on a property change |
 | 2026-10-28 | Events move to `Update()` | This matches XNA's behaviour, so it is also a compat fix |
 | 2026-10-28 | Phase 2 shipped as one commit, not the two planned (A and B) | The event queue and the per-session local gamer change the same lines of `NetworkSession.cs` |
 | 2026-10-28 | `SessionEnded` is raised at most once per session | Previously a client whose host left, then disposed in the handler, got it twice (HostEndedSession then ClientSignedOut) |

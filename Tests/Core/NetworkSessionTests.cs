@@ -102,6 +102,7 @@ namespace Microsoft.Xna.Framework.Net.Tests
             var hostSession = await NetworkSession.CreateAsync(NetworkSessionType.Local, 1, 4, 0, new Dictionary<string, object>());
             var transport = new FakeNetworkTransport();
             hostSession.NetworkTransport = transport;
+            hostSession.ProtectLinks = false;
 
             var joinRequest = new JoinRequestMessage
             {
@@ -139,6 +140,7 @@ namespace Microsoft.Xna.Framework.Net.Tests
             var host = await NetworkSession.CreateAsync(NetworkSessionType.Local, 1, 4, 0, new Dictionary<string, object>());
             var transport = new FakeNetworkTransport();
             host.NetworkTransport = transport;
+            host.ProtectLinks = false;
             host.AllowJoinInProgress = false;
             host.StartGame();
             transport.SentPackets.Clear();
@@ -158,6 +160,7 @@ namespace Microsoft.Xna.Framework.Net.Tests
         {
             var host = await NetworkSession.CreateAsync(NetworkSessionType.Local, 1, 4, 0, new Dictionary<string, object>());
             host.NetworkTransport = new FakeNetworkTransport();
+            host.ProtectLinks = false;
             host.StartGame();
 
             host.DispatchIncomingMessage(new MessageReceivedEventArgs(JoinRequest("late"), Peer(12345)));
@@ -171,6 +174,7 @@ namespace Microsoft.Xna.Framework.Net.Tests
         {
             var host = await NetworkSession.CreateAsync(NetworkSessionType.Local, 1, 4, 0, new Dictionary<string, object>());
             host.NetworkTransport = new FakeNetworkTransport();
+            host.ProtectLinks = false;
             host.AllowJoinInProgress = false;
 
             host.DispatchIncomingMessage(new MessageReceivedEventArgs(JoinRequest("early"), Peer(12345)));
@@ -185,6 +189,7 @@ namespace Microsoft.Xna.Framework.Net.Tests
             var host = await NetworkSession.CreateAsync(NetworkSessionType.Local, 1, 4, 0, new Dictionary<string, object>());
             var transport = new FakeNetworkTransport();
             host.NetworkTransport = transport;
+            host.ProtectLinks = false;
             host.AllowJoinInProgress = false;
             var endpoint = Peer(12345);
 
@@ -224,6 +229,7 @@ namespace Microsoft.Xna.Framework.Net.Tests
             var host = await NetworkSession.CreateAsync(NetworkSessionType.Local, 1, 4, 0, new Dictionary<string, object>());
             var transport = new FakeNetworkTransport();
             host.NetworkTransport = transport;
+            host.ProtectLinks = false;
             var endpoint = Peer(12345);
 
             host.DispatchIncomingMessage(new MessageReceivedEventArgs(JoinRequest("p2"), endpoint));
@@ -556,6 +562,7 @@ namespace Microsoft.Xna.Framework.Net.Tests
             var host = await NetworkSession.CreateAsync(NetworkSessionType.Local, 1, 4, 0, new Dictionary<string, object>());
             var transport = new FakeNetworkTransport();
             host.NetworkTransport = transport;
+            host.ProtectLinks = false;
 
             // before the reliable channel existed (version 1) data was not wrapped, so the two cannot talk
             host.DispatchIncomingMessage(new MessageReceivedEventArgs(
@@ -573,6 +580,7 @@ namespace Microsoft.Xna.Framework.Net.Tests
             var session = await NetworkSession.CreateAsync(NetworkSessionType.Local, 1, 4, 0, new Dictionary<string, object>());
             var transport = new FakeNetworkTransport();
             session.NetworkTransport = transport;
+            session.ProtectLinks = false;
 
             var remote = new NetworkGamer(session, "remote-1", false, false, "RemoteOne");
             session.AcceptGamer(remote);

@@ -6,12 +6,15 @@ namespace Microsoft.Xna.Framework.Net
     public class JoinRequestMessage : INetworkMessage
     {
         // 2: gamer data is wrapped in reliable/unreliable channels (see ReliableChannel); older peers cannot talk to this one
-        public const byte CURRENT_PROTOCOL_VERSION = 4;
+        public const byte CURRENT_PROTOCOL_VERSION = 5;
         
         public byte MessageType => 2;
         public byte ProtocolVersion { get; set; } = CURRENT_PROTOCOL_VERSION;
         public string GamerId { get; set; }
         public string Gamertag { get; set; }
+
+        /// <summary>Proof of knowing the session password, answering a challenge; empty on a first request.</summary>
+        public byte[] Proof { get; set; } = new byte[0];
 
         public void Serialize(PacketWriter writer)
         {
@@ -19,6 +22,7 @@ namespace Microsoft.Xna.Framework.Net
             writer.Write(ProtocolVersion);
             writer.Write(GamerId);
             writer.Write(Gamertag);
+            writer.WriteLengthPrefixed(Proof ?? new byte[0]);
         }
 
         public void Deserialize(PacketReader reader)
@@ -27,6 +31,7 @@ namespace Microsoft.Xna.Framework.Net
             ProtocolVersion = reader.ReadByte();
             GamerId = reader.ReadString();
             Gamertag = reader.ReadString();
+            Proof = reader.ReadLengthPrefixedBytes();
         }
     }
 }

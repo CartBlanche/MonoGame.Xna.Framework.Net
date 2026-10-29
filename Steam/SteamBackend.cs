@@ -23,6 +23,8 @@ namespace Microsoft.Xna.Framework.Net
         private const string LobbyGameKey = "mgnet_game";
         private const string LobbyHostSteamIdKey = "host_steamid";
         private const string LobbyTypeKey = "mgnet_type";
+        // present (as "1") on a lobby whose host wants a password; the password itself is never published
+        private const string LobbyPasswordKey = "mgnet_pw";
         private const string LobbyPropertyPrefix = "p.";
 
         private readonly string lobbyGameValue;
@@ -212,6 +214,7 @@ namespace Microsoft.Xna.Framework.Net
                 ownerName = ownerId.ToString();
 
             var type = Enum.TryParse(SteamMatchmaking.GetLobbyData(lobbyId, LobbyTypeKey), out NetworkSessionType parsed) ? parsed : fallbackType;
+            bool needsPassword = SteamMatchmaking.GetLobbyData(lobbyId, LobbyPasswordKey) == "1";
 
             // the properties the host set: every lobby entry under the property prefix
             var properties = new Dictionary<string, object>();
@@ -237,7 +240,8 @@ namespace Microsoft.Xna.Framework.Net
                 sessionType: type,
                 sessionProperties: properties,
                 sessionId: lobbyId.ToString(),
-                hostPeer: HostPeerOf(lobbyId));
+                hostPeer: HostPeerOf(lobbyId),
+                isPasswordProtected: needsPassword);
         }
 
         private async Task AdvertiseLobbyAsync(ISessionAdvertiser session, CancellationToken stopToken)
@@ -257,6 +261,7 @@ namespace Microsoft.Xna.Framework.Net
                 SteamMatchmaking.SetLobbyData(lobbyId, LobbyGameKey, lobbyGameValue);
                 SteamMatchmaking.SetLobbyData(lobbyId, LobbyHostSteamIdKey, SteamUser.GetSteamID().m_SteamID.ToString());
                 SteamMatchmaking.SetLobbyData(lobbyId, LobbyTypeKey, ad.SessionType.ToString());
+                PublishPasswordFlag(lobbyId, ad.IsPasswordProtected);
                 var published = PublishProperties(lobbyId, ad.Properties, new HashSet<string>());
                 Debug.WriteLine($"[Steam] Lobby created: {lobbyId}");
 
@@ -267,7 +272,9 @@ namespace Microsoft.Xna.Framework.Net
                     {
                         try { await Task.Delay(1000, stopToken).ConfigureAwait(false); }
                         catch (OperationCanceledException) { break; }
-                        published = PublishProperties(lobbyId, session.GetAdvertisement().Properties, published);
+                        var latest = session.GetAdvertisement();
+                        PublishPasswordFlag(lobbyId, latest.IsPasswordProtected);
+                        published = PublishProperties(lobbyId, latest.Properties, published);
                     }
                     SteamMatchmaking.LeaveLobby(lobbyId);
                 });
@@ -276,6 +283,17 @@ namespace Microsoft.Xna.Framework.Net
             {
                 Debug.WriteLine($"[Steam] Advertising the lobby failed: {ex.Message}");
             }
+        }
+
+        private static void PublishPasswordFlag(CSteamID lobbyId, bool passwordProtected)
+        {
+            string wanted = passwordProtected ? "1" : "";
+            if (SteamMatchmaking.GetLobbyData(lobbyId, LobbyPasswordKey) == wanted)
+                return;
+            if (passwordProtected)
+                SteamMatchmaking.SetLobbyData(lobbyId, LobbyPasswordKey, wanted);
+            else
+                SteamMatchmaking.DeleteLobbyData(lobbyId, LobbyPasswordKey);
         }
 
         private HashSet<string> PublishProperties(CSteamID lobbyId, IReadOnlyDictionary<string, object> properties, HashSet<string> previouslyPublished)

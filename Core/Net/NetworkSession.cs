@@ -320,7 +320,21 @@ namespace Microsoft.Xna.Framework.Net
         /// <summary>
         /// Asynchronously creates a new network session.
         /// </summary>
-        public static async Task<NetworkSession> CreateAsync(NetworkSessionType sessionType, int maxLocalGamers, int maxGamers, int privateGamerSlots, IDictionary<string, object> sessionProperties, CancellationToken cancellationToken = default)
+        /// <summary>
+        /// Creates a session that joiners need a password for. The password never crosses the network; see
+        /// <see cref="Password"/>.
+        /// </summary>
+        public static Task<NetworkSession> CreateAsync(NetworkSessionType sessionType, int maxLocalGamers, int maxGamers, int privateGamerSlots, IDictionary<string, object> sessionProperties, string password, CancellationToken cancellationToken = default)
+        {
+            return CreateAsync(sessionType, maxLocalGamers, maxGamers, privateGamerSlots, sessionProperties, cancellationToken, password);
+        }
+
+        public static Task<NetworkSession> CreateAsync(NetworkSessionType sessionType, int maxLocalGamers, int maxGamers, int privateGamerSlots, IDictionary<string, object> sessionProperties, CancellationToken cancellationToken = default)
+        {
+            return CreateAsync(sessionType, maxLocalGamers, maxGamers, privateGamerSlots, sessionProperties, cancellationToken, null);
+        }
+
+        private static async Task<NetworkSession> CreateAsync(NetworkSessionType sessionType, int maxLocalGamers, int maxGamers, int privateGamerSlots, IDictionary<string, object> sessionProperties, CancellationToken cancellationToken, string password)
         {
             if (maxLocalGamers < 1 || maxLocalGamers > 4)
                 throw new ArgumentOutOfRangeException(nameof(maxLocalGamers));
@@ -347,7 +361,9 @@ namespace Microsoft.Xna.Framework.Net
                 session.StartConnectionMonitoring();
                 session.logger?.LogInfo($"Started connection monitoring for session {session.sessionId}");
 
-                // set before advertising: the advertisement carries them
+                // set before advertising: the advertisement carries them (and says whether there is a password)
+                if (!string.IsNullOrEmpty(password))
+                    session.Password = password;
                 if (sessionProperties != null)
                     foreach (var kvp in sessionProperties)
                         session.SessionProperties[kvp.Key] = kvp.Value;
@@ -432,7 +448,18 @@ namespace Microsoft.Xna.Framework.Net
         /// <summary>
         /// Asynchronously joins an available network session.
         /// </summary>
-        public static async Task<NetworkSession> JoinAsync(AvailableNetworkSession availableSession, CancellationToken cancellationToken = default)
+        public static Task<NetworkSession> JoinAsync(AvailableNetworkSession availableSession, CancellationToken cancellationToken = default)
+        {
+            return JoinAsync(availableSession, null, cancellationToken);
+        }
+
+        /// <summary>
+        /// Joins a session, giving the password it asks for (see <see cref="AvailableNetworkSession.IsPasswordProtected"/>).
+        /// The password is never sent: the host challenges and the joiner proves it knows it.
+        /// </summary>
+        /// <exception cref="NetworkSessionJoinException">Thrown with <see cref="NetworkSessionJoinError.PasswordRequired"/>
+        /// or <see cref="NetworkSessionJoinError.WrongPassword"/>.</exception>
+        public static async Task<NetworkSession> JoinAsync(AvailableNetworkSession availableSession, string password, CancellationToken cancellationToken = default)
         {
             if (availableSession == null)
                 throw new ArgumentNullException(nameof(availableSession));
@@ -458,7 +485,7 @@ namespace Microsoft.Xna.Framework.Net
             try
             {
                 membership = await backend.PrepareJoinAsync(availableSession, joinTransport, cancellationToken).ConfigureAwait(false);
-                joinedSession = await SystemLinkSessionManager.JoinSessionAsync(availableSession, joinTransport, cancellationToken);
+                joinedSession = await SystemLinkSessionManager.JoinSessionAsync(availableSession, joinTransport, cancellationToken, password);
                 if (joinedSession == null)
                     throw new NetworkSessionJoinException(NetworkSessionJoinError.SessionNotFound);
             }
@@ -797,6 +824,46 @@ namespace Microsoft.Xna.Framework.Net
                     return;
                 }
 
+                // A password-protected session lets nobody in who cannot prove they know the password: the
+                // first request is answered with a challenge, the second must answer it. Somebody already in
+                // who repeats a lost request (from their own address) is not asked again.
+                byte[] admissionNonce = null;
+                if (IsPasswordProtected)
+                {
+                    bool alreadyIn;
+                    lock (lockObject)
+                        alreadyIn = gamers.Any(g => g.GamerId == joinRequest.GamerId);
+
+                    if (!alreadyIn)
+                    {
+                        string peerKey = e.RemotePeer.ToString();
+                        byte[] outstanding = TakeChallenge(peerKey);
+                        if (joinRequest.Proof == null || joinRequest.Proof.Length == 0 || outstanding == null)
+                        {
+                            var nonce = JoinCredentials.RandomBytes(JoinCredentials.NonceLength);
+                            StoreChallenge(peerKey, nonce);
+                            byte[] salt;
+                            lock (securityLock) salt = passwordSalt;
+                            var challenge = new PacketWriter();
+                            new PasswordChallengeMessage { Salt = salt, Nonce = nonce }.Serialize(challenge);
+                            SendTo(e.RemotePeer, challenge.GetData());
+                            return;
+                        }
+
+                        byte[] expected;
+                        lock (securityLock) expected = JoinCredentials.Proof(passwordKey, joinRequest.GamerId ?? string.Empty, outstanding);
+                        if (!JoinCredentials.ProofMatches(expected, joinRequest.Proof))
+                        {
+                            logger?.LogWarning($"Join request from {joinRequest.Gamertag} refused: wrong password");
+                            var wrong = new PacketWriter();
+                            new JoinRejectedMessage { ErrorCode = NetworkSessionJoinError.WrongPassword, Reason = "Wrong password" }.Serialize(wrong);
+                            SendTo(e.RemotePeer, wrong.GetData());
+                            return;
+                        }
+                        admissionNonce = outstanding;
+                    }
+                }
+
                 // Phase 1 FIX: Check if gamer already exists (from previous retry)
                 // CRITICAL: Keep the check and add in the same lock to prevent race conditions
                 NetworkGamer existingGamer = null;
@@ -863,6 +930,32 @@ namespace Microsoft.Xna.Framework.Net
                     HostId = Host.Id,
                     YourId = existingGamer.Id
                 };
+
+                // the key for this gamer's link: made on the first request, the same one on every retry
+                if (ProtectLinks)
+                {
+                    byte[] linkKey = ProtectorFor(existingGamer.GamerId) == null ? CreateLinkKey(existingGamer.GamerId) : GetLinkKey(existingGamer.GamerId);
+                    byte[] nonceUsed;
+                    lock (securityLock)
+                    {
+                        if (admissionNonce != null)
+                            admissionNonces[existingGamer.GamerId] = admissionNonce;
+                        admissionNonces.TryGetValue(existingGamer.GamerId, out nonceUsed);
+                    }
+
+                    if (IsPasswordProtected && nonceUsed != null)
+                    {
+                        // under the password: only somebody who knows it can open this
+                        byte[] wrap;
+                        lock (securityLock) wrap = JoinCredentials.WrapKey(passwordKey, nonceUsed);
+                        joinAccepted.KeyIsSealed = true;
+                        joinAccepted.LinkKey = JoinCredentials.Seal(wrap, linkKey, System.Text.Encoding.UTF8.GetBytes(existingGamer.GamerId));
+                    }
+                    else
+                    {
+                        joinAccepted.LinkKey = linkKey;
+                    }
+                }
                 lock (lockObject)
                 {
                     foreach (var other in gamers.Where(g => !g.IsHost && g != existingGamer))
@@ -880,6 +973,36 @@ namespace Microsoft.Xna.Framework.Net
                 if (!IsHost && (!JoinTargetPeer.IsValid || e.RemotePeer == JoinTargetPeer))
                 {
                     logger?.LogInfo($"Received JoinAcceptedMessage from host {joinAccepted.HostGamertag}");
+
+                    // the key for our link to the host, opened with the password if it was sealed under it. Done
+                    // first: an acceptance whose key does not open is a forgery, and changes nothing.
+                    LinkProtector hostLink = null;
+                    if (ProtectLinks)
+                    {
+                        byte[] key = null;
+                        if (joinAccepted.KeyIsSealed)
+                        {
+                            byte[] passwordKeyHere = challengedPasswordKey, nonceHere = challengeNonce;
+                            if (passwordKeyHere == null || nonceHere == null
+                                || !JoinCredentials.TryOpen(JoinCredentials.WrapKey(passwordKeyHere, nonceHere), joinAccepted.LinkKey,
+                                    System.Text.Encoding.UTF8.GetBytes(LocalGamers[0].GamerId), out key))
+                            {
+                                logger?.LogWarning("Ignored a join acceptance whose key does not open");
+                                return;
+                            }
+                        }
+                        else
+                        {
+                            key = joinAccepted.LinkKey;
+                        }
+
+                        if (key == null || key.Length != JoinCredentials.LinkKeyLength)
+                        {
+                            logger?.LogWarning("Ignored a join acceptance without a usable key");
+                            return;
+                        }
+                        hostLink = new LinkProtector(key, weAreTheHost: false);
+                    }
                     
                     var existingHost = gamers.FirstOrDefault(g => g.IsHost);
                     if (existingHost != null && existingHost.GamerId != joinAccepted.HostGamerId)
@@ -896,6 +1019,15 @@ namespace Microsoft.Xna.Framework.Net
                     if (existingHost == null)
                         AddGamer(host);
                     RegisterGamerEndpoint(host, e.RemotePeer);
+                    if (hostLink != null)
+                    {
+                        lock (securityLock)
+                        {
+                            if (linkProtectors.TryGetValue(host.GamerId, out var previous))
+                                previous.Dispose();
+                            linkProtectors[host.GamerId] = hostLink;
+                        }
+                    }
 
                     foreach (var entry in joinAccepted.Others)
                         AddPeer(entry.Id, entry.GamerId, entry.Gamertag);
@@ -904,6 +1036,36 @@ namespace Microsoft.Xna.Framework.Net
                     sessionState = NetworkSessionState.Lobby;
                     logger?.LogInfo("Successfully joined session, now in Lobby state");
                 }
+            }
+            else if (e.Message is PasswordChallengeMessage challenge)
+            {
+                // The host wants proof we know the session password. Only the host we asked may ask.
+                if (IsHost || sessionState != NetworkSessionState.Joining || (JoinTargetPeer.IsValid && e.RemotePeer != JoinTargetPeer))
+                    return;
+                if (challenge.Salt?.Length != JoinCredentials.SaltLength || challenge.Nonce?.Length != JoinCredentials.NonceLength)
+                    return;
+
+                if (string.IsNullOrEmpty(JoinPassword))
+                {
+                    joinRejectedError = NetworkSessionJoinError.PasswordRequired;
+                    joinRejectedReason = "The session needs a password";        // written last: readers check this one
+                    return;
+                }
+
+                var local = LocalGamers[0];
+                byte[] key = JoinCredentials.DeriveKey(JoinPassword, challenge.Salt);
+                challengedPasswordKey = key;
+                challengeNonce = challenge.Nonce;
+
+                var answer = new PacketWriter();
+                new JoinRequestMessage
+                {
+                    GamerId = local.GamerId,
+                    Gamertag = local.Gamertag,
+                    ProtocolVersion = JoinRequestMessage.CURRENT_PROTOCOL_VERSION,
+                    Proof = JoinCredentials.Proof(key, local.GamerId, challenge.Nonce)
+                }.Serialize(answer);
+                SendTo(e.RemotePeer, answer.GetData());
             }
             else if (e.Message is JoinRejectedMessage joinRejected)
             {
@@ -1135,9 +1297,10 @@ namespace Microsoft.Xna.Framework.Net
                     {
                         try
                         {
-                            if (gamerPeers.TryGetValue(gamer.GamerId, out var endpoint))
+                            if (gamerPeers.ContainsKey(gamer.GamerId))
                             {
-                                SendTo(endpoint, data);
+                                // protected like everything after the handshake; outside the channel, which is going away
+                                SendRawToGamer(gamer.GamerId, data);
                                 logger?.LogInfo($"Sent leave notification to {gamer.Gamertag}");
                             }
                         }
@@ -1394,6 +1557,7 @@ namespace Microsoft.Xna.Framework.Net
                 PrivateGamerSlots = privateGamerSlots,
                 CurrentGamerCount = count,
                 Properties = new Dictionary<string, object>(SessionProperties),
+                IsPasswordProtected = IsPasswordProtected,
                 // a full session stops being advertised, as does one that has ended
                 IsClosed = disposed || sessionState == NetworkSessionState.Ended || count >= maxGamers
             };
@@ -1456,6 +1620,7 @@ namespace Microsoft.Xna.Framework.Net
                 gamers.Remove(gamer);
                 gamerPeers.Remove(gamer.GamerId);
                 remoteMachines.Remove(gamer.GamerId);
+                DropLinkKey(gamer.GamerId);
             }
             lock (reliableLock)
                 reliableChannels.Remove(gamer.GamerId);
@@ -1568,6 +1733,140 @@ namespace Microsoft.Xna.Framework.Net
                 return gamers.FirstOrDefault(g => !g.IsLocal && gamerPeers.TryGetValue(g.GamerId, out var p) && p == peer);
         }
 
+        // --- link security (plan phase 6) ---
+
+        // On by default. Only tests that feed raw channel datagrams to a session switch it off.
+        internal bool ProtectLinks { get; set; } = true;
+
+        // the first byte of the messages that may arrive unprotected: the handshake, before there is a key
+        private static bool IsHandshakeType(byte first) => first == 2 || first == 3 || first == 6 || first == 13;
+
+        private readonly Dictionary<string, LinkProtector> linkProtectors = new Dictionary<string, LinkProtector>(StringComparer.Ordinal);
+        private readonly Dictionary<string, byte[]> linkKeys = new Dictionary<string, byte[]>(StringComparer.Ordinal);
+        private readonly object securityLock = new object();
+
+        // host: the password, as a salt and the key made from it; challenges issued; the nonce each gamer was admitted under
+        private string sessionPassword;
+        private byte[] passwordSalt;
+        private byte[] passwordKey;
+        private readonly Dictionary<string, (byte[] Nonce, double IssuedAt)> pendingChallenges = new Dictionary<string, (byte[], double)>(StringComparer.Ordinal);
+        private readonly Dictionary<string, byte[]> admissionNonces = new Dictionary<string, byte[]>(StringComparer.Ordinal);
+        private const double ChallengeLifetimeSeconds = 30;
+        private const int MaxPendingChallenges = 256;
+
+        // joiner: the password it was given, and what a challenge turned it into
+        internal string JoinPassword { get; set; }
+        private byte[] challengedPasswordKey;
+        private byte[] challengeNonce;
+
+        /// <summary>
+        /// The password a joiner must give, or null for none. Only the host sets it, and it can change
+        /// while the session runs (gamers already in stay in). It never crosses the network: joiners prove
+        /// they know it, and are given a key for their link to the host under it.
+        /// </summary>
+        public string Password
+        {
+            get { lock (securityLock) return sessionPassword; }
+            set
+            {
+                if (!IsHost)
+                    throw new InvalidOperationException("Only the host can set the session password.");
+                lock (securityLock)
+                {
+                    sessionPassword = string.IsNullOrEmpty(value) ? null : value;
+                    passwordSalt = sessionPassword == null ? null : JoinCredentials.RandomBytes(JoinCredentials.SaltLength);
+                    passwordKey = sessionPassword == null ? null : JoinCredentials.DeriveKey(sessionPassword, passwordSalt);
+                    pendingChallenges.Clear();
+                }
+            }
+        }
+
+        /// <summary>Gets whether joiners must know a password.</summary>
+        public bool IsPasswordProtected
+        {
+            get { lock (securityLock) return sessionPassword != null; }
+        }
+
+        private LinkProtector ProtectorFor(string gamerId)
+        {
+            lock (securityLock)
+                return linkProtectors.TryGetValue(gamerId, out var protector) ? protector : null;
+        }
+
+        // gives a gamer its link key; returns it so it can be handed over
+        private byte[] CreateLinkKey(string gamerId)
+        {
+            var key = JoinCredentials.RandomBytes(JoinCredentials.LinkKeyLength);
+            lock (securityLock)
+            {
+                linkProtectors.TryGetValue(gamerId, out var old);
+                old?.Dispose();
+                linkProtectors[gamerId] = new LinkProtector(key, weAreTheHost: true);
+                linkKeys[gamerId] = key;
+            }
+            return key;
+        }
+
+        private byte[] GetLinkKey(string gamerId)
+        {
+            lock (securityLock)
+                return linkKeys.TryGetValue(gamerId, out var key) ? key : null;
+        }
+
+        // forgets a gamer's key, so nothing more is accepted on its link
+        private void DropLinkKey(string gamerId)
+        {
+            lock (securityLock)
+            {
+                if (linkProtectors.TryGetValue(gamerId, out var protector))
+                {
+                    protector.Dispose();
+                    linkProtectors.Remove(gamerId);
+                }
+                linkKeys.Remove(gamerId);
+                admissionNonces.Remove(gamerId);
+            }
+        }
+
+        // a datagram as it goes on the wire to a gamer: protected, unless protection is off. null = do not send.
+        private byte[] ProtectOutgoing(string gamerId, byte[] data)
+        {
+            if (!ProtectLinks)
+                return data;
+            var protector = ProtectorFor(gamerId);
+            if (protector == null)
+            {
+                logger?.LogWarning($"Not sending to {gamerId}: there is no link key for them yet");
+                return null;
+            }
+            return protector.Protect(data, data.Length);
+        }
+
+        private byte[] TakeChallenge(string peerKey)
+        {
+            lock (securityLock)
+            {
+                if (!pendingChallenges.TryGetValue(peerKey, out var issued))
+                    return null;
+                pendingChallenges.Remove(peerKey);
+                return ReliableNow - issued.IssuedAt <= ChallengeLifetimeSeconds ? issued.Nonce : null;
+            }
+        }
+
+        private void StoreChallenge(string peerKey, byte[] nonce)
+        {
+            lock (securityLock)
+            {
+                if (pendingChallenges.Count >= MaxPendingChallenges)
+                {
+                    // the oldest half: a flood of made-up addresses cannot grow this without limit
+                    foreach (var old in pendingChallenges.OrderBy(c => c.Value.IssuedAt).Take(MaxPendingChallenges / 2).Select(c => c.Key).ToList())
+                        pendingChallenges.Remove(old);
+                }
+                pendingChallenges[peerKey] = (nonce, ReliableNow);
+            }
+        }
+
         // a join request is answered by a bigger message, so unanswered floods matter: 5 at once per address
         // then one a second (a real client retries three times in about a second), 30 a second overall
         private readonly RateLimiter joinRateLimitPerPeer = new RateLimiter(burst: 5, perSecond: 1);
@@ -1645,6 +1944,10 @@ namespace Microsoft.Xna.Framework.Net
                     return;
             }
 
+            data = ProtectOutgoing(gamerId, data);
+            if (data == null)
+                return;
+
             try
             {
                 networkTransport.Send(endpoint, data, data.Length);
@@ -1720,6 +2023,14 @@ namespace Microsoft.Xna.Framework.Net
                 reliableTimer = null;
                 reliableChannels.Clear();
             }
+
+            lock (securityLock)
+            {
+                foreach (var protector in linkProtectors.Values)
+                    protector.Dispose();
+                linkProtectors.Clear();
+                linkKeys.Clear();
+            }
         }
 
         /// <summary>
@@ -1762,6 +2073,29 @@ namespace Microsoft.Xna.Framework.Net
             lock (lockObject)
             {
                 senderGamer = gamers.FirstOrDefault(g => gamerPeers.TryGetValue(g.GamerId, out var ep) && ep == senderEndpoint);
+            }
+
+            if (ProtectLinks)
+            {
+                if (data[0] == LinkProtector.FrameType)
+                {
+                    // protected: only a gamer we gave a key to can have sent it, and only with that key
+                    var protector = senderGamer == null ? null : ProtectorFor(senderGamer.GamerId);
+                    if (protector == null || !protector.TryUnprotect(data, data.Length, out var plain))
+                    {
+                        diagnostics?.RecordPacketRejected();
+                        return;
+                    }
+                    data = plain;
+                    if (data.Length == 0)
+                        return;
+                }
+                else if (!IsHandshakeType(data[0]))
+                {
+                    // everything but the handshake must be protected: this is a forgery, or an old peer
+                    diagnostics?.RecordPacketRejected();
+                    return;
+                }
             }
 
             // anything from a gamer shows they are still connected

@@ -32,6 +32,7 @@ namespace Microsoft.Xna.Framework.Net.Tests
             var host = await NetworkSession.CreateAsync(NetworkSessionType.Local, 1, 8, 0, new Dictionary<string, object>());
             var transport = new RecordingTransport();
             host.NetworkTransport = transport;
+            host.ProtectLinks = false;
             return (host, transport);
         }
 
@@ -42,7 +43,9 @@ namespace Microsoft.Xna.Framework.Net.Tests
         {
             var ctor = typeof(NetworkSession).GetConstructor(BindingFlags.Instance | BindingFlags.NonPublic, null,
                 new[] { typeof(NetworkSessionType), typeof(int), typeof(int), typeof(bool), typeof(IPeerTransport) }, null);
-            return (NetworkSession)ctor.Invoke(new object[] { NetworkSessionType.Local, 4, 0, false, new RecordingTransport() });
+            var session = (NetworkSession)ctor.Invoke(new object[] { NetworkSessionType.Local, 4, 0, false, new RecordingTransport() });
+            session.ProtectLinks = false;
+            return session;
         }
 
         [Test]

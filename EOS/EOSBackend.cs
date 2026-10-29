@@ -17,6 +17,8 @@ namespace Microsoft.Xna.Framework.Net.EOS
     {
         private const string BucketId = "MonoGame.Xna.Framework.Net";
         private const string TypeKey = "type";
+        // present (as "1") on a lobby whose host wants a password; the password itself is never published
+        private const string PasswordKey = "pw";
         private const string PropertyPrefix = "p.";
 
         private readonly UdpBackend lan = new UdpBackend();
@@ -140,7 +142,7 @@ namespace Microsoft.Xna.Framework.Net.EOS
             string lobbyId = createResult.LobbyId;
             lock (lobbyGate) activeLobbies.Add(lobbyId);
             var ad = session.GetAdvertisement();
-            var published = await PublishAttributesAsync(lobbyInterface, localUserId, lobbyId, ad.SessionType, ad.Properties, new HashSet<string>()).ConfigureAwait(false);
+            var published = await PublishAttributesAsync(lobbyInterface, localUserId, lobbyId, ad.SessionType, ad.IsPasswordProtected, ad.Properties, new HashSet<string>()).ConfigureAwait(false);
 
             // the session ending (its token is cancelled) closes the lobby
             stopToken.Register(() => _ = DestroyLobbyAsync(lobbyInterface, localUserId, lobbyId));
@@ -155,7 +157,7 @@ namespace Microsoft.Xna.Framework.Net.EOS
                     var latest = session.GetAdvertisement();
                     if (!PropertiesChanged(latest.Properties, published))
                         continue;
-                    published = await PublishAttributesAsync(lobbyInterface, localUserId, lobbyId, latest.SessionType, latest.Properties, published).ConfigureAwait(false);
+                    published = await PublishAttributesAsync(lobbyInterface, localUserId, lobbyId, latest.SessionType, latest.IsPasswordProtected, latest.Properties, published).ConfigureAwait(false);
                 }
             });
         }
@@ -335,6 +337,7 @@ namespace Microsoft.Xna.Framework.Net.EOS
                 return null;
 
             var type = fallbackType;
+            bool needsPassword = false;
             var properties = new Dictionary<string, object>();
             var countOptions = new Lobby.LobbyDetailsGetAttributeCountOptions();
             uint attributes = details.GetAttributeCount(ref countOptions);
@@ -350,6 +353,10 @@ namespace Microsoft.Xna.Framework.Net.EOS
                 {
                     if (Enum.TryParse(value, out NetworkSessionType parsed))
                         type = parsed;
+                }
+                else if (key == PasswordKey)
+                {
+                    needsPassword = value == "1";
                 }
                 else if (key != null && key.StartsWith(PropertyPrefix, StringComparison.Ordinal)
                          && SessionPropertyEncoding.TryDecode(value, out object decoded))
@@ -370,7 +377,8 @@ namespace Microsoft.Xna.Framework.Net.EOS
                 sessionType: type,
                 sessionProperties: properties,
                 sessionId: info.LobbyId,
-                hostPeer: EOSP2PTransport.ToPeer(info.LobbyOwnerUserId));
+                hostPeer: EOSP2PTransport.ToPeer(info.LobbyOwnerUserId),
+                isPasswordProtected: needsPassword);
         }
 
         private static bool PropertiesChanged(IReadOnlyDictionary<string, object> now, HashSet<string> published) =>
@@ -379,7 +387,7 @@ namespace Microsoft.Xna.Framework.Net.EOS
         // Writes the bucket, type and properties as public lobby attributes. Returns what is now published,
         // as "key=encoded" entries, so a later call can tell what changed.
         private static async Task<HashSet<string>> PublishAttributesAsync(Lobby.LobbyInterface lobbyInterface, ProductUserId localUserId, string lobbyId,
-            NetworkSessionType sessionType, IReadOnlyDictionary<string, object> properties, HashSet<string> previouslyPublished)
+            NetworkSessionType sessionType, bool passwordProtected, IReadOnlyDictionary<string, object> properties, HashSet<string> previouslyPublished)
         {
             var published = new HashSet<string>();
             foreach (var property in properties)
@@ -406,6 +414,7 @@ namespace Microsoft.Xna.Framework.Net.EOS
 
                 Set("bucket", BucketId);
                 Set(TypeKey, sessionType.ToString());
+                Set(PasswordKey, passwordProtected ? "1" : "0");
                 foreach (var property in properties)
                     Set(PropertyPrefix + property.Key, SessionPropertyEncoding.Encode(property.Value));
 

@@ -37,6 +37,12 @@ namespace Microsoft.Xna.Framework.Net
         /// <summary>
         /// Join request timed out (no response from host).
         /// </summary>
-        Timeout
+        Timeout,
+
+        /// <summary>The session needs a password and none was given.</summary>
+        PasswordRequired,
+
+        /// <summary>The password given is not the session's.</summary>
+        WrongPassword
     }
 }

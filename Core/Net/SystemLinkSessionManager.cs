@@ -40,7 +40,7 @@ namespace Microsoft.Xna.Framework.Net
                     {
                         var propertiesBytes = NetworkSession.SerializePropertiesBinary(ad.Properties);
                         // Include gameplay port in the header so joiners know where to send join requests
-                        var header = $"SESSION:{ad.SessionId}:{ad.MaxGamers}:{ad.PrivateGamerSlots}:{ad.CurrentGamerCount}:{ad.HostGamertag ?? "Host"}:{GamePort}:";
+                        var header = $"SESSION:{ad.SessionId}:{ad.MaxGamers}:{ad.PrivateGamerSlots}:{ad.CurrentGamerCount}:{(ad.IsPasswordProtected ? 1 : 0)}:{(ad.HostGamertag ?? "Host").Replace(':', '_')}:{GamePort}:";
                         var headerBytes = Encoding.UTF8.GetBytes(header);
                         var message = new byte[headerBytes.Length + propertiesBytes.Length];
                         Buffer.BlockCopy(headerBytes, 0, message, 0, headerBytes.Length);
@@ -159,7 +159,7 @@ namespace Microsoft.Xna.Framework.Net
                                     if (buffer[i] == (byte)':')
                                     {
                                         colonCount++;
-                                        if (colonCount == 7)
+                                        if (colonCount == 8)
                                         {
                                             headerEnd = i + 1; // header ends after the 7th colon (includes game port)
                                             break;
@@ -167,18 +167,23 @@ namespace Microsoft.Xna.Framework.Net
                                     }
                                 }
 
-                                if (colonCount == 7)
+                                if (colonCount == 8)
                                 {
                                     var headerString = Encoding.UTF8.GetString(buffer, 0, headerEnd);
                                     Debug.WriteLine($"[DISCOVERY] Parsed header: {headerString}");
 
                                     var parts = headerString.Split(':');
                                     var sessionId = parts[1];
-                                    var maxGamers = int.Parse(parts[2]);
-                                    var privateSlots = int.Parse(parts[3]);
-                                    var currentGamers = int.Parse(parts[4]);
-                                    var hostGamertag = parts[5];
-                                    var gamePort = int.Parse(parts[6]);
+                                    // anybody on the LAN can broadcast garbage: a number that does not parse is a bad packet, not a crash
+                                    if (!int.TryParse(parts[2], out var maxGamers) || !int.TryParse(parts[3], out var privateSlots)
+                                        || !int.TryParse(parts[4], out var currentGamers) || !int.TryParse(parts[5], out var flags)
+                                        || !int.TryParse(parts[7], out var gamePort) || maxGamers < 1 || maxGamers > 1000
+                                        || privateSlots < 0 || currentGamers < 0 || gamePort < 1 || gamePort > 65535)
+                                    {
+                                        Debug.WriteLine("[DISCOVERY] Ignored an advertisement with bad numbers");
+                                        continue;
+                                    }
+                                    var hostGamertag = parts[6];
 
                                     // Binary session properties start after headerEnd
                                     var propertiesBytes = new byte[buffer.Length - headerEnd];
@@ -200,13 +205,14 @@ namespace Microsoft.Xna.Framework.Net
                                         sessionType: NetworkSessionType.SystemLink,
                                         sessionProperties: sessionProperties,
                                         sessionId: sessionId,
-                                        hostPeer: UdpTransport.ToPeer(hostEndpoint));
+                                        hostPeer: UdpTransport.ToPeer(hostEndpoint),
+                                        isPasswordProtected: flags == 1);
 
                                     Debug.WriteLine($"[DISCOVERY] Added session: {hostGamertag} ({sessionId})");
                                 }
                                 else
                                 {
-                                    Debug.WriteLine($"[DISCOVERY] Invalid packet - expected 7 colons, found {colonCount}");
+                                    Debug.WriteLine($"[DISCOVERY] Invalid packet - expected 8 colons, found {colonCount}");
                                 }
                             }
                             // If timeout occurs, continue listening until endTime
@@ -248,7 +254,7 @@ namespace Microsoft.Xna.Framework.Net
             return JoinSessionAsync(availableSession, transport: null, cancellationToken);
         }
 
-        public static async Task<NetworkSession> JoinSessionAsync(AvailableNetworkSession availableSession, IPeerTransport transport, CancellationToken cancellationToken)
+        public static async Task<NetworkSession> JoinSessionAsync(AvailableNetworkSession availableSession, IPeerTransport transport, CancellationToken cancellationToken, string password = null)
         {
             // Phase 1: Reliable join with timeout and retry
             const int MAX_RETRIES = 3;
@@ -282,6 +288,7 @@ namespace Microsoft.Xna.Framework.Net
 
             // only the host's address may answer our join request
             session.JoinTargetPeer = availableSession.HostPeer;
+            session.JoinPassword = password;
 
             // The host gamer is added when the host accepts us and says who it is
 

@@ -25,6 +25,12 @@ namespace Microsoft.Xna.Framework.Net
         /// <summary>The <see cref="NetworkGamer.Id"/> the host gave the joiner.</summary>
         public byte YourId { get; set; }
 
+        /// <summary>The key for the link between this joiner and the host.</summary>
+        public byte[] LinkKey { get; set; } = new byte[0];
+
+        /// <summary>True if <see cref="LinkKey"/> is sealed under the session password; false if it is the key itself.</summary>
+        public bool KeyIsSealed { get; set; }
+
         /// <summary>The other gamers already in the session (not the host, not the joiner).</summary>
         public List<RosterEntry> Others { get; set; } = new List<RosterEntry>();
 
@@ -36,6 +42,8 @@ namespace Microsoft.Xna.Framework.Net
             writer.Write(HostGamertag);
             writer.Write(HostId);
             writer.Write(YourId);
+            writer.Write(KeyIsSealed);
+            writer.WriteLengthPrefixed(LinkKey ?? new byte[0]);
             writer.Write((byte)Others.Count);
             foreach (RosterEntry entry in Others)
             {
@@ -53,6 +61,8 @@ namespace Microsoft.Xna.Framework.Net
             HostGamertag = reader.ReadString();
             HostId = reader.ReadByte();
             YourId = reader.ReadByte();
+            KeyIsSealed = reader.ReadBoolean();
+            LinkKey = reader.ReadLengthPrefixedBytes();
             int count = reader.ReadByte();
             Others = new List<RosterEntry>(count);
             for (int i = 0; i < count; i++)
