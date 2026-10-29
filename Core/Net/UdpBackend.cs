@@ -31,10 +31,18 @@ namespace Microsoft.Xna.Framework.Net
         public IPeerTransport CreateTransport() => new UdpTransport(SystemLinkSessionManager.GamePort);
 
         /// <summary>Starts the LAN broadcast announcing the session and returns at once. The announcements stop when <paramref name="stopToken"/> is cancelled or the session closes; <paramref name="transport"/> is not used.</summary>
+        /// <exception cref="System.Net.Sockets.SocketException">The broadcast socket cannot be opened.</exception>
         public Task AdvertiseAsync(ISessionAdvertiser session, IPeerTransport transport, CancellationToken stopToken)
         {
-            // runs until stopToken is cancelled or the session closes; completing here only means it has started
-            _ = SystemLinkSessionManager.AdvertiseSessionAsync(session, stopToken);
+            // opening the socket happens in this call, so a failure to start is thrown to the caller
+            Task announcing = SystemLinkSessionManager.AdvertiseSessionAsync(session, stopToken);
+
+            // the loop runs until stopToken is cancelled or the session closes; completing here only means it has started
+            announcing.ContinueWith(
+                t => NetworkLogging.Logger.LogError("[LAN] Advertising stopped unexpectedly", t.Exception!.GetBaseException()),
+                CancellationToken.None,
+                TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously,
+                TaskScheduler.Default);
             return Task.CompletedTask;
         }
 

@@ -129,7 +129,7 @@ namespace Microsoft.Xna.Framework.Net.Steam
         /// Publishes the session as a Steam lobby, or on the LAN when Steam is not initialized.
         /// </summary>
         /// <remarks>
-        /// In <see cref="SteamFallbackMode.Strict"/> the lobby is created before this completes and failures are thrown; otherwise it is created in the background and failures are not reported to the caller.
+        /// In <see cref="SteamFallbackMode.Strict"/> the lobby is created before this completes and failures are thrown, including a lobby Steam refuses to create; otherwise it is created in the background and a failure is logged as a warning, not reported to the caller, so the session is simply not listed on Steam.
         /// </remarks>
         /// <exception cref="InvalidOperationException">Steam is not initialized and the mode is <see cref="SteamFallbackMode.Strict"/>.</exception>
         public async Task AdvertiseAsync(ISessionAdvertiser session, IPeerTransport transport, CancellationToken stopToken)
@@ -292,7 +292,10 @@ namespace Microsoft.Xna.Framework.Net.Steam
                     SteamMatchmaking.CreateLobby(ELobbyType.k_ELobbyTypePublic, ad.MaxGamers)).ConfigureAwait(false);
                 if (result.m_eResult != EResult.k_EResultOK)
                 {
-                    NetworkLogging.Logger.LogInfo($"[Steam] CreateLobby returned {result.m_eResult}");
+                    if (IsStrict)
+                        throw new InvalidOperationException($"Steam could not create the lobby: {result.m_eResult}.");
+
+                    NetworkLogging.Logger.LogWarning($"[Steam] CreateLobby returned {result.m_eResult}; the session is not listed on Steam");
                     return;
                 }
 

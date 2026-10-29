@@ -81,6 +81,8 @@ namespace Microsoft.Xna.Framework.Net.iOS
                 return;
             }
 
+            // the result is not needed: this call only throws, in strict mode, when Game Center is unavailable. When it is
+            // not (or in fallback mode) the transport is not GameKit's and the session is advertised on the LAN
             UseGameKit("session creation");
             await lan.AdvertiseAsync(session, transport, stopToken).ConfigureAwait(false);
         }

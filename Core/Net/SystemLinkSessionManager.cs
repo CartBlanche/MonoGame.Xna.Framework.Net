@@ -15,21 +15,37 @@ namespace Microsoft.Xna.Framework.Net
         internal const int GamePort = 31338; // Port for gameplay UDP traffic
         private static readonly List<AvailableNetworkSession> discoveredSessions = new List<AvailableNetworkSession>();
 
+        /// <summary>
+        /// Starts announcing a session on the LAN. Opening the socket and finding the networks to announce on happen
+        /// before this returns, so a failure there is thrown to the caller. The returned task is the announcing
+        /// loop, which runs until the session is full, closed or <paramref name="cancellationToken"/> is cancelled.
+        /// </summary>
         public static Task AdvertiseSessionAsync(ISessionAdvertiser session, CancellationToken cancellationToken)
         {
+            var udpClient = new UdpClient(AddressFamily.InterNetwork);
+            IReadOnlyList<IPAddress> subnetBroadcasts;
+            try
+            {
+                udpClient.EnableBroadcast = true;
+
+                // 255.255.255.255 only leaves through one network adapter, so the announcement is
+                // also sent to the broadcast address of every network this machine is on
+                // (the list is refreshed now and then because adapters come and go)
+                subnetBroadcasts = LanBroadcast.GetBroadcastAddresses();
+            }
+            catch
+            {
+                udpClient.Dispose();
+                throw;
+            }
+
             // Periodically broadcast session info on LAN until session is full or ended
             return Task.Run(async () =>
             {
-                using (var udpClient = new UdpClient(AddressFamily.InterNetwork))
+                using (udpClient)
                 {
-                    udpClient.EnableBroadcast = true;
                     var broadcastEndpoint = new IPEndPoint(IPAddress.Broadcast, BroadcastPort);
                     var localhostEndpoint = new IPEndPoint(IPAddress.Loopback, BroadcastPort);
-
-                    // 255.255.255.255 only leaves through one network adapter, so the announcement is
-                    // also sent to the broadcast address of every network this machine is on
-                    // (the list is refreshed now and then because adapters come and go)
-                    IReadOnlyList<IPAddress> subnetBroadcasts = LanBroadcast.GetBroadcastAddresses();
                     var subnetBroadcastsRefreshed = DateTime.UtcNow;
 
                     NetworkLogging.Logger.LogInfo("[LAN] " + $"Starting session advertisement on port {BroadcastPort}");
