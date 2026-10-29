@@ -31,6 +31,13 @@ namespace Microsoft.Xna.Framework.Net.Steam
         private readonly SteamFallbackMode fallbackMode;
         private readonly UdpBackend lan = new UdpBackend();
 
+        /// <summary>
+        /// Initializes a new instance of the <see cref="SteamBackend"/> class.
+        /// </summary>
+        /// <param name="gameTag">
+        /// Identifies this game among the lobbies Steam returns, so only your game's sessions are found and your lobbies are not shown to other games. Null or blank selects a default tag.
+        /// </param>
+        /// <param name="fallbackMode">What to do when Steam is not initialized: use the LAN back-end (default) or throw.</param>
         public SteamBackend(string gameTag = null, SteamFallbackMode fallbackMode = SteamFallbackMode.PreferFallback)
         {
             lobbyGameValue = NormalizeGameTag(gameTag);
@@ -39,9 +46,16 @@ namespace Microsoft.Xna.Framework.Net.Steam
 
         private bool IsStrict => fallbackMode == SteamFallbackMode.Strict;
 
+        /// <inheritdoc/>
         public string Name => "Steam";
 
         // lobbies carry every type; without Steam running this is the LAN, which carries SystemLink only
+        /// <summary>
+        /// Whether sessions of this type can be created or found right now.
+        /// </summary>
+        /// <remarks>
+        /// <see cref="NetworkSessionType.SystemLink"/> is always supported (it uses the LAN when Steam is not running); every other type needs <see cref="SteamRuntime.IsInitialized"/>.
+        /// </remarks>
         public bool SupportsSessionType(NetworkSessionType sessionType) =>
             sessionType == NetworkSessionType.SystemLink || SteamRuntime.IsInitialized;
 
@@ -98,6 +112,10 @@ namespace Microsoft.Xna.Framework.Net.Steam
             }
         }
 
+        /// <summary>
+        /// Creates a <see cref="SteamP2PTransport"/>, or a LAN transport when Steam is not initialized.
+        /// </summary>
+        /// <exception cref="InvalidOperationException">Steam is not initialized and the mode is <see cref="SteamFallbackMode.Strict"/>.</exception>
         public IPeerTransport CreateTransport()
         {
             if (SteamRuntime.IsInitialized)
@@ -107,6 +125,13 @@ namespace Microsoft.Xna.Framework.Net.Steam
             return lan.CreateTransport();
         }
 
+        /// <summary>
+        /// Publishes the session as a Steam lobby, or on the LAN when Steam is not initialized.
+        /// </summary>
+        /// <remarks>
+        /// In <see cref="SteamFallbackMode.Strict"/> the lobby is created before this completes and failures are thrown; otherwise it is created in the background and failures are not reported to the caller.
+        /// </remarks>
+        /// <exception cref="InvalidOperationException">Steam is not initialized and the mode is <see cref="SteamFallbackMode.Strict"/>.</exception>
         public async Task AdvertiseAsync(ISessionAdvertiser session, IPeerTransport transport, CancellationToken stopToken)
         {
             if (!SteamRuntime.IsInitialized)
@@ -122,6 +147,13 @@ namespace Microsoft.Xna.Framework.Net.Steam
                 _ = AdvertiseLobbyAsync(session, stopToken);
         }
 
+        /// <summary>
+        /// Searches Steam lobbies (at most 50) for this game's sessions of the given type.
+        /// </summary>
+        /// <remarks>
+        /// Lobbies owned by the local Steam account are left out. If the search fails and the mode is not <see cref="SteamFallbackMode.Strict"/>, the failure is logged and the result is empty. When Steam is not initialized the LAN is searched instead.
+        /// </remarks>
+        /// <exception cref="InvalidOperationException">Steam is not initialized and the mode is <see cref="SteamFallbackMode.Strict"/>.</exception>
         public async Task<IReadOnlyList<AvailableNetworkSession>> FindAsync(NetworkSessionType sessionType, int maxLocalGamers, CancellationToken cancellationToken)
         {
             if (!SteamRuntime.IsInitialized)
@@ -159,6 +191,13 @@ namespace Microsoft.Xna.Framework.Net.Steam
             }
         }
 
+        /// <summary>
+        /// Joins the Steam lobby named by the session's id and returns a handle that leaves it when disposed.
+        /// </summary>
+        /// <remarks>
+        /// Returns <see langword="null"/> when Steam is not initialized, or when the session id is not a lobby id, outside <see cref="SteamFallbackMode.Strict"/>; a failed join is likewise logged and returns <see langword="null"/>. Joining a lobby owned by the local Steam account is refused, because Steam P2P needs distinct identities.
+        /// </remarks>
+        /// <exception cref="InvalidOperationException">In <see cref="SteamFallbackMode.Strict"/>: Steam is not initialized, the id is not a lobby id, or the join fails.</exception>
         public async Task<IDisposable> PrepareJoinAsync(AvailableNetworkSession session, IPeerTransport transport, CancellationToken cancellationToken)
         {
             if (IsStrict && !SteamRuntime.IsInitialized)

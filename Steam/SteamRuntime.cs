@@ -15,6 +15,9 @@ namespace Microsoft.Xna.Framework.Net.Steam
         private static bool isInitialized;
         private static IntPtr nativeHandle = IntPtr.Zero;
 
+        /// <summary>
+        /// Whether <see cref="Initialize"/> has succeeded and <see cref="Shutdown"/> has not been called since.
+        /// </summary>
         public static bool IsInitialized => isInitialized;
 
         /// <param name="appId">
@@ -166,6 +169,9 @@ namespace Microsoft.Xna.Framework.Net.Steam
             return true;
         }
 
+        /// <summary>
+        /// Pumps Steam's callbacks and refreshes the signed-in gamer from Steam. Call it regularly (every frame); does nothing before <see cref="Initialize"/> succeeds.
+        /// </summary>
         public static void RunCallbacks()
         {
             if (!isInitialized)
@@ -211,6 +217,9 @@ namespace Microsoft.Xna.Framework.Net.Steam
             }
         }
 
+        /// <summary>
+        /// Shuts the Steam API down and unloads the native library; does nothing if it is not initialized.
+        /// </summary>
         public static void Shutdown()
         {
             if (!isInitialized)

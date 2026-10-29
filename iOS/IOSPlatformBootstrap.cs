@@ -13,6 +13,20 @@ namespace Microsoft.Xna.Framework.Net.iOS
         private static Func<IAchievementProvider> achievementLiveProviderFactory = () => new IOSAchievementProvider();
         private static Func<IAchievementMediaProvider> achievementMediaLiveProviderFactory = () => new IOSAchievementMediaProvider();
 
+        /// <summary>
+        /// Wires Game Center into GamerServices and Net: local persistence, sign-in provider and network back-end.
+        /// </summary>
+        /// <remarks>
+        /// Call once at startup, before <see cref="IOSRuntime.Initialize"/>. This does not initialise the runtime or sign anyone in; call <see cref="IOSRuntime.Initialize"/> and then <see cref="TrySignInAndEnableLiveAsync"/>.
+        /// </remarks>
+        /// <param name="gameName">Names the local leaderboard and achievement storage. Null or blank leaves the storage unchanged.</param>
+        /// <param name="signInProvider">Replaces the default <see cref="IOSSignInProvider"/>.</param>
+        /// <param name="liveProviderFactoryOverride">Replaces the factory for the live leaderboard provider.</param>
+        /// <param name="achievementLiveProviderFactoryOverride">Replaces the factory for the live achievement provider.</param>
+        /// <param name="achievementMediaLiveProviderFactoryOverride">Replaces the factory for the live achievement media provider.</param>
+        /// <param name="achievementDefinitions">Achievements to register in the <c>AchievementCatalog</c>.</param>
+        /// <param name="fallbackMode">Fallback behaviour of the default <see cref="IOSBackend"/>; ignored when <paramref name="backend"/> is supplied.</param>
+        /// <param name="backend">A network back-end to use instead of a new <see cref="IOSBackend"/>.</param>
         public static void Configure(
             string gameName,
             IGuideSignInProvider signInProvider = null,
@@ -47,6 +61,13 @@ namespace Microsoft.Xna.Framework.Net.iOS
             }
         }
 
+        /// <summary>
+        /// Shows sign-in and, if the gamer ends up signed in, installs the live leaderboard, achievement and achievement media providers.
+        /// </summary>
+        /// <remarks>
+        /// Needs <see cref="Configure"/> and <see cref="IOSRuntime.Initialize"/> first. If the gamer is not signed in the live providers are cleared and the result is <see langword="false"/>.
+        /// </remarks>
+        /// <returns><see langword="true"/> if the gamer is signed in and the live providers are enabled.</returns>
         public static async Task<bool> TrySignInAndEnableLiveAsync(
             int paneCount = 1,
             bool onlineOnly = false,

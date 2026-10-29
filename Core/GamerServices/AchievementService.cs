@@ -5,8 +5,26 @@ namespace Microsoft.Xna.Framework.GamerServices
     /// </summary>
     public interface IAchievementProvider
     {
+        /// <summary>
+        /// Gets the achievements for a gamer, including progress.
+        /// </summary>
+        /// <param name="gamer">The gamer to read achievements for.</param>
+        /// <param name="cancellationToken">Token to cancel the request.</param>
         Task<AchievementCollection> GetAchievementsAsync(SignedInGamer gamer, CancellationToken cancellationToken = default);
+        /// <summary>
+        /// Records progress toward an achievement.
+        /// </summary>
+        /// <param name="gamer">The gamer making progress.</param>
+        /// <param name="achievementKey">Key of the achievement.</param>
+        /// <param name="percentComplete">Progress from 0 to 100; the built-in providers clamp it, never lower recorded progress, and unlock the achievement at 100.</param>
+        /// <param name="cancellationToken">Token to cancel the request.</param>
         Task SetProgressAsync(SignedInGamer gamer, string achievementKey, float percentComplete, CancellationToken cancellationToken = default);
+        /// <summary>
+        /// Marks an achievement as earned for a gamer.
+        /// </summary>
+        /// <param name="gamer">The gamer who earned it.</param>
+        /// <param name="achievementKey">Key of the achievement.</param>
+        /// <param name="cancellationToken">Token to cancel the request.</param>
         Task UnlockAsync(SignedInGamer gamer, string achievementKey, CancellationToken cancellationToken = default);
     }
 

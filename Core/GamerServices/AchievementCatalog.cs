@@ -8,6 +8,10 @@ namespace Microsoft.Xna.Framework.GamerServices
         private static readonly object Gate = new();
         private static readonly Dictionary<string, AchievementDefinition> Definitions = new(StringComparer.Ordinal);
 
+        /// <summary>
+        /// Registers a definition, replacing any existing definition with the same key.
+        /// </summary>
+        /// <exception cref="ArgumentNullException"><paramref name="definition"/> is null.</exception>
         public static void Register(AchievementDefinition definition)
         {
             ArgumentNullException.ThrowIfNull(definition);
@@ -18,6 +22,10 @@ namespace Microsoft.Xna.Framework.GamerServices
             }
         }
 
+        /// <summary>
+        /// Registers every definition in the sequence, replacing existing definitions with the same key. Null items are skipped.
+        /// </summary>
+        /// <exception cref="ArgumentNullException"><paramref name="definitions"/> is null.</exception>
         public static void RegisterRange(IEnumerable<AchievementDefinition> definitions)
         {
             ArgumentNullException.ThrowIfNull(definitions);
@@ -34,6 +42,10 @@ namespace Microsoft.Xna.Framework.GamerServices
             }
         }
 
+        /// <summary>
+        /// Gets the definition registered under <paramref name="key"/>, or null if there is none. Keys are compared ordinally.
+        /// </summary>
+        /// <exception cref="ArgumentException"><paramref name="key"/> is null, empty or whitespace.</exception>
         public static AchievementDefinition? Get(string key)
         {
             if (string.IsNullOrWhiteSpace(key))
@@ -46,6 +58,9 @@ namespace Microsoft.Xna.Framework.GamerServices
             }
         }
 
+        /// <summary>
+        /// Gets a snapshot of all registered definitions, ordered by key.
+        /// </summary>
         public static IReadOnlyList<AchievementDefinition> GetAll()
         {
             lock (Gate)
@@ -56,6 +71,9 @@ namespace Microsoft.Xna.Framework.GamerServices
             }
         }
 
+        /// <summary>
+        /// Removes all registered definitions.
+        /// </summary>
         public static void Clear()
         {
             lock (Gate)

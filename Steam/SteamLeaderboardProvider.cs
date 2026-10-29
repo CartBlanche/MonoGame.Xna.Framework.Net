@@ -26,6 +26,14 @@ namespace Microsoft.Xna.Framework.Net.Steam
 
         // ------------------------------------------------------------------ SubmitAsync
 
+        /// <summary>
+        /// Uploads the score to the Steam leaderboard whose name equals <c>LeaderboardIdentity.Key</c>.
+        /// </summary>
+        /// <remarks>
+        /// Steam keeps the player's best score. The score is clamped to the 32-bit range. The leaderboard must already exist in the Steam App Admin and <c>SteamRuntime.RunCallbacks()</c> must be called regularly for the call to complete.
+        /// </remarks>
+        /// <exception cref="ArgumentNullException"><paramref name="writer"/> is <see langword="null"/>.</exception>
+        /// <exception cref="InvalidOperationException">Steam reports an IO failure.</exception>
         public async Task SubmitAsync(LeaderboardWriter writer, CancellationToken cancellationToken = default)
         {
             if (writer == null)
@@ -62,6 +70,14 @@ namespace Microsoft.Xna.Framework.Net.Steam
 
         // ------------------------------------------------------------------ ReadAsync
 
+        /// <summary>
+        /// Reads a page of entries from the Steam leaderboard whose name equals <paramref name="identity"/>'s key.
+        /// </summary>
+        /// <remarks>
+        /// With <paramref name="pivotGamer"/> the page is centred on that player's rank and <paramref name="pageStart"/> is not used; otherwise the page starts at the zero-based <paramref name="pageStart"/>. Needs <c>SteamRuntime.RunCallbacks()</c> called regularly.
+        /// </remarks>
+        /// <exception cref="ArgumentNullException"><paramref name="identity"/> is <see langword="null"/>.</exception>
+        /// <exception cref="ArgumentOutOfRangeException"><paramref name="pageSize"/> is less than 1.</exception>
         public async Task<LeaderboardReader> ReadAsync(
             LeaderboardIdentity identity,
             int pageStart,

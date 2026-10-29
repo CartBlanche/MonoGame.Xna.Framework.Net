@@ -20,6 +20,14 @@ namespace Microsoft.Xna.Framework.Net.Steam
         private readonly Dictionary<string, AchievementIcon> iconCache = new(StringComparer.Ordinal);
         private readonly Queue<string> cacheAccessOrder = new();
 
+        /// <summary>
+        /// Returns the achievement's icon from Steam as raw RGBA pixels, or <see langword="null"/> when there is none.
+        /// </summary>
+        /// <remarks>
+        /// Needs <see cref="SteamRuntime.Initialize"/> to have succeeded; before that, or when Steam has no icon for the key, the result is <see langword="null"/>. The icon's content type is <c>application/x-steam-rgba32</c>, not an encoded image. Results, misses included, are cached per key.
+        /// </remarks>
+        /// <exception cref="ArgumentNullException"><paramref name="gamer"/> is <see langword="null"/>.</exception>
+        /// <exception cref="ArgumentException"><paramref name="achievementKey"/> is null, empty or whitespace.</exception>
         public Task<AchievementIcon> GetIconAsync(SignedInGamer gamer, string achievementKey, CancellationToken cancellationToken = default)
         {
             if (gamer == null)

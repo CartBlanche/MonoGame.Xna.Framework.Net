@@ -17,6 +17,9 @@ namespace Microsoft.Xna.Framework.GamerServices
         /// </summary>
         public bool IsCurrentSession { get; internal set; }
 
+        /// <summary>
+        /// Initializes a new instance of the <see cref="InviteAcceptedEventArgs"/> class.
+        /// </summary>
         public InviteAcceptedEventArgs(SignedInGamer gamer, bool isCurrentSession)
         {
             Gamer = gamer;

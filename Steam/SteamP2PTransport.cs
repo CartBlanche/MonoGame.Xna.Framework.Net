@@ -21,8 +21,12 @@ namespace Microsoft.Xna.Framework.Net.Steam
         private volatile bool disposed;
         private volatile bool isBound;
 
+        /// <inheritdoc/>
         public bool IsBound => isBound;
 
+        /// <summary>
+        /// The local Steam user as a peer, or <see cref="PeerId.None"/> before <see cref="Bind"/> or while Steam is not initialized.
+        /// </summary>
         public PeerId LocalPeer => isBound && SteamRuntime.IsInitialized ? ToPeer(SteamUser.GetSteamID()) : PeerId.None;
 
         /// <summary>The peer that stands for a Steam user.</summary>
@@ -40,12 +44,24 @@ namespace Microsoft.Xna.Framework.Net.Steam
             return steamId.IsValid();
         }
 
+        /// <summary>
+        /// Marks the transport as bound; Steam P2P needs no socket setup.
+        /// </summary>
+        /// <exception cref="ObjectDisposedException">The transport has been disposed.</exception>
         public void Bind()
         {
             ThrowIfDisposed();
             isBound = true;
         }
 
+        /// <summary>
+        /// Sends a datagram to a Steam user, unreliably.
+        /// </summary>
+        /// <exception cref="ArgumentNullException"><paramref name="data"/> is <see langword="null"/>.</exception>
+        /// <exception cref="ArgumentOutOfRangeException"><paramref name="length"/> is negative or larger than <paramref name="data"/>.</exception>
+        /// <exception cref="ArgumentException"><paramref name="peer"/> is not a Steam peer.</exception>
+        /// <exception cref="InvalidOperationException">Steam is not initialized, the recipient is the local SteamID, or Steam rejects the send.</exception>
+        /// <exception cref="ObjectDisposedException">The transport has been disposed.</exception>
         public void Send(PeerId peer, byte[] data, int length)
         {
             ThrowIfDisposed();
@@ -69,6 +85,13 @@ namespace Microsoft.Xna.Framework.Net.Steam
                 throw new InvalidOperationException($"Steam P2P send failed to recipient {recipient.m_SteamID}");
         }
 
+        /// <summary>
+        /// Waits for the next datagram from any Steam user.
+        /// </summary>
+        /// <remarks>
+        /// Binds the transport if needed and polls Steam; while Steam is not initialized it keeps waiting. A first packet from a stranger is accepted.
+        /// </remarks>
+        /// <exception cref="ObjectDisposedException">The transport is or becomes disposed.</exception>
         public async Task<(byte[] Data, PeerId Sender)> ReceiveAsync()
         {
             ThrowIfDisposed();
@@ -103,6 +126,7 @@ namespace Microsoft.Xna.Framework.Net.Steam
             throw new ObjectDisposedException(nameof(SteamP2PTransport));
         }
 
+        /// <inheritdoc/>
         public void Dispose()
         {
             disposed = true;

@@ -15,6 +15,7 @@ namespace Microsoft.Xna.Framework.Net
         /// </summary>
         public NetworkGamer OldHost { get; }
 
+        /// <summary>Initializes a new instance of <see cref="HostChangedEventArgs"/> for a change from <paramref name="oldHost"/> to <paramref name="newHost"/>.</summary>
         public HostChangedEventArgs(NetworkGamer newHost, NetworkGamer oldHost)
         {
             NewHost = newHost;

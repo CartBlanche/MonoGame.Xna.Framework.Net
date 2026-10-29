@@ -38,10 +38,13 @@ namespace Microsoft.Xna.Framework.Net
     /// <summary>Writes to the debugger's output (<see cref="Debug"/>), so nothing is written in a release build.</summary>
     public class DebugNetworkLogger : INetworkLogger
     {
+        /// <inheritdoc/>
         public void LogInfo(string message) => Debug.WriteLine($"[NET] {message}");
 
+        /// <inheritdoc/>
         public void LogWarning(string message) => Debug.WriteLine($"[NET-WARN] {message}");
 
+        /// <inheritdoc/>
         public void LogError(string message, Exception? ex = null)
         {
             Debug.WriteLine($"[NET-ERROR] {message}");

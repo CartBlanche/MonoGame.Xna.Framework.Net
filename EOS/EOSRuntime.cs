@@ -26,6 +26,15 @@ namespace Microsoft.Xna.Framework.Net.EOS
             }
         }
 
+        /// <summary>
+        /// Marks the runtime initialized and creates the EOS client from the credentials given to <see cref="EOSPlatformBootstrap.Configure"/> (or the <c>MGNET_EOS_*</c> environment variables).
+        /// </summary>
+        /// <remarks>
+        /// The EOS SDK itself is brought up lazily by the client, not here, so this always returns <see langword="true"/> and does not prove the credentials are valid. Call <see cref="SignInAsync"/> afterwards to authenticate.
+        /// </remarks>
+        /// <param name="initialPlayerId">Optional player id to start with.</param>
+        /// <param name="initialGamertag">Optional gamertag to start with.</param>
+        /// <returns>Always <see langword="true"/>.</returns>
         public static bool Initialize(string initialPlayerId = null, string initialGamertag = null)
         {
             lock (Gate)
@@ -44,6 +53,7 @@ namespace Microsoft.Xna.Framework.Net.EOS
             return true;
         }
 
+        /// <summary>Whether <see cref="Initialize"/> (or <see cref="SetSignedInIdentity"/>) has been called and <see cref="Shutdown"/> has not since.</summary>
         public static bool IsInitialized
         {
             get { lock (Gate) { return isInitialized; } }
@@ -83,6 +93,13 @@ namespace Microsoft.Xna.Framework.Net.EOS
             }
         }
 
+        /// <summary>
+        /// Authenticates with EOS and updates <c>SignedInGamer.Current</c>.
+        /// </summary>
+        /// <remarks>
+        /// Returns <see langword="false"/> when <see cref="Initialize"/> has not been called. Authentication failures are logged, not thrown; the result then reflects whatever identity is already known.
+        /// </remarks>
+        /// <returns><see langword="true"/> if the gamer is now signed in.</returns>
         public static async Task<bool> SignInAsync(CancellationToken cancellationToken = default)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -118,6 +135,12 @@ namespace Microsoft.Xna.Framework.Net.EOS
             return RefreshSignedInGamerIdentity();
         }
 
+        /// <summary>
+        /// Sets the player id and gamertag directly and marks the runtime initialized, without contacting EOS.
+        /// </summary>
+        /// <remarks>
+        /// Intended for supplying an identity from outside (for example tests); it creates no EOS client, so the EOS back-end does not become ready.
+        /// </remarks>
         public static void SetSignedInIdentity(string newPlayerId, string newGamertag)
         {
             lock (Gate)
@@ -130,6 +153,9 @@ namespace Microsoft.Xna.Framework.Net.EOS
             RefreshSignedInGamerIdentity();
         }
 
+        /// <summary>
+        /// Pumps EOS platform callbacks. Call it regularly (every frame) when a session is not receiving; does nothing before <see cref="Initialize"/>.
+        /// </summary>
         public static void RunCallbacks()
         {
             if (TryGetEpicOnlineServicesClient(out var client) && client is EOSClient eosSdkClient)
@@ -165,6 +191,9 @@ namespace Microsoft.Xna.Framework.Net.EOS
             }
         }
 
+        /// <summary>
+        /// Disposes the EOS client, clears the identity and marks the gamer signed out.
+        /// </summary>
         public static void Shutdown()
         {
             IEpicOnlineServicesClient clientToDispose = null;

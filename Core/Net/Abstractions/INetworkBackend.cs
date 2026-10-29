@@ -74,11 +74,17 @@ namespace Microsoft.Xna.Framework.Net
     /// <summary>A snapshot of what to tell the world about a hosted session.</summary>
     public sealed class SessionAdvertisement
     {
+        /// <summary>The session's unique id, as joiners and searchers see it.</summary>
         public string SessionId { get; internal set; } = string.Empty;
+        /// <summary>The type of the session.</summary>
         public NetworkSessionType SessionType { get; internal set; }
+        /// <summary>The host's gamertag, or null if it has none to show.</summary>
         public string? HostGamertag { get; internal set; }
+        /// <summary>The most gamers the session holds, public and private slots together.</summary>
         public int MaxGamers { get; internal set; }
+        /// <summary>How many of <see cref="MaxGamers"/> are private slots, which are kept for invited gamers.</summary>
         public int PrivateGamerSlots { get; internal set; }
+        /// <summary>The number of gamers in the session now, local gamers included.</summary>
         public int CurrentGamerCount { get; internal set; }
 
         /// <summary>True if joiners must know a password, which back-ends should show so searchers can ask for it.</summary>

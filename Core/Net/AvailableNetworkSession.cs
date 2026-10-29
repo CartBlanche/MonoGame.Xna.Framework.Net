@@ -10,6 +10,10 @@ namespace Microsoft.Xna.Framework.Net
     /// </summary>
     public class AvailableNetworkSession
     {
+        /// <summary>
+        /// Initializes a new instance of <see cref="AvailableNetworkSession"/>. <paramref name="sessionProperties"/> is copied,
+        /// so changing the original afterwards does not affect this instance.
+        /// </summary>
         public AvailableNetworkSession(
             string sessionName,
             string hostGamertag,

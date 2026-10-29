@@ -5,7 +5,9 @@ namespace Microsoft.Xna.Framework.Net.EOS
     /// </summary>
     public enum EOSFallbackMode
     {
+        /// <summary>Use the LAN or local providers when EOS is not ready or a live call fails.</summary>
         PreferFallback,
+        /// <summary>Throw instead of falling back when EOS is not ready.</summary>
         Strict
     }
 }

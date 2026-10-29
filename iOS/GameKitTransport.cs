@@ -32,13 +32,21 @@ namespace Microsoft.Xna.Framework.Net.iOS
         private volatile bool disposed;
         private volatile bool isBound;
 
+        /// <inheritdoc/>
         public bool IsBound => isBound;
 
+        /// <summary>
+        /// Always <see cref="PeerId.None"/>: the local Game Center id is not exposed by this transport.
+        /// </summary>
         public PeerId LocalPeer => PeerId.None;
 
         /// <summary>The peer that stands for a Game Center player.</summary>
         public static PeerId ToPeer(string gamePlayerId) => new PeerId(PeerPrefix + gamePlayerId);
 
+        /// <summary>
+        /// Marks the transport as bound; the match itself is found when the session starts.
+        /// </summary>
+        /// <exception cref="ObjectDisposedException">The transport has been disposed.</exception>
         public void Bind()
         {
             ThrowIfDisposed();
@@ -104,6 +112,16 @@ namespace Microsoft.Xna.Framework.Net.iOS
             }
         }
 
+        /// <summary>
+        /// Sends a datagram to a Game Center player, reliably.
+        /// </summary>
+        /// <remarks>
+        /// If no match exists yet, or the recipient (or <see cref="HostPeer"/>'s real id) is not known yet, the datagram is dropped without an error. A GameKit send failure is logged, not thrown.
+        /// </remarks>
+        /// <exception cref="ArgumentNullException"><paramref name="data"/> is <see langword="null"/>.</exception>
+        /// <exception cref="ArgumentOutOfRangeException"><paramref name="length"/> is negative or larger than <paramref name="data"/>.</exception>
+        /// <exception cref="ArgumentException"><paramref name="peer"/> is not a Game Center peer.</exception>
+        /// <exception cref="ObjectDisposedException">The transport has been disposed.</exception>
         public void Send(PeerId peer, byte[] data, int length)
         {
             ThrowIfDisposed();
@@ -137,6 +155,10 @@ namespace Microsoft.Xna.Framework.Net.iOS
                 NetworkLogging.Logger.LogWarning($"[GameKit] SendData failed: {error.LocalizedDescription}");
         }
 
+        /// <summary>
+        /// Waits for the next datagram from any player in the match.
+        /// </summary>
+        /// <exception cref="ObjectDisposedException">The transport is or becomes disposed.</exception>
         public async Task<(byte[] Data, PeerId Sender)> ReceiveAsync()
         {
             ThrowIfDisposed();
@@ -150,6 +172,7 @@ namespace Microsoft.Xna.Framework.Net.iOS
             }
         }
 
+        /// <inheritdoc/>
         public void Dispose()
         {
             if (disposed)

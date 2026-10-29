@@ -12,20 +12,25 @@ namespace Microsoft.Xna.Framework.Net
     /// </summary>
     public sealed class UdpBackend : INetworkBackend
     {
+        /// <inheritdoc/>
         public string Name => "UDP/SystemLink";
 
         // the LAN carries SystemLink only
+        /// <summary>Returns true for <see cref="NetworkSessionType.SystemLink"/> only.</summary>
         public bool SupportsSessionType(NetworkSessionType sessionType) => sessionType == NetworkSessionType.SystemLink;
 
         // nobody invites you over a LAN broadcast
+        /// <summary>Never raised: a LAN has no invitations. Handlers can be added and removed but are not kept.</summary>
         public event EventHandler<InviteReceivedEventArgs> InviteReceived
         {
             add { }
             remove { }
         }
 
+        /// <summary>Creates a <see cref="UdpTransport"/> that prefers the SystemLink game port.</summary>
         public IPeerTransport CreateTransport() => new UdpTransport(SystemLinkSessionManager.GamePort);
 
+        /// <summary>Starts the LAN broadcast announcing the session and returns at once. The announcements stop when <paramref name="stopToken"/> is cancelled or the session closes; <paramref name="transport"/> is not used.</summary>
         public Task AdvertiseAsync(ISessionAdvertiser session, IPeerTransport transport, CancellationToken stopToken)
         {
             // runs until stopToken is cancelled or the session closes; completing here only means it has started
@@ -33,6 +38,7 @@ namespace Microsoft.Xna.Framework.Net
             return Task.CompletedTask;
         }
 
+        /// <summary>Finds SystemLink sessions announced on the LAN. Returns an empty list for any other session type.</summary>
         public async Task<IReadOnlyList<AvailableNetworkSession>> FindAsync(NetworkSessionType sessionType, int maxLocalGamers, CancellationToken cancellationToken)
         {
             if (sessionType != NetworkSessionType.SystemLink)
@@ -41,6 +47,7 @@ namespace Microsoft.Xna.Framework.Net
             return (await SystemLinkSessionManager.DiscoverSessionsAsync(maxLocalGamers, cancellationToken).ConfigureAwait(false)).ToList();
         }
 
+        /// <summary>Does nothing and returns null: a LAN join needs no preparation, so there is nothing to undo.</summary>
         public Task<IDisposable?> PrepareJoinAsync(AvailableNetworkSession session, IPeerTransport transport, CancellationToken cancellationToken) => Task.FromResult<IDisposable?>(null);
     }
 }

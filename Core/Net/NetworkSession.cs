@@ -19,6 +19,7 @@ namespace Microsoft.Xna.Framework.Net
     public class NetworkSession : IDisposable, IAsyncDisposable, ISessionAdvertiser
     {
         // Event for received messages
+        /// <summary>Raised, from <see cref="Update"/> unless <see cref="EventDispatchMode"/> says otherwise, for each network message that arrives, protocol messages included.</summary>
         public event EventHandler<MessageReceivedEventArgs>? MessageReceived;
         private readonly List<NetworkGamer> gamers;
         private readonly GamerCollection gamerCollection;
@@ -64,7 +65,9 @@ namespace Microsoft.Xna.Framework.Net
         public EventDispatchMode EventDispatchMode { get; set; } = EventDispatchMode.OnUpdate;
 
         // Events
+        /// <summary>Raised, from <see cref="Update"/>, when the session moves from the lobby to playing: on the host when <see cref="StartGame"/> is called, on the others when the host's state change arrives.</summary>
         public event EventHandler<GameStartedEventArgs>? GameStarted;
+        /// <summary>Raised, from <see cref="Update"/>, when the session moves from playing back to the lobby: on the host when <see cref="EndGame"/> is called, on the others when the host's state change arrives.</summary>
         public event EventHandler<GameEndedEventArgs>? GameEnded;
 
         /// <summary>
@@ -74,6 +77,7 @@ namespace Microsoft.Xna.Framework.Net
         /// </summary>
         public event EventHandler<GamerJoinedEventArgs>? GamerJoined;
 
+        /// <summary>Raised, from <see cref="Update"/>, for each gamer that leaves the session.</summary>
         public event EventHandler<GamerLeftEventArgs>? GamerLeft;
 
         /// <summary>
@@ -83,9 +87,14 @@ namespace Microsoft.Xna.Framework.Net
 #pragma warning disable CS0067 // never raised until host migration exists; kept so XNA code that subscribes compiles
         public event EventHandler<HostChangedEventArgs>? HostChanged;
 #pragma warning restore CS0067
+        /// <summary>Raised once, from <see cref="Update"/>, when the session ends, with the reason. A session that is disposed raises it straight away on the disposing thread instead.</summary>
         public event EventHandler<NetworkSessionEndedEventArgs>? SessionEnded;
 
         // Static event for invite acceptance
+        /// <summary>
+        /// Raised when the local user accepts an invitation in the platform's own UI. Static, because it can arrive
+        /// with no session. Raised on the game's thread from <see cref="Update"/> or <c>GamerServicesComponent.Update()</c>, whichever runs first, as in XNA.
+        /// </summary>
         public static event EventHandler<InviteAcceptedEventArgs>? InviteAccepted;
 
         /// <summary>
@@ -336,9 +345,6 @@ namespace Microsoft.Xna.Framework.Net
         }
 
         /// <summary>
-        /// Asynchronously creates a new network session.
-        /// </summary>
-        /// <summary>
         /// Creates a session that joiners need a password for. The password never crosses the network; see
         /// <see cref="Password"/>.
         /// </summary>
@@ -347,6 +353,10 @@ namespace Microsoft.Xna.Framework.Net
             return CreateCoreAsync(sessionType, maxLocalGamers, maxGamers, privateGamerSlots, sessionProperties, password, cancellationToken);
         }
 
+        /// <summary>
+        /// Creates a session without a password. See the overload taking a password for the other parameters.
+        /// <paramref name="sessionProperties"/> may be null.
+        /// </summary>
         public static Task<NetworkSession> CreateAsync(NetworkSessionType sessionType, int maxLocalGamers, int maxGamers, int privateGamerSlots, IDictionary<string, object>? sessionProperties, CancellationToken cancellationToken = default)
         {
             return CreateCoreAsync(sessionType, maxLocalGamers, maxGamers, privateGamerSlots, sessionProperties, null, cancellationToken);
@@ -583,8 +593,6 @@ namespace Microsoft.Xna.Framework.Net
         }
 
         /// <summary>
-
-        /// <summary>
         /// Finds available network sessions synchronously with default properties.
         /// </summary>
         /// <remarks>
@@ -596,8 +604,6 @@ namespace Microsoft.Xna.Framework.Net
         {
             return FindAsync(sessionType, maxLocalGamers, new Dictionary<string, object>()).GetAwaiter().GetResult();
         }
-
-        /// <summary>
 
         /// <summary>
         /// Joins an available network session synchronously.
@@ -1398,6 +1404,7 @@ namespace Microsoft.Xna.Framework.Net
             }
         }
 
+        /// <summary>Ends the session as <see cref="Dispose()"/> does, but waits for an asynchronous transport to dispose asynchronously.</summary>
         public async ValueTask DisposeAsync()
         {
             GC.SuppressFinalize(this);

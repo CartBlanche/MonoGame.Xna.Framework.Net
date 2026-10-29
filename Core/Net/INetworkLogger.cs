@@ -28,16 +28,19 @@ namespace Microsoft.Xna.Framework.Net
     /// </summary>
     public class ConsoleNetworkLogger : INetworkLogger
     {
+        /// <inheritdoc/>
         public void LogInfo(string message)
         {
             Console.WriteLine($"[NET] {message}");
         }
 
+        /// <inheritdoc/>
         public void LogWarning(string message)
         {
             Console.WriteLine($"[NET-WARN] {message}");
         }
 
+        /// <inheritdoc/>
         public void LogError(string message, Exception? ex = null)
         {
             Console.WriteLine($"[NET-ERROR] {message}");
@@ -51,8 +54,11 @@ namespace Microsoft.Xna.Framework.Net
     /// </summary>
     public class NullNetworkLogger : INetworkLogger
     {
+        /// <inheritdoc/>
         public void LogInfo(string message) { }
+        /// <inheritdoc/>
         public void LogWarning(string message) { }
+        /// <inheritdoc/>
         public void LogError(string message, Exception? ex = null) { }
     }
 }

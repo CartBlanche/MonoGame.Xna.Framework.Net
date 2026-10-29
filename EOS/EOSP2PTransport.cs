@@ -52,8 +52,12 @@ namespace Microsoft.Xna.Framework.Net.EOS
             this.acceptPeer = acceptPeer;
         }
 
+        /// <inheritdoc/>
         public bool IsBound => isBound;
 
+        /// <summary>
+        /// The local EOS user as a peer, or <see cref="PeerId.None"/> before <see cref="Bind"/>.
+        /// </summary>
         public PeerId LocalPeer => isBound && localUserId != null ? ToPeer(localUserId) : PeerId.None;
 
         /// <summary>The peer that stands for an EOS user.</summary>
@@ -67,6 +71,11 @@ namespace Microsoft.Xna.Framework.Net.EOS
             return peer.Value.Substring(PeerPrefix.Length);
         }
 
+        /// <summary>
+        /// Opens the P2P socket for the signed-in user and starts listening for connection requests. Does nothing if already bound.
+        /// </summary>
+        /// <exception cref="InvalidOperationException">The EOS runtime is not initialized or no user is signed in.</exception>
+        /// <exception cref="ObjectDisposedException">The transport has been disposed.</exception>
         public void Bind()
         {
             ThrowIfDisposed();
@@ -85,6 +94,14 @@ namespace Microsoft.Xna.Framework.Net.EOS
             isBound = true;
         }
 
+        /// <summary>
+        /// Sends a datagram to an EOS user, unreliably and unordered. Binds the transport first if needed.
+        /// </summary>
+        /// <exception cref="ArgumentNullException"><paramref name="data"/> is <see langword="null"/>.</exception>
+        /// <exception cref="ArgumentOutOfRangeException"><paramref name="length"/> is negative, larger than <paramref name="data"/>, or larger than the EOS packet limit.</exception>
+        /// <exception cref="ArgumentException"><paramref name="peer"/> is not an EOS peer.</exception>
+        /// <exception cref="InvalidOperationException">EOS rejects the send, or the transport cannot be bound.</exception>
+        /// <exception cref="ObjectDisposedException">The transport has been disposed.</exception>
         public void Send(PeerId peer, byte[] data, int length)
         {
             ThrowIfDisposed();
@@ -115,6 +132,13 @@ namespace Microsoft.Xna.Framework.Net.EOS
                 throw new InvalidOperationException($"EOS P2P send to {text} failed: {result}");
         }
 
+        /// <summary>
+        /// Waits for the next datagram from any EOS user.
+        /// </summary>
+        /// <remarks>
+        /// Binds the transport if needed. While waiting it calls <c>EOSRuntime.RunCallbacks()</c>, so EOS callbacks are pumped for as long as a session is receiving.
+        /// </remarks>
+        /// <exception cref="ObjectDisposedException">The transport is or becomes disposed.</exception>
         public async Task<(byte[] Data, PeerId Sender)> ReceiveAsync()
         {
             ThrowIfDisposed();
@@ -152,6 +176,7 @@ namespace Microsoft.Xna.Framework.Net.EOS
             throw new ObjectDisposedException(nameof(EOSP2PTransport));
         }
 
+        /// <inheritdoc/>
         public void Dispose()
         {
             if (disposed)

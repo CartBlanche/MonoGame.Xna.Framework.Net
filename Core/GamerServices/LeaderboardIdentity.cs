@@ -5,6 +5,10 @@ namespace Microsoft.Xna.Framework.GamerServices
     /// </summary>
     public sealed class LeaderboardIdentity
     {
+        /// <summary>
+        /// Initializes a new instance of the <see cref="LeaderboardIdentity"/> class.
+        /// </summary>
+        /// <exception cref="ArgumentException"><paramref name="key"/> is null, empty or whitespace.</exception>
         public LeaderboardIdentity(string key)
         {
             if (string.IsNullOrWhiteSpace(key))
@@ -13,6 +17,9 @@ namespace Microsoft.Xna.Framework.GamerServices
             Key = key;
         }
 
+        /// <summary>
+        /// Gets the leaderboard key.
+        /// </summary>
         public string Key { get; }
     }
 }

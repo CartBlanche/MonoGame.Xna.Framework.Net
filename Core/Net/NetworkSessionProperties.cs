@@ -27,25 +27,38 @@ namespace Microsoft.Xna.Framework.Net
         /// <summary>The number of slots, always 8.</summary>
         public int Count => SlotCount;
 
+        /// <summary>Always false.</summary>
         public bool IsReadOnly => false;
 
         /// <summary>Sets every slot back to null.</summary>
         public void Clear() => Array.Clear(values, 0, values.Length);
 
+        /// <inheritdoc/>
         public bool Contains(int? item) => IndexOf(item) >= 0;
 
+        /// <inheritdoc/>
         public int IndexOf(int? item) => Array.IndexOf(values, item);
 
+        /// <inheritdoc/>
         public void CopyTo(int?[] array, int arrayIndex) => values.CopyTo(array, arrayIndex);
 
+        /// <inheritdoc/>
         public IEnumerator<int?> GetEnumerator() => ((IEnumerable<int?>)values).GetEnumerator();
 
         IEnumerator IEnumerable.GetEnumerator() => values.GetEnumerator();
 
         // the number of slots is fixed
+        /// <summary>Not supported: the number of slots is fixed at 8. Set a slot through the indexer instead.</summary>
+        /// <exception cref="NotSupportedException">Always thrown.</exception>
         public void Add(int? item) => throw new NotSupportedException();
+        /// <summary>Not supported: the number of slots is fixed at 8. Set a slot through the indexer instead.</summary>
+        /// <exception cref="NotSupportedException">Always thrown.</exception>
         public void Insert(int index, int? item) => throw new NotSupportedException();
+        /// <summary>Not supported: the number of slots is fixed at 8. Set a slot through the indexer instead.</summary>
+        /// <exception cref="NotSupportedException">Always thrown.</exception>
         public bool Remove(int? item) => throw new NotSupportedException();
+        /// <summary>Not supported: the number of slots is fixed at 8. Set a slot through the indexer instead.</summary>
+        /// <exception cref="NotSupportedException">Always thrown.</exception>
         public void RemoveAt(int index) => throw new NotSupportedException();
 
         private static int CheckIndex(int index)

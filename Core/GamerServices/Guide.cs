@@ -1,7 +1,17 @@
 namespace Microsoft.Xna.Framework.GamerServices
 {
+	/// <summary>
+	/// Contract for the sign-in UI shown by <see cref="Guide.ShowSignInAsync"/>.
+	/// </summary>
 	public interface IGuideSignInProvider
     {
+        /// <summary>
+        /// Shows the sign-in UI.
+        /// </summary>
+        /// <param name="paneCount">Number of sign-in panes (gamers) requested.</param>
+        /// <param name="onlineOnly">Whether only online-capable sign-in is acceptable.</param>
+        /// <param name="cancellationToken">Token to cancel the request.</param>
+        /// <returns>True if the user signed in; otherwise false.</returns>
         Task<bool> ShowSignInAsync(int paneCount, bool onlineOnly, CancellationToken cancellationToken = default);
     }
 

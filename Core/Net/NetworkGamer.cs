@@ -157,6 +157,15 @@ namespace Microsoft.Xna.Framework.Net
             return packet.Data.Length;
         }
 
+        /// <summary>
+        /// Receives data from this gamer into <paramref name="data"/>, starting at <paramref name="offset"/>.
+        /// Returns 0 and sets <paramref name="sender"/> to null when nothing is waiting.
+        /// </summary>
+        /// <param name="data">Array to receive the data into.</param>
+        /// <param name="offset">Index in <paramref name="data"/> at which to start writing.</param>
+        /// <param name="sender">The gamer who sent the data, or null if nothing was received.</param>
+        /// <returns>The number of bytes received.</returns>
+        /// <exception cref="ArgumentOutOfRangeException"><paramref name="offset"/> is not inside <paramref name="data"/>.</exception>
         public int ReceiveData(byte[] data, int offset, out NetworkGamer? sender)
         {
             ArgumentNullException.ThrowIfNull(data);
@@ -175,9 +184,9 @@ namespace Microsoft.Xna.Framework.Net
         }
 
         /// <summary>
-        /// Receives data from this gamer using PacketReader.
+        /// Receives the next packet from this gamer into a <see cref="PacketReader"/>.
         /// </summary>
-        /// <param name="data">Array to receive the data into.</param>
+        /// <param name="reader">The reader to load the packet into.</param>
         /// <param name="sender">The gamer who sent the data.</param>
         /// <returns>The number of bytes received.</returns>
         public int ReceiveData(PacketReader reader, out NetworkGamer? sender)
@@ -310,16 +319,19 @@ namespace Microsoft.Xna.Framework.Net
             roundtripTime = newRoundtripTime;
         }
 
+        /// <summary>Returns the gamertag with whether the gamer is local or remote and host or player, for example <c>Alice (Local, Host)</c>.</summary>
         public override string ToString()
         {
             return $"{Gamertag} ({(IsLocal ? "Local" : "Remote")}, {(IsHost ? "Host" : "Player")})";
         }
 
+        /// <summary>Two gamers are equal when their <see cref="GamerId"/> is the same.</summary>
         public override bool Equals(object? obj)
         {
             return obj is NetworkGamer other && GamerId == other.GamerId;
         }
 
+        /// <summary>Returns a hash code based on <see cref="GamerId"/>.</summary>
         public override int GetHashCode()
         {
             return GamerId.GetHashCode();

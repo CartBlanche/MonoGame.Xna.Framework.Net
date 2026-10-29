@@ -26,14 +26,25 @@ namespace Microsoft.Xna.Framework.Net.EOS
         private readonly object lobbyGate = new();
         private readonly HashSet<string> activeLobbies = new(StringComparer.Ordinal);
 
+        /// <summary>
+        /// Initializes a new instance of the <see cref="EOSBackend"/> class.
+        /// </summary>
+        /// <param name="fallbackMode">What to do when EOS is not ready: use the LAN back-end (default) or throw.</param>
         public EOSBackend(EOSFallbackMode fallbackMode = EOSFallbackMode.PreferFallback)
         {
             this.fallbackMode = fallbackMode;
         }
 
+        /// <inheritdoc/>
         public string Name => "EOS";
 
         // lobbies carry every type; without EOS up this is the LAN, which carries SystemLink only
+        /// <summary>
+        /// Whether sessions of this type can be created or found right now.
+        /// </summary>
+        /// <remarks>
+        /// <see cref="NetworkSessionType.SystemLink"/> is always supported (it uses the LAN when EOS is not ready); every other type needs <see cref="EOSRuntime.Initialize"/> to have been called and a user to be signed in.
+        /// </remarks>
         public bool SupportsSessionType(NetworkSessionType sessionType) =>
             sessionType == NetworkSessionType.SystemLink || Ready;
 
@@ -102,6 +113,13 @@ namespace Microsoft.Xna.Framework.Net.EOS
             return false;
         }
 
+        /// <summary>
+        /// Creates an <see cref="EOSP2PTransport"/>, or a LAN transport when EOS is not ready.
+        /// </summary>
+        /// <remarks>
+        /// EOS is ready once <see cref="EOSRuntime"/> is initialized and a user has signed in.
+        /// </remarks>
+        /// <exception cref="InvalidOperationException">EOS is not ready and the mode is <see cref="EOSFallbackMode.Strict"/>.</exception>
         public IPeerTransport CreateTransport()
         {
             return UseEos("session creation or join")
@@ -109,6 +127,10 @@ namespace Microsoft.Xna.Framework.Net.EOS
                 : lan.CreateTransport();
         }
 
+        /// <summary>
+        /// Publishes the session as an EOS lobby, or on the LAN when EOS is not ready.
+        /// </summary>
+        /// <exception cref="InvalidOperationException">EOS is not ready and the mode is <see cref="EOSFallbackMode.Strict"/>.</exception>
         public async Task AdvertiseAsync(ISessionAdvertiser session, IPeerTransport transport, CancellationToken stopToken)
         {
             if (!UseEos("session creation"))
@@ -162,6 +184,13 @@ namespace Microsoft.Xna.Framework.Net.EOS
             });
         }
 
+        /// <summary>
+        /// Searches EOS lobbies (at most 50) for sessions of the given type.
+        /// </summary>
+        /// <remarks>
+        /// Lobbies hosted by the local user are left out. A search that cannot be started or does not succeed returns an empty list. When EOS is not ready the LAN is searched instead.
+        /// </remarks>
+        /// <exception cref="InvalidOperationException">EOS is not ready and the mode is <see cref="EOSFallbackMode.Strict"/>.</exception>
         public async Task<IReadOnlyList<AvailableNetworkSession>> FindAsync(NetworkSessionType sessionType, int maxLocalGamers, CancellationToken cancellationToken)
         {
             if (!UseEos("session discovery"))
@@ -227,6 +256,11 @@ namespace Microsoft.Xna.Framework.Net.EOS
             return found;
         }
 
+        /// <summary>
+        /// Joins the EOS lobby named by the session's id and returns a handle that leaves it when disposed; when EOS is not ready the LAN back-end handles the join.
+        /// </summary>
+        /// <exception cref="ArgumentNullException"><paramref name="session"/> is <see langword="null"/>.</exception>
+        /// <exception cref="InvalidOperationException">EOS is not ready and the mode is <see cref="EOSFallbackMode.Strict"/>, or EOS refuses the join.</exception>
         public async Task<IDisposable> PrepareJoinAsync(AvailableNetworkSession session, IPeerTransport transport, CancellationToken cancellationToken)
         {
             if (session == null)

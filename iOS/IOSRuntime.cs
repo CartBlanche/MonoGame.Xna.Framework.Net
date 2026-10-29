@@ -17,6 +17,15 @@ namespace Microsoft.Xna.Framework.Net.iOS
         private static string gamertag;
         private static IAppleGameCenterClient gameCenterClient;
 
+        /// <summary>
+        /// Marks the runtime initialized and creates the Game Center client if there is none.
+        /// </summary>
+        /// <remarks>
+        /// Does not sign in; call <see cref="SignInAsync"/> afterwards.
+        /// </remarks>
+        /// <param name="initialPlayerId">Optional player id to start with.</param>
+        /// <param name="initialGamertag">Optional gamertag to start with.</param>
+        /// <returns>Always <see langword="true"/>.</returns>
         public static bool Initialize(string initialPlayerId = null, string initialGamertag = null)
         {
             lock (Gate)
@@ -35,6 +44,7 @@ namespace Microsoft.Xna.Framework.Net.iOS
             return true;
         }
 
+        /// <summary>Whether <see cref="Initialize"/> (or <see cref="SetSignedInIdentity"/>) has been called and <see cref="Shutdown"/> has not since.</summary>
         public static bool IsInitialized
         {
             get { lock (Gate) { return isInitialized; } }
@@ -63,6 +73,13 @@ namespace Microsoft.Xna.Framework.Net.iOS
             }
         }
 
+        /// <summary>
+        /// Authenticates with Game Center and updates <c>SignedInGamer.Current</c>.
+        /// </summary>
+        /// <remarks>
+        /// Returns <see langword="false"/> when <see cref="Initialize"/> has not been called. Authentication failures are logged, not thrown; the result then reflects whatever identity is already known.
+        /// </remarks>
+        /// <returns><see langword="true"/> if the gamer is now signed in.</returns>
         public static async Task<bool> SignInAsync(CancellationToken cancellationToken = default)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -98,6 +115,9 @@ namespace Microsoft.Xna.Framework.Net.iOS
             return RefreshSignedInGamerIdentity();
         }
 
+        /// <summary>
+        /// Sets the player id and gamertag directly and marks the runtime initialized, without contacting Game Center.
+        /// </summary>
         public static void SetSignedInIdentity(string newPlayerId, string newGamertag)
         {
             lock (Gate)
@@ -110,6 +130,9 @@ namespace Microsoft.Xna.Framework.Net.iOS
             RefreshSignedInGamerIdentity();
         }
 
+        /// <summary>
+        /// Reserved for callback pumping; currently does nothing.
+        /// </summary>
         public static void RunCallbacks()
         {
             // Reserved for future callback/event pumping.
@@ -142,6 +165,9 @@ namespace Microsoft.Xna.Framework.Net.iOS
             }
         }
 
+        /// <summary>
+        /// Clears the identity and the Game Center client and marks the gamer signed out.
+        /// </summary>
         public static void Shutdown()
         {
             lock (Gate)

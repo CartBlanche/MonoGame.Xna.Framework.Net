@@ -5,6 +5,12 @@ namespace Microsoft.Xna.Framework.GamerServices
     /// </summary>
     public interface IAchievementMediaProvider
     {
+        /// <summary>
+        /// Gets the icon for an achievement, or null if the provider has none.
+        /// </summary>
+        /// <param name="gamer">The gamer the icon is requested for.</param>
+        /// <param name="achievementKey">Key of the achievement.</param>
+        /// <param name="cancellationToken">Token to cancel the request.</param>
         Task<AchievementIcon?> GetIconAsync(SignedInGamer gamer, string achievementKey, CancellationToken cancellationToken = default);
     }
 
@@ -16,12 +22,19 @@ namespace Microsoft.Xna.Framework.GamerServices
         private static IAchievementMediaProvider? liveProvider;
         private static IAchievementMediaProvider localProvider = new InMemoryAchievementMediaProvider();
 
+        /// <summary>
+        /// Gets or sets the provider used when the gamer is signed in to live. When null, <see cref="LocalProvider"/> is used.
+        /// </summary>
         public static IAchievementMediaProvider? LiveProvider
         {
             get => liveProvider;
             set => liveProvider = value;
         }
 
+        /// <summary>
+        /// Gets or sets the provider used when the gamer is not signed in to live or no <see cref="LiveProvider"/> is set. The default is an in-memory provider.
+        /// </summary>
+        /// <exception cref="ArgumentNullException">The value is null.</exception>
         public static IAchievementMediaProvider LocalProvider
         {
             get => localProvider;

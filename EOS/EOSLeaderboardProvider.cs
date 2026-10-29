@@ -19,6 +19,13 @@ namespace Microsoft.Xna.Framework.Net.EOS
         private static readonly object Gate = new();
         private static readonly Dictionary<string, Dictionary<string, Submission>> Tables = new(StringComparer.Ordinal);
 
+        /// <summary>
+        /// Submits a score for the leaderboard keyed by <c>LeaderboardIdentity.Key</c>.
+        /// </summary>
+        /// <remarks>
+        /// The score is sent to EOS when the runtime is initialized (failures are swallowed) and always recorded in a table kept in this process, which keeps each gamer's highest score.
+        /// </remarks>
+        /// <exception cref="ArgumentNullException"><paramref name="writer"/> is <see langword="null"/>.</exception>
         public async Task SubmitAsync(LeaderboardWriter writer, CancellationToken cancellationToken = default)
         {
             if (writer == null)
@@ -69,6 +76,14 @@ namespace Microsoft.Xna.Framework.Net.EOS
             }
         }
 
+        /// <summary>
+        /// Reads a page of leaderboard entries.
+        /// </summary>
+        /// <remarks>
+        /// Entries come from EOS when it returns any; otherwise (not initialized, call failed, or empty) from the table kept in this process. The EOS path does not use <paramref name="pivotGamer"/>; the local path centres the page on that gamer when they are found.
+        /// </remarks>
+        /// <exception cref="ArgumentNullException"><paramref name="identity"/> is <see langword="null"/>.</exception>
+        /// <exception cref="ArgumentOutOfRangeException"><paramref name="pageStart"/> is negative or <paramref name="pageSize"/> is not positive.</exception>
         public async Task<LeaderboardReader> ReadAsync(
             LeaderboardIdentity identity,
             int pageStart,

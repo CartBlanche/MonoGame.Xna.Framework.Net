@@ -13,6 +13,14 @@ namespace Microsoft.Xna.Framework.Net.EOS
         private readonly Dictionary<string, AchievementIcon> iconCache = new(StringComparer.Ordinal);
         private readonly Queue<string> cacheAccessOrder = new();
 
+        /// <summary>
+        /// Returns the achievement's icon from EOS, or <see langword="null"/> when none is available.
+        /// </summary>
+        /// <remarks>
+        /// Needs <see cref="EOSRuntime.Initialize"/> to have been called. If the live lookup is unavailable, fails, or has no icon data for the key, the result is <see langword="null"/>. Content type defaults to <c>image/png</c> when EOS gives none. Results, misses included, are cached per key.
+        /// </remarks>
+        /// <exception cref="ArgumentNullException"><paramref name="gamer"/> is <see langword="null"/>.</exception>
+        /// <exception cref="ArgumentException"><paramref name="achievementKey"/> is null, empty or whitespace.</exception>
         public async Task<AchievementIcon> GetIconAsync(SignedInGamer gamer, string achievementKey, CancellationToken cancellationToken = default)
         {
             if (gamer == null)

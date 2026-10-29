@@ -18,6 +18,13 @@ namespace Microsoft.Xna.Framework.Net.EOS
         private static readonly object Gate = new();
         private static readonly Dictionary<string, Dictionary<string, AchievementState>> GamerAchievements = new(StringComparer.Ordinal);
 
+        /// <summary>
+        /// Lists every achievement registered in the <c>AchievementCatalog</c> with its progress.
+        /// </summary>
+        /// <remarks>
+        /// Progress comes from EOS when the runtime is initialized and the call succeeds; otherwise, or for achievements EOS does not report, from state kept in this process (not persisted by this provider).
+        /// </remarks>
+        /// <exception cref="ArgumentNullException"><paramref name="gamer"/> is <see langword="null"/>.</exception>
         public async Task<AchievementCollection> GetAchievementsAsync(SignedInGamer gamer, CancellationToken cancellationToken = default)
         {
             if (gamer == null)
@@ -92,6 +99,14 @@ namespace Microsoft.Xna.Framework.Net.EOS
             return new AchievementCollection(rows);
         }
 
+        /// <summary>
+        /// Reports progress towards an achievement; 100 percent marks it earned.
+        /// </summary>
+        /// <remarks>
+        /// <paramref name="percentComplete"/> is clamped to 0-100. The value is sent to EOS when the runtime is initialized (failures are swallowed) and is always recorded in this process, where progress never decreases and an earned achievement is left unchanged.
+        /// </remarks>
+        /// <exception cref="ArgumentNullException"><paramref name="gamer"/> is <see langword="null"/>.</exception>
+        /// <exception cref="ArgumentException"><paramref name="achievementKey"/> is null, empty or whitespace.</exception>
         public async Task SetProgressAsync(SignedInGamer gamer, string achievementKey, float percentComplete, CancellationToken cancellationToken = default)
         {
             if (gamer == null)
@@ -132,6 +147,14 @@ namespace Microsoft.Xna.Framework.Net.EOS
             }
         }
 
+        /// <summary>
+        /// Unlocks the achievement on EOS and in this process's local state.
+        /// </summary>
+        /// <remarks>
+        /// EOS failures are swallowed; the local state is updated regardless.
+        /// </remarks>
+        /// <exception cref="ArgumentNullException"><paramref name="gamer"/> is <see langword="null"/>.</exception>
+        /// <exception cref="ArgumentException"><paramref name="achievementKey"/> is null, empty or whitespace.</exception>
         public async Task UnlockAsync(SignedInGamer gamer, string achievementKey, CancellationToken cancellationToken = default)
         {
             if (gamer == null)

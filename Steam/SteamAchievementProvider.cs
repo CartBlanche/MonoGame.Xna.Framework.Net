@@ -9,6 +9,13 @@ namespace Microsoft.Xna.Framework.Net.Steam
     /// </summary>
     public sealed class SteamAchievementProvider : IAchievementProvider
     {
+        /// <summary>
+        /// Lists every achievement registered in the <c>AchievementCatalog</c>, marked earned or not according to Steam.
+        /// </summary>
+        /// <remarks>
+        /// Progress is reported only as 0 or 100 percent. Achievements Steam cannot be asked about (for example before <see cref="SteamRuntime.Initialize"/>) appear as not earned.
+        /// </remarks>
+        /// <exception cref="ArgumentNullException"><paramref name="gamer"/> is <see langword="null"/>.</exception>
         public Task<AchievementCollection> GetAchievementsAsync(SignedInGamer gamer, CancellationToken cancellationToken = default)
         {
             if (gamer == null)
@@ -41,6 +48,14 @@ namespace Microsoft.Xna.Framework.Net.Steam
             return Task.FromResult(new AchievementCollection(rows));
         }
 
+        /// <summary>
+        /// Reports partial progress towards an achievement; reaching 100 percent unlocks it.
+        /// </summary>
+        /// <remarks>
+        /// <paramref name="percentComplete"/> is clamped to 0-100. Below 100 it is only a progress hint to Steam (and is ignored if Steam is unavailable); at 100 this calls <see cref="UnlockAsync"/>.
+        /// </remarks>
+        /// <exception cref="ArgumentNullException"><paramref name="gamer"/> is <see langword="null"/>.</exception>
+        /// <exception cref="ArgumentException"><paramref name="achievementKey"/> is null, empty or whitespace.</exception>
         public Task SetProgressAsync(SignedInGamer gamer, string achievementKey, float percentComplete, CancellationToken cancellationToken = default)
         {
             if (gamer == null)
@@ -61,6 +76,14 @@ namespace Microsoft.Xna.Framework.Net.Steam
             return Task.CompletedTask;
         }
 
+        /// <summary>
+        /// Unlocks the achievement on Steam and stores the stats.
+        /// </summary>
+        /// <remarks>
+        /// Steam failures are not reported to the caller; the task completes either way.
+        /// </remarks>
+        /// <exception cref="ArgumentNullException"><paramref name="gamer"/> is <see langword="null"/>.</exception>
+        /// <exception cref="ArgumentException"><paramref name="achievementKey"/> is null, empty or whitespace.</exception>
         public Task UnlockAsync(SignedInGamer gamer, string achievementKey, CancellationToken cancellationToken = default)
         {
             if (gamer == null)

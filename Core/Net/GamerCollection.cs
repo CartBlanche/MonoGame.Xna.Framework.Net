@@ -10,10 +10,10 @@ namespace Microsoft.Xna.Framework.Net
         internal GamerCollection(IList<NetworkGamer> list) : base(list) { }
 
         /// <summary>
-        /// Finds a gamer by their gamertag.
+        /// Finds a gamer by their session-unique id.
         /// </summary>
-        /// <param name="gamertag">The gamertag to search for.</param>
-        /// <returns>The gamer with the specified gamertag, or null if not found.</returns>
+        /// <param name="id">The <see cref="NetworkGamer.Id"/> to search for.</param>
+        /// <returns>The gamer with that id, or null if not found.</returns>
         public NetworkGamer? FindGamerById(byte id)
         {
             foreach (var gamer in this)

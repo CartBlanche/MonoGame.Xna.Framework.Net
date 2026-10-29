@@ -5,7 +5,20 @@ namespace Microsoft.Xna.Framework.GamerServices
     /// </summary>
     public interface ILeaderboardProvider
     {
+        /// <summary>
+        /// Submits the score held by <paramref name="writer"/>.
+        /// </summary>
+        /// <param name="writer">The leaderboard, gamer and score to submit.</param>
+        /// <param name="cancellationToken">Token to cancel the request.</param>
         Task SubmitAsync(LeaderboardWriter writer, CancellationToken cancellationToken = default);
+        /// <summary>
+        /// Reads one page of a leaderboard.
+        /// </summary>
+        /// <param name="identity">The leaderboard to read.</param>
+        /// <param name="pageStart">Zero-based index of the first row to return.</param>
+        /// <param name="pageSize">Maximum number of rows to return.</param>
+        /// <param name="pivotGamer">If given, the built-in providers centre the page on this gamer when they have a score, and flag their row.</param>
+        /// <param name="cancellationToken">Token to cancel the request.</param>
         Task<LeaderboardReader> ReadAsync(
             LeaderboardIdentity identity,
             int pageStart,

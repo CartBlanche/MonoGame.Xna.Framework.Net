@@ -19,6 +19,13 @@ namespace Microsoft.Xna.Framework.Net.iOS
         private static readonly object Gate = new();
         private static readonly Dictionary<string, Dictionary<string, Submission>> Tables = new(StringComparer.Ordinal);
 
+        /// <summary>
+        /// Submits a score for the leaderboard keyed by <c>LeaderboardIdentity.Key</c>.
+        /// </summary>
+        /// <remarks>
+        /// The score is sent to Game Center when the runtime is initialized (failures are swallowed) and always recorded in a table kept in this process, which keeps each gamer's highest score.
+        /// </remarks>
+        /// <exception cref="ArgumentNullException"><paramref name="writer"/> is <see langword="null"/>.</exception>
         public async Task SubmitAsync(LeaderboardWriter writer, CancellationToken cancellationToken = default)
         {
             if (writer == null)
@@ -69,6 +76,13 @@ namespace Microsoft.Xna.Framework.Net.iOS
             }
         }
 
+        /// <summary>
+        /// Reads a page of leaderboard entries.
+        /// </summary>
+        /// <remarks>
+        /// Entries come from Game Center when it returns any; otherwise from the table kept in this process.
+        /// </remarks>
+        /// <exception cref="ArgumentNullException"><paramref name="identity"/> is <see langword="null"/>.</exception>
         public async Task<LeaderboardReader> ReadAsync(
             LeaderboardIdentity identity,
             int pageStart,
