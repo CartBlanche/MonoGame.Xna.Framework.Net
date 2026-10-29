@@ -131,6 +131,7 @@ How closely this library follows XNA Game Studio 4.0's `Microsoft.Xna.Framework.
 ## Migrating from earlier versions of this library
 
 - `NetworkGamer.Id` is now XNA's `byte`. The string that used to be `Id` is `GamerId`.
+  **Watch for silent breaks:** code that passed `gamer.Id` to something that takes any object (`Array.IndexOf(stringArray, gamer.Id)`, `list.Contains(gamer.Id)`, `Equals`, `object ==`, string concatenation) still compiles, but a byte never equals a string, so it quietly stops matching. Search for every `.Id` that is not a compile error. ShipGame lost its "has left" notices this way.
 - `NetworkGamer.Gamertag` is read-only, and `NetworkGamer` derives from `Gamer`.
 - `QualityOfService` uses XNA's names: `AverageRoundtripTime`, `MinimumRoundtripTime`, `BytesPerSecondDownstream` (was `...Received`) and `BytesPerSecondUpstream` (was `...Sent`).
 - `NetworkException`, `GamerPrivilegeException` and `InviteAcceptedEventArgs` moved from `Microsoft.Xna.Framework.Net` to `Microsoft.Xna.Framework.GamerServices`, where XNA has them.
