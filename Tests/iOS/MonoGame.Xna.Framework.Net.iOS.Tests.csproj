@@ -2,6 +2,7 @@
 
   <PropertyGroup>
     <TargetFramework>net10.0-ios</TargetFramework>
+    <OutputType>Exe</OutputType>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>disable</Nullable>
     <RootNamespace>Microsoft.Xna.Framework</RootNamespace>
@@ -11,11 +12,15 @@
     <ApplicationId>com.example.mgnet.ios.tests</ApplicationId>
     <ApplicationTitle>MonoGame.Xna.Framework.Net.iOS.Tests</ApplicationTitle>
     <ApplicationManifest>Info.plist</ApplicationManifest>
-    <EnableCodeSigning>false</EnableCodeSigning>
-    <CodesignKey></CodesignKey>
-    <CodesignProvision></CodesignProvision>
-    <SigningKey></SigningKey>
-    <ProvisioningType></ProvisioningType>
+    <!-- MonoGame.Framework.iOS calls OpenAL but its package only links CoreAudio and AudioToolbox -->
+    <MtouchExtraArgs>$(MtouchExtraArgs) --gcc_flags="-framework OpenAL"</MtouchExtraArgs>
+    <UseInterpreter>true</UseInterpreter>
+    <!-- KNOWN PROBLEM: even so, MonoGame.Framework.dll does not reach the app bundle, so every test fails at runtime
+         with "Could not find MonoGame.Framework referenced by MonoGame.Xna.Framework.Net" (plan task 9.x) -->
+    <MtouchLink>None</MtouchLink>
+    <SupportedOSPlatformVersion>18.0</SupportedOSPlatformVersion>
+    <!-- the simulator needs at least an ad-hoc signature, or the app is killed at launch (Code Signature Invalid) -->
+    <CodesignKey>-</CodesignKey>
   </PropertyGroup>
 
   <ItemGroup>
