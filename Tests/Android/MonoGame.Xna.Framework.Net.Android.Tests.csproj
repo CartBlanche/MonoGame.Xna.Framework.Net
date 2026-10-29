@@ -21,7 +21,8 @@
     <PackageReference Include="NUnitLite" Version="3.13.2" />
     <PackageReference Include="NUnit3TestAdapter" Version="4.5.0" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.7.2" />
-    <PackageReference Include="MonoGame.Framework.Android" Version="3.8.*" PrivateAssets="all" />
+    <!-- no PrivateAssets="all": the SDK then leaves the package out of the app, and nothing runs -->
+    <PackageReference Include="MonoGame.Framework.Android" Version="3.8.*" />
   </ItemGroup>
 
   <ItemGroup>

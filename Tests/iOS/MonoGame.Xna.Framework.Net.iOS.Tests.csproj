@@ -15,13 +15,17 @@
     <!-- MonoGame.Framework.iOS calls OpenAL but its package only links CoreAudio and AudioToolbox -->
     <MtouchExtraArgs>$(MtouchExtraArgs) --gcc_flags="-framework OpenAL"</MtouchExtraArgs>
     <UseInterpreter>true</UseInterpreter>
-    <!-- KNOWN PROBLEM: even so, MonoGame.Framework.dll does not reach the app bundle, so every test fails at runtime
-         with "Could not find MonoGame.Framework referenced by MonoGame.Xna.Framework.Net" (plan task 9.x) -->
-    <MtouchLink>None</MtouchLink>
     <SupportedOSPlatformVersion>18.0</SupportedOSPlatformVersion>
     <!-- the simulator needs at least an ad-hoc signature, or the app is killed at launch (Code Signature Invalid) -->
     <CodesignKey>-</CodesignKey>
   </PropertyGroup>
+
+  <ItemGroup>
+    <!-- the trimmer would remove the test fixtures, which nothing references (MtouchLink=None breaks the registrar instead) -->
+    <TrimmerRootAssembly Include="MonoGame.Xna.Framework.Net.iOS.Tests" />
+    <TrimmerRootAssembly Include="nunit.framework" />
+    <TrimmerRootAssembly Include="nunitlite" />
+  </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\..\iOS\MonoGame.Xna.Framework.Net.iOS.csproj" />
@@ -30,7 +34,8 @@
   <ItemGroup>
     <PackageReference Include="NUnit" Version="3.13.2" />
     <PackageReference Include="NUnitLite" Version="3.13.2" />
-    <PackageReference Include="MonoGame.Framework.iOS" Version="3.8.*" PrivateAssets="all" />
+    <!-- no PrivateAssets="all": the SDK then leaves the package out of the app bundle -->
+    <PackageReference Include="MonoGame.Framework.iOS" Version="3.8.*" />
   </ItemGroup>
 
   <ItemGroup>

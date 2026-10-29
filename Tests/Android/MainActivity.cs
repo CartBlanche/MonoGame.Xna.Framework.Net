@@ -31,7 +31,7 @@ namespace Microsoft.Xna.Framework.Net.Tests
             try
             {
                 var runner = new AutoRun(typeof(MainActivity).Assembly);
-                exit = runner.Execute(new[] { "--labels=All" }, new ExtendedTextWrapper(new LogcatWriter()), TextReader.Null);
+                exit = runner.Execute(new[] { "--labels=All", "--noresult" }, new ExtendedTextWrapper(new LogcatWriter()), TextReader.Null);
             }
             catch (Exception ex)
             {
