@@ -814,6 +814,17 @@ namespace Microsoft.Xna.Framework.Net
                         logger?.LogInfo($"Join request from {joinRequest.Gamertag} is a retry (gamer already exists), resending acceptance");
                     }
                 }
+
+                // A retry must come from the address the gamer joined from. Otherwise anybody who knew a
+                // gamer's id (it is in everyone's roster) could take over that gamer's connection.
+                if (!isNewGamer && PeerOf(existingGamer) != e.RemotePeer)
+                {
+                    logger?.LogWarning($"Join request for {existingGamer.Gamertag} from {e.RemotePeer} refused: that gamer joined from another address");
+                    var taken = new PacketWriter();
+                    new JoinRejectedMessage { ErrorCode = NetworkSessionJoinError.SessionNotJoinable, Reason = "A gamer with that id is already in the session" }.Serialize(taken);
+                    SendTo(e.RemotePeer, taken.GetData());
+                    return;
+                }
                 
                 // Register endpoint outside lock (uses its own lock internally)
                 RegisterGamerEndpoint(existingGamer, e.RemotePeer);
@@ -855,8 +866,9 @@ namespace Microsoft.Xna.Framework.Net
             }
             else if (e.Message is JoinAcceptedMessage joinAccepted)
             {
-                // Client receives confirmation from host; ensure host is present and mapped
-                if (!IsHost)
+                // Client receives confirmation from host; ensure host is present and mapped. Only the
+                // address the request went to may answer it: anybody else's "acceptance" is a forgery.
+                if (!IsHost && (!JoinTargetPeer.IsValid || e.RemotePeer == JoinTargetPeer))
                 {
                     logger?.LogInfo($"Received JoinAcceptedMessage from host {joinAccepted.HostGamertag}");
                     
@@ -891,7 +903,7 @@ namespace Microsoft.Xna.Framework.Net
 
                 // Session state remains in Joining; JoinSessionAsync notices the rejection and
                 // fails with the host's reason instead of waiting for a timeout
-                if (sessionState == NetworkSessionState.Joining)
+                if (sessionState == NetworkSessionState.Joining && (!JoinTargetPeer.IsValid || e.RemotePeer == JoinTargetPeer))
                 {
                     joinRejectedError = joinRejected.ErrorCode;
                     joinRejectedReason = joinRejected.Reason;       // written last: readers check this one
@@ -923,6 +935,17 @@ namespace Microsoft.Xna.Framework.Net
             }
             else if (e.Message is ReadinessUpdateMessage readiness)
             {
+                // A client may only say it is ready itself; the host may say it of anyone (it relays them).
+                var readinessSender = GamerAt(e.RemotePeer);
+                bool allowed = IsHost
+                    ? readinessSender != null && readinessSender.GamerId == readiness.GamerId
+                    : IsFromHost(e.RemotePeer);
+                if (!allowed)
+                {
+                    logger?.LogWarning($"Ignored a readiness update for {readiness.GamerId} from {e.RemotePeer}");
+                    return;
+                }
+
                 // Apply update and, if host, rebroadcast to others
                 ApplyReadinessUpdate(readiness);
                 if (IsHost)
@@ -942,18 +965,23 @@ namespace Microsoft.Xna.Framework.Net
             }
             else if (e.Message is HeartbeatMessage heartbeat)
             {
-                // Phase 1: Handle heartbeat from remote gamer
-                connectionMonitor?.OnHeartbeatReceived(heartbeat.GamerId, heartbeat);
+                // A heartbeat keeps its sender alive, so it must be the sender's own: not a stranger's, and
+                // not one claiming to be somebody else.
+                if (GamerAt(e.RemotePeer)?.GamerId == heartbeat.GamerId)
+                    connectionMonitor?.OnHeartbeatReceived(heartbeat.GamerId, heartbeat);
             }
             else if (e.Message is HeartbeatReplyMessage heartbeatReply)
             {
-                // Phase 1: Handle heartbeat reply for RTT calculation
-                connectionMonitor?.OnHeartbeatReplyReceived(heartbeatReply.GamerId, heartbeatReply);
-                
-                // Update diagnostics
-                var rtt = TimeSpan.FromMilliseconds(
-                    DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - heartbeatReply.RequestTimestamp);
-                diagnostics?.RecordRtt(rtt);
+                if (GamerAt(e.RemotePeer)?.GamerId == heartbeatReply.GamerId)
+                {
+                    // Phase 1: Handle heartbeat reply for RTT calculation
+                    connectionMonitor?.OnHeartbeatReplyReceived(heartbeatReply.GamerId, heartbeatReply);
+
+                    // Update diagnostics
+                    var rtt = ConnectionHealthMonitor.RoundtripSince(heartbeatReply.RequestTimestamp);
+                    if (rtt.HasValue)
+                        diagnostics?.RecordRtt(rtt.Value);
+                }
             }
             else if (e.Message is GamerJoinedMessage gamerJoined)
             {
@@ -1002,8 +1030,9 @@ namespace Microsoft.Xna.Framework.Net
             }
             else if (e.Message is SessionStateMessage stateMessage)
             {
-                // Phase 2: Handle session state synchronization from host
-                if (!IsHost)
+                // Phase 2: Handle session state synchronization from host. Only the host decides the
+                // state; a forged "the game has started" from anybody else is ignored.
+                if (!IsHost && IsFromHost(e.RemotePeer))
                 {
                     logger?.LogInfo($"Received session state update: {stateMessage.NewState} - {stateMessage.Reason}");
                     
@@ -1520,6 +1549,18 @@ namespace Microsoft.Xna.Framework.Net
                 host = gamers.FirstOrDefault(g => g.IsHost && !g.IsLocal);
             return host != null && PeerOf(host) == endpoint;
         }
+
+        // the gamer a datagram came from, going by the address it came from, or null if nobody here has that address
+        private NetworkGamer GamerAt(PeerId peer)
+        {
+            if (!peer.IsValid)
+                return null;
+            lock (lockObject)
+                return gamers.FirstOrDefault(g => !g.IsLocal && gamerPeers.TryGetValue(g.GamerId, out var p) && p == peer);
+        }
+
+        // the address a joiner sent its join request to: the only one that may answer it
+        internal PeerId JoinTargetPeer { get; set; }
 
         // a gamer the host told us about: not directly connected, reached through the host
         private void AddPeer(byte id, string gamerId, string gamertag)

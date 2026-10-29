@@ -184,19 +184,35 @@ namespace Microsoft.Xna.Framework.Net
         /// <summary>
         /// Called when HeartbeatReplyMessage is received (for RTT calculation).
         /// </summary>
+        /// <summary>
+        /// The time since a request timestamp (Unix milliseconds), or null if that is not a plausible
+        /// roundtrip: in the future, or more than a minute ago.
+        /// </summary>
+        internal static TimeSpan? RoundtripSince(long requestTimestampMilliseconds)
+        {
+            long elapsed = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - requestTimestampMilliseconds;
+            // a little negative is clock granularity, not a lie
+            if (elapsed < -50 || elapsed > 60_000)
+                return null;
+            return TimeSpan.FromMilliseconds(Math.Max(0, elapsed));
+        }
+
         public void OnHeartbeatReplyReceived(string gamerId, HeartbeatReplyMessage reply)
         {
             lock (connections)
             {
                 if (connections.TryGetValue(gamerId, out var state))
                 {
-                    var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-                    var rtt = TimeSpan.FromMilliseconds(now - reply.RequestTimestamp);
-                    state.LastRtt = rtt;
+                    // the timestamp is the peer's to claim: one from the future, or from long ago, is not a measurement
+                    var rtt = RoundtripSince(reply.RequestTimestamp);
+                    if (rtt.HasValue)
+                    {
+                        state.LastRtt = rtt.Value;
 
-                    // Update gamer's RTT for QoS display
-                    var gamer = session?.AllGamers.FirstOrDefault(g => g.GamerId == gamerId);
-                    gamer?.UpdateRoundtripTime(rtt);
+                        // Update gamer's RTT for QoS display
+                        var gamer = session?.AllGamers.FirstOrDefault(g => g.GamerId == gamerId);
+                        gamer?.UpdateRoundtripTime(rtt.Value);
+                    }
                 }
             }
         }

@@ -280,6 +280,9 @@ namespace Microsoft.Xna.Framework.Net
                 throw new NetworkSessionJoinException("Host endpoint is null", NetworkSessionJoinError.SessionNotFound);
             }
 
+            // only the host's address may answer our join request
+            session.JoinTargetPeer = availableSession.HostPeer;
+
             // The host gamer is added when the host accepts us and says who it is
 
             // Phase 1: Send join request with retry logic
