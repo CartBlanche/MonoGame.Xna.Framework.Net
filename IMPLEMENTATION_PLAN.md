@@ -35,7 +35,6 @@ _Last updated: 2026-10-29 (Phases 0-5 complete; Steam/EOS lobbies and invites, a
 - [x] Any datagram from a peer counts as a heartbeat
 
 ### Known pre-existing working-tree change
-- `EOS/EOSClient.cs` has uncommitted edits unrelated to this plan. Leave them alone; commit separately.
 
 ---
 
@@ -258,14 +257,14 @@ Tasks
 
 ## Phase 8: Modernisation and cleanup
 
-- [x] 8.1 One framework-wide `NetworkLogging.Logger` (default: debugger output); sessions use it unless given their own, and the LAN code and every back-end log through it. 55 `Debug.WriteLine` calls converted, with a severity each. Still to convert once the owner's uncommitted `EOS/EOSClient.cs` changes are settled: its 34 calls
+- [x] 8.1 One framework-wide `NetworkLogging.Logger` (default: debugger output); sessions use it unless given their own, and the LAN code and every back-end log through it. 55 `Debug.WriteLine` calls converted, with a severity each. `EOSClient`'s 34 calls converted with the EOS review
 - [ ] 8.2 (SKIPPED for now) Instance-based service container behind the static `NetworkServiceProvider`/registries (statics remain as the facade)
 - [x] 8.3 Removed the empty `NetworkMessages.cs` and the empty duplicate `MessageReceivedEventArgs.cs`; `Net.GamerCollection` now derives from `GamerCollection<NetworkGamer>` (the XNA type), so `GamerCollection<NetworkGamer> all = session.AllGamers` compiles
 - [x] 8.4 `PlayerMoveMessage` deleted (nothing used it; wire id 1 is now unassigned)
 - [x] 8.5 "Phase N" comments removed; the legacy `GameStateChangeMessage` broadcast was already gone
 - [x] 8.6 Every await in Core and the back-ends is `ConfigureAwait(false)`; all 14 blocking wrappers say they block and why they cannot deadlock. `Guide.ShowMessageBoxAsync` used `Task.Yield()`, which resumes on the caller's context and would have deadlocked `ShowMessageBox`; it now hops to the thread pool
 - [x] 8.7 Nullable reference types and `latest-recommended` analyzers on Core: 90 nullable warnings and 73 analyzer warnings fixed, 0 left. Downgraded to none in `Core/.editorconfig`: CA1707/CA1708 (public names follow the protocol and XNA), CA1822 (XNA-shaped instance members), CA1805 (explicit defaults document intent). Public changes a nullable-aware caller sees: `?` on `FindGamerById`, `Host`, `Tag`, `Sender`, `Password`, `SignedInGamer.Privileges` (never assigned: always null), the achievement icon providers, `PrepareJoinAsync`; the optional string and exception arguments
-- [ ] 8.8 EOS: decide whether the generated 9.6k-line binding stays vendored or becomes a package reference
+- [x] 8.8 EOS binding stays vendored: Epic ships its C# SDK as source to copy in and publishes no NuGet package of its own (only an unofficial one). Before the first publish (9.5), check that the Epic Online Services Developer Agreement allows redistributing the SDK source and native libraries in our package. EOS code reviewed 2026-10-29 (see the decisions log); still NOT run against a real Epic account
 
 ---
 
@@ -329,6 +328,8 @@ Exit criteria: a containerised server accepts clients from another network and s
 | 2026-10-29 | Voice (Phase 7) deferred until after Phase 9; work continues with Phase 8 | Optional, and nothing in Phases 8 to 10 depends on it |
 | 2026-10-29 | A session's default logger is now the framework logger (debugger output), no longer the console | Console output is noise in a shipped game; `NetworkLogging.Logger` is the one place a game redirects it |
 | 2026-10-29 | 8.2 (instance-based service container) skipped for now | The statics are the XNA-shaped facade and nothing needs several contexts in one process yet; revisit with Phase 10 |
+| 2026-10-29 | EOS transport ticks the SDK from its receive loop, and holds a P2P connection request from a stranger for up to 10 s before refusing | Connection requests and lobby member changes are only delivered on a tick, and a joiner's request can beat the host's lobby member list; both would otherwise make a join fail |
+| 2026-10-29 | EOS republishes the password flag with the properties; the owner's native-library probing in `EOSClient` is kept, its alias copy dropped, and the build copies the machine's own EOS library to the output | The committed resolver could not find the library when run from source (a test proves it); the alias was not needed (a test shows the resolver alone loads it) and wrote files into the app folder. The platform flags default stays `DisableOverlay` |
 | 2026-10-28 | Events move to `Update()` | This matches XNA's behaviour, so it is also a compat fix |
 | 2026-10-28 | Phase 2 shipped as one commit, not the two planned (A and B) | The event queue and the per-session local gamer change the same lines of `NetworkSession.cs` |
 | 2026-10-28 | `SessionEnded` is raised at most once per session | Previously a client whose host left, then disposed in the handler, got it twice (HostEndedSession then ClientSignedOut) |

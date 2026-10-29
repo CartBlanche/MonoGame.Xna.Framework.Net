@@ -7,6 +7,7 @@ using Logging = Epic.OnlineServices.Logging;
 using Platform = Epic.OnlineServices.Platform;
 using Stats = Epic.OnlineServices.Stats;
 using System.Diagnostics;
+using System.IO;
 using System.Reflection;
 using System.Runtime.InteropServices;
 
@@ -51,13 +52,13 @@ namespace Microsoft.Xna.Framework.Net.EOS
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[EOSClient] Auth login failed: {ex.Message}");
+                NetworkLogging.Logger.LogWarning($"[EOSClient] Auth login failed: {ex.Message}");
                 return new EpicAccountPlayer();
             }
 
             if (authLogin.ResultCode != Result.Success || authLogin.LocalUserId == null)
             {
-                System.Diagnostics.Debug.WriteLine($"[EOSClient] Auth login did not succeed: {authLogin.ResultCode}");
+                NetworkLogging.Logger.LogWarning($"[EOSClient] Auth login did not succeed: {authLogin.ResultCode}");
                 return new EpicAccountPlayer();
             }
 
@@ -72,7 +73,7 @@ namespace Microsoft.Xna.Framework.Net.EOS
             var copyResult = authInterface.CopyIdToken(ref copyIdTokenOptions, out var idToken);
             if (copyResult != Result.Success || idToken == null || string.IsNullOrWhiteSpace(idToken.Value.JsonWebToken))
             {
-                System.Diagnostics.Debug.WriteLine($"[EOSClient] CopyIdToken failed: {copyResult}");
+                NetworkLogging.Logger.LogWarning($"[EOSClient] CopyIdToken failed: {copyResult}");
                 return new EpicAccountPlayer { Id = accountId };
             }
 
@@ -102,7 +103,7 @@ namespace Microsoft.Xna.Framework.Net.EOS
 
             if (!TryEnsurePlatform(out var settings, out var platform))
             {
-                Debug.WriteLine("[EOSClient] SubmitScoreAsync: platform not available.");
+                NetworkLogging.Logger.LogWarning("[EOSClient] SubmitScoreAsync: platform not available.");
                 return;
             }
 
@@ -111,7 +112,7 @@ namespace Microsoft.Xna.Framework.Net.EOS
 
             if (userId == null || !userId.IsValid())
             {
-                Debug.WriteLine("[EOSClient] SubmitScoreAsync: no authenticated product user.");
+                NetworkLogging.Logger.LogWarning("[EOSClient] SubmitScoreAsync: no authenticated product user.");
                 return;
             }
 
@@ -139,7 +140,7 @@ namespace Microsoft.Xna.Framework.Net.EOS
 
             var result = await WaitForCallbackAsync(completion, settings.CallbackTimeout, cancellationToken, "Stats.IngestStat").ConfigureAwait(false);
             if (result.ResultCode != Result.Success)
-                Debug.WriteLine($"[EOSClient] Stats.IngestStat failed: {result.ResultCode}");
+                NetworkLogging.Logger.LogWarning($"[EOSClient] Stats.IngestStat failed: {result.ResultCode}");
         }
 
         public async Task<IReadOnlyList<EpicLeaderboardEntry>> GetTopScoresAsync(string leaderboardId, int maxResults, CancellationToken cancellationToken = default)
@@ -152,7 +153,7 @@ namespace Microsoft.Xna.Framework.Net.EOS
 
             if (!TryEnsurePlatform(out var settings, out var platform))
             {
-                Debug.WriteLine("[EOSClient] GetTopScoresAsync: platform not available.");
+                NetworkLogging.Logger.LogWarning("[EOSClient] GetTopScoresAsync: platform not available.");
                 return [];
             }
 
@@ -174,7 +175,7 @@ namespace Microsoft.Xna.Framework.Net.EOS
             var queryResult = await WaitForCallbackAsync(completion, settings.CallbackTimeout, cancellationToken, "Leaderboards.QueryLeaderboardRanks").ConfigureAwait(false);
             if (queryResult.ResultCode != Result.Success)
             {
-                Debug.WriteLine($"[EOSClient] Leaderboards.QueryLeaderboardRanks failed: {queryResult.ResultCode}");
+                NetworkLogging.Logger.LogWarning($"[EOSClient] Leaderboards.QueryLeaderboardRanks failed: {queryResult.ResultCode}");
                 return [];
             }
 
@@ -209,7 +210,7 @@ namespace Microsoft.Xna.Framework.Net.EOS
 
             if (!TryEnsurePlatform(out var settings, out var platform))
             {
-                Debug.WriteLine("[EOSClient] GetAchievementProgressAsync: platform not available.");
+                NetworkLogging.Logger.LogWarning("[EOSClient] GetAchievementProgressAsync: platform not available.");
                 return new Dictionary<string, EpicAchievementProgress>();
             }
 
@@ -218,7 +219,7 @@ namespace Microsoft.Xna.Framework.Net.EOS
 
             if (userId == null || !userId.IsValid())
             {
-                Debug.WriteLine("[EOSClient] GetAchievementProgressAsync: no authenticated product user.");
+                NetworkLogging.Logger.LogWarning("[EOSClient] GetAchievementProgressAsync: no authenticated product user.");
                 return new Dictionary<string, EpicAchievementProgress>();
             }
 
@@ -237,7 +238,7 @@ namespace Microsoft.Xna.Framework.Net.EOS
             var queryResult = await WaitForCallbackAsync(completion, settings.CallbackTimeout, cancellationToken, "Achievements.QueryPlayerAchievements").ConfigureAwait(false);
             if (queryResult.ResultCode != Result.Success)
             {
-                Debug.WriteLine($"[EOSClient] Achievements.QueryPlayerAchievements failed: {queryResult.ResultCode}");
+                NetworkLogging.Logger.LogWarning($"[EOSClient] Achievements.QueryPlayerAchievements failed: {queryResult.ResultCode}");
                 return new Dictionary<string, EpicAchievementProgress>();
             }
 
@@ -282,7 +283,7 @@ namespace Microsoft.Xna.Framework.Net.EOS
 
             if (!TryEnsurePlatform(out var settings, out var platform))
             {
-                Debug.WriteLine("[EOSClient] UnlockAchievementAsync: platform not available.");
+                NetworkLogging.Logger.LogWarning("[EOSClient] UnlockAchievementAsync: platform not available.");
                 return;
             }
 
@@ -291,7 +292,7 @@ namespace Microsoft.Xna.Framework.Net.EOS
 
             if (userId == null || !userId.IsValid())
             {
-                Debug.WriteLine("[EOSClient] UnlockAchievementAsync: no authenticated product user.");
+                NetworkLogging.Logger.LogWarning("[EOSClient] UnlockAchievementAsync: no authenticated product user.");
                 return;
             }
 
@@ -309,7 +310,7 @@ namespace Microsoft.Xna.Framework.Net.EOS
 
             var result = await WaitForCallbackAsync(completion, settings.CallbackTimeout, cancellationToken, "Achievements.UnlockAchievements").ConfigureAwait(false);
             if (result.ResultCode != Result.Success)
-                Debug.WriteLine($"[EOSClient] Achievements.UnlockAchievements failed: {result.ResultCode}");
+                NetworkLogging.Logger.LogWarning($"[EOSClient] Achievements.UnlockAchievements failed: {result.ResultCode}");
         }
 
         public async Task ReportProgressAsync(string achievementId, float percentComplete, CancellationToken cancellationToken = default)
@@ -326,7 +327,7 @@ namespace Microsoft.Xna.Framework.Net.EOS
 
             if (!TryEnsurePlatform(out var settings, out var platform))
             {
-                Debug.WriteLine("[EOSClient] ReportProgressAsync: platform not available.");
+                NetworkLogging.Logger.LogWarning("[EOSClient] ReportProgressAsync: platform not available.");
                 return;
             }
 
@@ -335,7 +336,7 @@ namespace Microsoft.Xna.Framework.Net.EOS
 
             if (userId == null || !userId.IsValid())
             {
-                Debug.WriteLine("[EOSClient] ReportProgressAsync: no authenticated product user.");
+                NetworkLogging.Logger.LogWarning("[EOSClient] ReportProgressAsync: no authenticated product user.");
                 return;
             }
 
@@ -363,7 +364,7 @@ namespace Microsoft.Xna.Framework.Net.EOS
 
             var result = await WaitForCallbackAsync(completion, settings.CallbackTimeout, cancellationToken, "Stats.IngestStat(achievement)").ConfigureAwait(false);
             if (result.ResultCode != Result.Success)
-                Debug.WriteLine($"[EOSClient] Stats.IngestStat(achievement) failed: {result.ResultCode}");
+                NetworkLogging.Logger.LogWarning($"[EOSClient] Stats.IngestStat(achievement) failed: {result.ResultCode}");
         }
 
         public void Dispose()
@@ -421,7 +422,7 @@ namespace Microsoft.Xna.Framework.Net.EOS
                     var initResult = Platform.PlatformInterface.Initialize(ref initOptions);
                     if (initResult != Result.Success && initResult != Result.AlreadyConfigured)
                     {
-                        System.Diagnostics.Debug.WriteLine($"[EOSClient] EOS initialize failed: {initResult}");
+                        NetworkLogging.Logger.LogWarning($"[EOSClient] EOS initialize failed: {initResult}");
                         platform = null;
                         return false;
                     }
@@ -430,7 +431,16 @@ namespace Microsoft.Xna.Framework.Net.EOS
 
                     Logging.LoggingInterface.SetLogLevel(Logging.LogCategory.AllCategories, Logging.LogLevel.Info);
                     Logging.LoggingInterface.SetCallback((ref Logging.LogMessage message) =>
-                        Debug.WriteLine($"[EOS|{message.Category}|{message.Level}] {message.Message}"));
+                    {
+                        // the SDK's own severity, so a game's logger can keep the errors and drop the chatter
+                        string text = $"[EOS|{message.Category}] {message.Message}";
+                        if (message.Level == Logging.LogLevel.Fatal || message.Level == Logging.LogLevel.Error)
+                            NetworkLogging.Logger.LogError(text);
+                        else if (message.Level == Logging.LogLevel.Warning)
+                            NetworkLogging.Logger.LogWarning(text);
+                        else
+                            NetworkLogging.Logger.LogInfo(text);
+                    });
                 }
 
                 if (platformInterface == null)
@@ -445,14 +455,14 @@ namespace Microsoft.Xna.Framework.Net.EOS
                             ClientId = settings.ClientId,
                             ClientSecret = settings.ClientSecret
                         },
-                        Flags = Platform.PlatformFlags.DisableOverlay,
+                        Flags = settings.PlatformFlags,
                         IsServer = false
                     };
 
                     platformInterface = Platform.PlatformInterface.Create(ref createOptions);
                     if (platformInterface == null)
                     {
-                        System.Diagnostics.Debug.WriteLine("[EOSClient] EOS platform create failed.");
+                        NetworkLogging.Logger.LogWarning("[EOSClient] EOS platform create failed.");
                         platform = null;
                         return false;
                     }
@@ -510,14 +520,14 @@ namespace Microsoft.Xna.Framework.Net.EOS
                 {
                     if (i > 0)
                     {
-                        System.Diagnostics.Debug.WriteLine($"[EOSClient] Auth succeeded via fallback attempt '{attempt.Label}'.");
+                        NetworkLogging.Logger.LogInfo($"[EOSClient] Auth succeeded via fallback attempt '{attempt.Label}'.");
                     }
 
                     return result;
                 }
 
                 lastResult = result;
-                System.Diagnostics.Debug.WriteLine($"[EOSClient] {stageName} failed: {result.ResultCode}");
+                NetworkLogging.Logger.LogWarning($"[EOSClient] {stageName} failed: {result.ResultCode}");
 
                 if (attempt.LoginCredentialType == Auth.LoginCredentialType.PersistentAuth
                     && Common.IsOperationComplete(result.ResultCode))
@@ -525,11 +535,11 @@ namespace Microsoft.Xna.Framework.Net.EOS
                     try
                     {
                         var deleteResult = await DeletePersistentAuthAsync(platform, settings.CallbackTimeout, cancellationToken).ConfigureAwait(false);
-                        System.Diagnostics.Debug.WriteLine($"[EOSClient] DeletePersistentAuth result: {deleteResult}");
+                        NetworkLogging.Logger.LogInfo($"[EOSClient] DeletePersistentAuth result: {deleteResult}");
                     }
                     catch (Exception ex)
                     {
-                        System.Diagnostics.Debug.WriteLine($"[EOSClient] DeletePersistentAuth failed: {ex.Message}");
+                        NetworkLogging.Logger.LogWarning($"[EOSClient] DeletePersistentAuth failed: {ex.Message}");
                     }
                 }
             }
@@ -691,16 +701,16 @@ namespace Microsoft.Xna.Framework.Net.EOS
                         return retryLogin.LocalUserId?.ToString() ?? string.Empty;
                     }
 
-                    System.Diagnostics.Debug.WriteLine($"[EOSClient] Connect login retry failed: {retryLogin.ResultCode}");
+                    NetworkLogging.Logger.LogWarning($"[EOSClient] Connect login retry failed: {retryLogin.ResultCode}");
                 }
                 else
                 {
-                    System.Diagnostics.Debug.WriteLine($"[EOSClient] Connect.CreateUser failed: {createResult.ResultCode}");
+                    NetworkLogging.Logger.LogWarning($"[EOSClient] Connect.CreateUser failed: {createResult.ResultCode}");
                 }
             }
             else
             {
-                System.Diagnostics.Debug.WriteLine($"[EOSClient] Connect login failed: {loginResult.ResultCode}");
+                NetworkLogging.Logger.LogWarning($"[EOSClient] Connect login failed: {loginResult.ResultCode}");
             }
 
             return string.Empty;
@@ -758,7 +768,7 @@ namespace Microsoft.Xna.Framework.Net.EOS
             return await completion.Task.ConfigureAwait(false);
         }
 
-        private static void InstallNativeResolverIfNeeded()
+        internal static void InstallNativeResolverIfNeeded()
         {
             if (resolverInstalled)
             {
@@ -777,7 +787,30 @@ namespace Microsoft.Xna.Framework.Net.EOS
                 return IntPtr.Zero;
             }
 
-            var candidates = RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
+            foreach (var candidatePath in GetNativeLibraryCandidates(assembly))
+            {
+                if (Path.IsPathRooted(candidatePath))
+                {
+                    if (NativeLibrary.TryLoad(candidatePath, out var absoluteHandle))
+                    {
+                        return absoluteHandle;
+                    }
+
+                    continue;
+                }
+
+                if (NativeLibrary.TryLoad(candidatePath, assembly, searchPath, out var relativeHandle))
+                {
+                    return relativeHandle;
+                }
+            }
+
+            return IntPtr.Zero;
+        }
+
+        private static IEnumerable<string> GetNativeLibraryCandidates(Assembly assembly)
+        {
+            var libraryNames = RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
                 ? new[] { "EOSSDK-Win64-Shipping.dll" }
                 : RuntimeInformation.IsOSPlatform(OSPlatform.OSX)
                     ? new[] { "libEOSSDK-Mac-Shipping.dylib" }
@@ -785,15 +818,79 @@ namespace Microsoft.Xna.Framework.Net.EOS
                         ? new[] { "libEOSSDK-Linux-Shipping.so" }
                         : Array.Empty<string>();
 
-            foreach (var candidate in candidates)
+            foreach (var libraryName in libraryNames)
             {
-                if (NativeLibrary.TryLoad(candidate, assembly, searchPath, out var handle))
-                {
-                    return handle;
-                }
+                yield return libraryName;
             }
 
-            return IntPtr.Zero;
+            var runtimeRid = GetCurrentRuntimeRid();
+            if (string.IsNullOrWhiteSpace(runtimeRid))
+            {
+                yield break;
+            }
+
+            foreach (var runtimeRoot in GetNativeRuntimeRoots(assembly))
+            {
+                foreach (var libraryName in libraryNames)
+                {
+                    yield return Path.Combine(runtimeRoot, runtimeRid, "native", libraryName);
+                }
+            }
+        }
+
+        private static IEnumerable<string> GetNativeRuntimeRoots(Assembly assembly)
+        {
+            var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var probeRoot in new[]
+            {
+                AppContext.BaseDirectory,
+                Path.GetDirectoryName(assembly.Location)
+            })
+            {
+                if (string.IsNullOrWhiteSpace(probeRoot))
+                {
+                    continue;
+                }
+
+                var current = new DirectoryInfo(probeRoot);
+                while (current != null)
+                {
+                    foreach (var candidate in new[]
+                    {
+                        Path.Combine(current.FullName, "runtimes"),
+                        Path.Combine(current.FullName, "EOS", "runtimes")
+                    })
+                    {
+                        if (Directory.Exists(candidate) && visited.Add(candidate))
+                        {
+                            yield return candidate;
+                        }
+                    }
+
+                    current = current.Parent;
+                }
+            }
+        }
+
+        private static string GetCurrentRuntimeRid()
+        {
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+            {
+                return RuntimeInformation.ProcessArchitecture == Architecture.Arm64 ? "osx-arm64" : "osx-x64";
+            }
+
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            {
+                return RuntimeInformation.ProcessArchitecture == Architecture.Arm64 ? "linux-arm64" : "linux-x64";
+            }
+
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                return RuntimeInformation.ProcessArchitecture == Architecture.Arm64 ? "win-arm64" : "win-x64";
+            }
+
+            return string.Empty;
         }
 
         private sealed class EosAuthSettings
@@ -805,6 +902,7 @@ namespace Microsoft.Xna.Framework.Net.EOS
             public string DeploymentId { get; init; }
             public string ClientId { get; init; }
             public string ClientSecret { get; init; }
+            public Platform.PlatformFlags PlatformFlags { get; init; }
             public Auth.LoginCredentialType LoginCredentialType { get; init; }
             public string LoginId { get; init; }
             public string LoginToken { get; init; }
@@ -839,6 +937,7 @@ namespace Microsoft.Xna.Framework.Net.EOS
                 var developerLoginId = Environment.GetEnvironmentVariable("MGNET_EOS_DEVELOPER_LOGIN_ID") ?? string.Empty;
                 var developerLoginToken = Environment.GetEnvironmentVariable("MGNET_EOS_DEVELOPER_LOGIN_TOKEN") ?? string.Empty;
                 var enableLoginModeLadder = ParseBool(Environment.GetEnvironmentVariable("MGNET_EOS_ENABLE_LOGIN_MODE_LADDER"), defaultValue: true);
+                var platformFlags = ParsePlatformFlags(Environment.GetEnvironmentVariable("MGNET_EOS_PLATFORM_FLAGS"));
 
                 if (loginType == Auth.LoginCredentialType.PersistentAuth && !recoveryType.HasValue)
                 {
@@ -869,6 +968,7 @@ namespace Microsoft.Xna.Framework.Net.EOS
                     DeploymentId = deploymentId,
                     ClientId = clientId,
                     ClientSecret = clientSecret,
+                    PlatformFlags = platformFlags,
                     LoginCredentialType = loginType,
                     LoginId = loginId,
                     LoginToken = loginToken,
@@ -958,6 +1058,22 @@ namespace Microsoft.Xna.Framework.Net.EOS
                 }
 
                 return defaultValue;
+            }
+
+            private static Platform.PlatformFlags ParsePlatformFlags(string value)
+            {
+                // no overlay unless asked for: a MonoGame window is not something the overlay can hook into
+                if (string.IsNullOrWhiteSpace(value))
+                {
+                    return Platform.PlatformFlags.DisableOverlay;
+                }
+
+                if (Enum.TryParse<Platform.PlatformFlags>(value.Trim(), ignoreCase: true, out var parsed))
+                {
+                    return parsed;
+                }
+
+                return Platform.PlatformFlags.DisableOverlay;
             }
         }
 

@@ -49,6 +49,15 @@ Optional environment variables:
 - `MGNET_EOS_SCOPE_FLAGS` (default: `BasicProfile, FriendsList, Presence`)
 - `MGNET_EOS_AUTH_TIMEOUT_SECONDS` (default: `180`)
 - `MGNET_EOS_EXCHANGE_CODE` (overrides login type/token to `ExchangeCode`)
+- `MGNET_EOS_PLATFORM_FLAGS` (comma-separated `Platform.PlatformFlags`; default: `DisableOverlay`)
+
+### Native library
+
+NuGet consumers get `libEOSSDK-*`/`EOSSDK-*` from the package's `runtimes/<rid>/native`. Running from source (a project reference), the build copies the library for your machine's own runtime id to the output's `runtimes/<rid>/native`, and `EOSClient` looks there. `dotnet test Tests/EOS --filter EOSNativeLibraryTests` checks that it loads, with no account needed.
+
+### Callbacks
+
+EOS delivers connection requests, lobby changes and invitations only when it is ticked. While a session is running the EOS transport ticks it for you; call `EOSRuntime.RunCallbacks()` yourself only if you want invitations before any session exists.
 
 Default ladder when enabled and starting from `PersistentAuth`:
 

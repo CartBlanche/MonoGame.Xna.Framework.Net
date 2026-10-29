@@ -155,7 +155,7 @@ namespace Microsoft.Xna.Framework.Net.EOS
                     try { await Task.Delay(1000, stopToken).ConfigureAwait(false); }
                     catch (OperationCanceledException) { break; }
                     var latest = session.GetAdvertisement();
-                    if (!PropertiesChanged(latest.Properties, published))
+                    if (!AdvertisedStateChanged(latest.IsPasswordProtected, latest.Properties, published))
                         continue;
                     published = await PublishAttributesAsync(lobbyInterface, localUserId, lobbyId, latest.SessionType, latest.IsPasswordProtected, latest.Properties, published).ConfigureAwait(false);
                 }
@@ -381,17 +381,24 @@ namespace Microsoft.Xna.Framework.Net.EOS
                 isPasswordProtected: needsPassword);
         }
 
-        private static bool PropertiesChanged(IReadOnlyDictionary<string, object> now, HashSet<string> published) =>
-            now.Count != published.Count || now.Any(p => !published.Contains(PropertyPrefix + p.Key + "=" + SessionPropertyEncoding.Encode(p.Value)));
+        // what the lobby says about the session, as "key=encoded" entries: every property, and whether it wants a password
+        internal static HashSet<string> DescribeAdvertisedState(bool passwordProtected, IReadOnlyDictionary<string, object> properties)
+        {
+            var state = new HashSet<string> { PasswordKey + "=" + (passwordProtected ? "1" : "0") };
+            foreach (var property in properties)
+                state.Add(PropertyPrefix + property.Key + "=" + SessionPropertyEncoding.Encode(property.Value));
+            return state;
+        }
+
+        internal static bool AdvertisedStateChanged(bool passwordProtected, IReadOnlyDictionary<string, object> properties, HashSet<string> published) =>
+            !DescribeAdvertisedState(passwordProtected, properties).SetEquals(published);
 
         // Writes the bucket, type and properties as public lobby attributes. Returns what is now published,
         // as "key=encoded" entries, so a later call can tell what changed.
         private static async Task<HashSet<string>> PublishAttributesAsync(Lobby.LobbyInterface lobbyInterface, ProductUserId localUserId, string lobbyId,
             NetworkSessionType sessionType, bool passwordProtected, IReadOnlyDictionary<string, object> properties, HashSet<string> previouslyPublished)
         {
-            var published = new HashSet<string>();
-            foreach (var property in properties)
-                published.Add(PropertyPrefix + property.Key + "=" + SessionPropertyEncoding.Encode(property.Value));
+            var published = DescribeAdvertisedState(passwordProtected, properties);
 
             var modification = new Lobby.UpdateLobbyModificationOptions { LobbyId = lobbyId, LocalUserId = localUserId };
             if (lobbyInterface.UpdateLobbyModification(ref modification, out var handle) != Result.Success || handle == null)
@@ -423,7 +430,7 @@ namespace Microsoft.Xna.Framework.Net.EOS
                 foreach (string entry in previouslyPublished)
                 {
                     string key = entry.Substring(0, entry.IndexOf('='));
-                    if (!keysNow.Contains(key))
+                    if (key.StartsWith(PropertyPrefix, StringComparison.Ordinal) && !keysNow.Contains(key))
                     {
                         var remove = new Lobby.LobbyModificationRemoveAttributeOptions { Key = key };
                         handle.RemoveAttribute(ref remove);

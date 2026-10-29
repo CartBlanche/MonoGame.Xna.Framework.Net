@@ -38,6 +38,13 @@
     <None Include="runtimes\**\*" Pack="true" PackagePath="runtimes\%(RecursiveDir)%(Filename)%(Extension)" />
   </ItemGroup>
 
+  <!-- Run from source (a project reference, not the NuGet package): put the machine's own EOS library in the output,
+       where EOSClient looks for it under runtimes/<rid>/native. Only that one, they are 17-46 MB each. -->
+  <ItemGroup Condition="Exists('runtimes\$(NETCoreSdkRuntimeIdentifier)\native')">
+    <None Include="runtimes\$(NETCoreSdkRuntimeIdentifier)\native\*" Pack="false"
+          Link="runtimes\$(NETCoreSdkRuntimeIdentifier)\native\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
   <ItemGroup>
     <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
       <_Parameter1>MonoGame.Xna.Framework.Net.EOS.Tests</_Parameter1>

@@ -20,6 +20,20 @@ namespace Microsoft.Xna.Framework.Net.EOS
         private readonly Func<ProductUserId, bool> acceptPeer;
         private readonly ConcurrentDictionary<string, ProductUserId> knownUsers = new(StringComparer.Ordinal);
 
+        // A joiner's connection request can reach us before our copy of the lobby lists them as a member
+        // (EOS pushes member changes separately), so a stranger is given a little while to show up in the
+        // lobby before the request is refused.
+        private static readonly TimeSpan PendingWindow = TimeSpan.FromSeconds(10);
+        private const int MaxPending = 32;
+        private readonly List<PendingRequest> pending = new();
+
+        private readonly struct PendingRequest
+        {
+            public PendingRequest(P2P.OnIncomingConnectionRequestInfo info, DateTime expires) { Info = info; Expires = expires; }
+            public P2P.OnIncomingConnectionRequestInfo Info { get; }
+            public DateTime Expires { get; }
+        }
+
         private Platform.PlatformInterface platform;
         private P2P.P2PInterface p2p;
         private ProductUserId localUserId;
@@ -109,6 +123,11 @@ namespace Microsoft.Xna.Framework.Net.EOS
 
             while (!disposed)
             {
+                // EOS hands over connection requests, lobby changes and invitations only when it is ticked, and
+                // this loop runs for as long as the session does, so it is the one place that is always there to do it
+                EOSRuntime.RunCallbacks();
+                ResolvePendingRequests();
+
                 var sizeOptions = new P2P.GetNextReceivedPacketSizeOptions { LocalUserId = localUserId, RequestedChannel = GameChannel };
                 if (p2p.GetNextReceivedPacketSize(ref sizeOptions, out uint size) == Result.Success && size > 0)
                 {
@@ -157,14 +176,54 @@ namespace Microsoft.Xna.Framework.Net.EOS
 
         private void OnConnectionRequest(ref P2P.OnIncomingConnectionRequestInfo info)
         {
-            if (acceptPeer != null && !acceptPeer(info.RemoteUserId))
+            if (acceptPeer == null || acceptPeer(info.RemoteUserId))
             {
-                NetworkLogging.Logger.LogWarning($"[EOS] Refused a P2P connection from {info.RemoteUserId}: not in one of our lobbies");
+                Accept(info);
                 return;
             }
 
+            // not in a lobby of ours (yet): see ResolvePendingRequests
+            lock (pending)
+            {
+                string who = info.RemoteUserId?.ToString();
+                if (pending.Count >= MaxPending || pending.Any(p => p.Info.RemoteUserId?.ToString() == who))
+                    return;
+                pending.Add(new PendingRequest(info, DateTime.UtcNow + PendingWindow));
+            }
+            NetworkLogging.Logger.LogInfo($"[EOS] Holding a P2P connection request from {info.RemoteUserId} until they show up in one of our lobbies");
+        }
+
+        private void Accept(P2P.OnIncomingConnectionRequestInfo info)
+        {
             var accept = new P2P.AcceptConnectionOptions { LocalUserId = info.LocalUserId, RemoteUserId = info.RemoteUserId, SocketId = info.SocketId };
             p2p.AcceptConnection(ref accept);
+        }
+
+        // accepts a held request once its sender is in one of our lobbies, and refuses it when the wait is over
+        private void ResolvePendingRequests()
+        {
+            PendingRequest[] waiting;
+            lock (pending)
+            {
+                if (pending.Count == 0)
+                    return;
+                waiting = pending.ToArray();
+            }
+
+            foreach (var request in waiting)
+            {
+                bool admit = acceptPeer == null || acceptPeer(request.Info.RemoteUserId);
+                if (!admit && DateTime.UtcNow < request.Expires)
+                    continue;
+
+                lock (pending)
+                    pending.RemoveAll(p => p.Info.RemoteUserId?.ToString() == request.Info.RemoteUserId?.ToString());
+
+                if (admit)
+                    Accept(request.Info);
+                else
+                    NetworkLogging.Logger.LogWarning($"[EOS] Refused a P2P connection from {request.Info.RemoteUserId}: not in one of our lobbies");
+            }
         }
 
         private void ThrowIfDisposed()
