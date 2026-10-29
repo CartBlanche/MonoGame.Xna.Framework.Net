@@ -46,7 +46,7 @@ namespace Microsoft.Xna.Framework.Net.Android
                 }
                 catch (Exception ex)
                 {
-                    System.Diagnostics.Debug.WriteLine($"[AndroidRuntime] PlayGamesSdk.Initialize failed: {ex.Message}");
+                    NetworkLogging.Logger.LogWarning($"[AndroidRuntime] PlayGamesSdk.Initialize failed: {ex.Message}");
                 }
             }
 
@@ -102,7 +102,7 @@ namespace Microsoft.Xna.Framework.Net.Android
 
             if (!IsInitialized)
             {
-                System.Diagnostics.Debug.WriteLine("[AndroidRuntime] SignInAsync called before Initialize.");
+                NetworkLogging.Logger.LogWarning("[AndroidRuntime] SignInAsync called before Initialize.");
                 SignedInGamer.Current.SetSignedInToLive(false);
                 return false;
             }
@@ -112,7 +112,7 @@ namespace Microsoft.Xna.Framework.Net.Android
 
             if (currentActivity == null)
             {
-                System.Diagnostics.Debug.WriteLine("[AndroidRuntime] SignInAsync: activity is null. Call Initialize(activity, ...) first.");
+                NetworkLogging.Logger.LogWarning("[AndroidRuntime] SignInAsync: activity is null. Call Initialize(activity, ...) first.");
                 SignedInGamer.Current.SetSignedInToLive(false);
                 return false;
             }
@@ -120,7 +120,7 @@ namespace Microsoft.Xna.Framework.Net.Android
             var playServicesStatus = GoogleApiAvailability.Instance.IsGooglePlayServicesAvailable(currentActivity);
             if (playServicesStatus != ConnectionResult.Success)
             {
-                System.Diagnostics.Debug.WriteLine($"[AndroidRuntime] Google Play Services not available (error code: {playServicesStatus}). " +
+                NetworkLogging.Logger.LogWarning($"[AndroidRuntime] Google Play Services not available (error code: {playServicesStatus}). " +
                     "Ensure device has an up-to-date version of Google Play Services.");
                 SignedInGamer.Current.SetSignedInToLive(false);
                 return false;
@@ -134,26 +134,26 @@ namespace Microsoft.Xna.Framework.Net.Android
                     .AsAsync<AuthenticationResult>()
                     .ConfigureAwait(false);
 
-                System.Diagnostics.Debug.WriteLine($"[AndroidRuntime] IsAuthenticated check: {authResult?.IsAuthenticated}");
+                NetworkLogging.Logger.LogInfo($"[AndroidRuntime] IsAuthenticated check: {authResult?.IsAuthenticated}");
 
                 if (authResult == null || !authResult.IsAuthenticated)
                 {
-                    System.Diagnostics.Debug.WriteLine("[AndroidRuntime] Not authenticated, calling SignIn()...");
+                    NetworkLogging.Logger.LogWarning("[AndroidRuntime] Not authenticated, calling SignIn()...");
                     authResult = await signInClient.SignIn()
                         .AsAsync<AuthenticationResult>()
                         .ConfigureAwait(false);
-                    System.Diagnostics.Debug.WriteLine($"[AndroidRuntime] SignIn() result: IsAuthenticated={authResult?.IsAuthenticated}");
+                    NetworkLogging.Logger.LogInfo($"[AndroidRuntime] SignIn() result: IsAuthenticated={authResult?.IsAuthenticated}");
                 }
 
                 if (authResult != null && authResult.IsAuthenticated)
                 {
-                    System.Diagnostics.Debug.WriteLine("[AndroidRuntime] Sign-in succeeded.");
+                    NetworkLogging.Logger.LogInfo("[AndroidRuntime] Sign-in succeeded.");
                     SignedInGamer.Current.SetSignedInToLive(true);
                     RefreshSignedInGamerIdentity();
                     return true;
                 }
 
-                System.Diagnostics.Debug.WriteLine("[AndroidRuntime] SignIn completed but IsAuthenticated=false. " +
+                NetworkLogging.Logger.LogInfo("[AndroidRuntime] SignIn completed but IsAuthenticated=false. " +
                     "Check Play Games developer console: app not published to testers, " +
                     "SHA-1 fingerprint mismatch, or package name mismatch.");
                 SignedInGamer.Current.SetSignedInToLive(false);
@@ -161,7 +161,7 @@ namespace Microsoft.Xna.Framework.Net.Android
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[AndroidRuntime] SignIn threw: {ex.GetType().Name}: {ex.Message}");
+                NetworkLogging.Logger.LogError($"[AndroidRuntime] SignIn threw: {ex.GetType().Name}: {ex.Message}");
                 SignedInGamer.Current.SetSignedInToLive(false);
                 return false;
             }

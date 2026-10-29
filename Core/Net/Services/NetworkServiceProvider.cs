@@ -51,7 +51,7 @@ namespace Microsoft.Xna.Framework.Net
                     backend.InviteReceived -= OnInviteReceived;
                 backend = newBackend;
                 backend.InviteReceived += OnInviteReceived;
-                System.Diagnostics.Debug.WriteLine($"[Network] Using {newBackend.Name} backend");
+                NetworkLogging.Logger.LogInfo($"[Network] Using {newBackend.Name} backend");
             }
         }
 

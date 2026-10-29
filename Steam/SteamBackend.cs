@@ -94,7 +94,7 @@ namespace Microsoft.Xna.Framework.Net
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"[Steam] Could not follow the invitation to lobby {lobbyId}: {ex.Message}");
+                NetworkLogging.Logger.LogWarning($"[Steam] Could not follow the invitation to lobby {lobbyId}: {ex.Message}");
             }
         }
 
@@ -154,7 +154,7 @@ namespace Microsoft.Xna.Framework.Net
             }
             catch (Exception ex) when (!IsStrict)
             {
-                Debug.WriteLine($"[Steam] Lobby search failed, no sessions found: {ex.Message}");
+                NetworkLogging.Logger.LogWarning($"[Steam] Lobby search failed, no sessions found: {ex.Message}");
                 return new List<AvailableNetworkSession>();
             }
         }
@@ -190,7 +190,7 @@ namespace Microsoft.Xna.Framework.Net
             }
             catch (Exception ex) when (!IsStrict)
             {
-                Debug.WriteLine($"[Steam] JoinLobby failed (non-fatal): {ex.Message}");
+                NetworkLogging.Logger.LogError($"[Steam] JoinLobby failed (non-fatal): {ex.Message}");
                 return null;
             }
         }
@@ -253,7 +253,7 @@ namespace Microsoft.Xna.Framework.Net
                     SteamMatchmaking.CreateLobby(ELobbyType.k_ELobbyTypePublic, ad.MaxGamers)).ConfigureAwait(false);
                 if (result.m_eResult != EResult.k_EResultOK)
                 {
-                    Debug.WriteLine($"[Steam] CreateLobby returned {result.m_eResult}");
+                    NetworkLogging.Logger.LogInfo($"[Steam] CreateLobby returned {result.m_eResult}");
                     return;
                 }
 
@@ -263,7 +263,7 @@ namespace Microsoft.Xna.Framework.Net
                 SteamMatchmaking.SetLobbyData(lobbyId, LobbyTypeKey, ad.SessionType.ToString());
                 PublishPasswordFlag(lobbyId, ad.IsPasswordProtected);
                 var published = PublishProperties(lobbyId, ad.Properties, new HashSet<string>());
-                Debug.WriteLine($"[Steam] Lobby created: {lobbyId}");
+                NetworkLogging.Logger.LogInfo($"[Steam] Lobby created: {lobbyId}");
 
                 // the host can change the session's properties later; keep the lobby in step until the session ends
                 _ = Task.Run(async () =>
@@ -281,7 +281,7 @@ namespace Microsoft.Xna.Framework.Net
             }
             catch (Exception ex) when (!IsStrict)
             {
-                Debug.WriteLine($"[Steam] Advertising the lobby failed: {ex.Message}");
+                NetworkLogging.Logger.LogWarning($"[Steam] Advertising the lobby failed: {ex.Message}");
             }
         }
 

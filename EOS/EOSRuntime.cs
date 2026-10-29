@@ -111,7 +111,7 @@ namespace Microsoft.Xna.Framework.Net.EOS
                 }
                 catch (Exception ex)
                 {
-                    Debug.WriteLine($"[EOSRuntime] SignIn failed: {ex.Message}");
+                    NetworkLogging.Logger.LogWarning($"[EOSRuntime] SignIn failed: {ex.Message}");
                 }
             }
 

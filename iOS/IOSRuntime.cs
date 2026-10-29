@@ -91,7 +91,7 @@ namespace Microsoft.Xna.Framework.Net.iOS
                 }
                 catch (Exception ex)
                 {
-                    Debug.WriteLine($"[IOSRuntime] SignIn failed: {ex.Message}");
+                    NetworkLogging.Logger.LogWarning($"[IOSRuntime] SignIn failed: {ex.Message}");
                 }
             }
 

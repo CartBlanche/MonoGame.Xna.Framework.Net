@@ -159,7 +159,7 @@ namespace Microsoft.Xna.Framework.Net.EOS
         {
             if (acceptPeer != null && !acceptPeer(info.RemoteUserId))
             {
-                Debug.WriteLine($"[EOS] Refused a P2P connection from {info.RemoteUserId}: not in one of our lobbies");
+                NetworkLogging.Logger.LogWarning($"[EOS] Refused a P2P connection from {info.RemoteUserId}: not in one of our lobbies");
                 return;
             }
 

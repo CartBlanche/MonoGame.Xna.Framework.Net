@@ -32,7 +32,7 @@ namespace Microsoft.Xna.Framework.Net
                     IReadOnlyList<IPAddress> subnetBroadcasts = LanBroadcast.GetBroadcastAddresses();
                     var subnetBroadcastsRefreshed = DateTime.UtcNow;
 
-                    Debug.WriteLine("[LAN] " + $"Starting session advertisement on port {BroadcastPort}");
+                    NetworkLogging.Logger.LogInfo("[LAN] " + $"Starting session advertisement on port {BroadcastPort}");
                     int broadcastCount = 0;
 
                     SessionAdvertisement ad;
@@ -53,11 +53,11 @@ namespace Microsoft.Xna.Framework.Net
                         }
                         catch (SocketException ex)
                         {
-                            Debug.WriteLine("[LAN] " + $"Broadcast advertisement send failed: {ex.Message}");
+                            NetworkLogging.Logger.LogWarning("[LAN] " + $"Broadcast advertisement send failed: {ex.Message}");
                         }
                         catch (Exception ex)
                         {
-                            Debug.WriteLine("[LAN] " + $"Broadcast advertisement failed: {ex.Message}");
+                            NetworkLogging.Logger.LogWarning("[LAN] " + $"Broadcast advertisement failed: {ex.Message}");
                         }
 
                         if (DateTime.UtcNow - subnetBroadcastsRefreshed > TimeSpan.FromSeconds(5))
@@ -74,7 +74,7 @@ namespace Microsoft.Xna.Framework.Net
                             }
                             catch (SocketException ex)
                             {
-                                Debug.WriteLine("[LAN] " + $"Broadcast to {subnetBroadcast} failed: {ex.Message}");
+                                NetworkLogging.Logger.LogWarning("[LAN] " + $"Broadcast to {subnetBroadcast} failed: {ex.Message}");
                             }
                         }
 
@@ -82,27 +82,27 @@ namespace Microsoft.Xna.Framework.Net
                         try
                         {
                             await udpClient.SendAsync(message, message.Length, localhostEndpoint).ConfigureAwait(false);
-                            Debug.WriteLine("[LAN] " + $"Also sent advertisement to localhost (127.0.0.1:{BroadcastPort})");
+                            NetworkLogging.Logger.LogInfo("[LAN] " + $"Also sent advertisement to localhost (127.0.0.1:{BroadcastPort})");
                         }
                         catch (SocketException ex)
                         {
-                            Debug.WriteLine("[LAN] " + $"Localhost advertisement send failed: {ex.Message}");
+                            NetworkLogging.Logger.LogWarning("[LAN] " + $"Localhost advertisement send failed: {ex.Message}");
                         }
 
                         broadcastCount++;
-                        Debug.WriteLine("[LAN] " + $"Sent broadcast #{broadcastCount} - SessionID: {ad.SessionId}, Gamers: {ad.CurrentGamerCount}/{ad.MaxGamers}");
+                        NetworkLogging.Logger.LogInfo("[LAN] " + $"Sent broadcast #{broadcastCount} - SessionID: {ad.SessionId}, Gamers: {ad.CurrentGamerCount}/{ad.MaxGamers}");
 
                         await Task.Delay(750, cancellationToken).ConfigureAwait(false); // Broadcast every 750ms for faster discovery
                     }
 
-                    Debug.WriteLine("[LAN] " + "Stopped broadcasting. Cancelled=" + cancellationToken.IsCancellationRequested);
+                    NetworkLogging.Logger.LogInfo("[LAN] " + "Stopped broadcasting. Cancelled=" + cancellationToken.IsCancellationRequested);
                 }
             }, cancellationToken);
         }
 
         public static async Task<IEnumerable<AvailableNetworkSession>> DiscoverSessionsAsync(int maxLocalGamers, CancellationToken cancellationToken)
         {
-            Debug.WriteLine($"[DISCOVERY] Starting session discovery on port {BroadcastPort}");
+            NetworkLogging.Logger.LogInfo($"[DISCOVERY] Starting session discovery on port {BroadcastPort}");
 
             // Use dictionary to deduplicate sessions by ID (in case we receive multiple broadcasts from same host)
             var sessionsDict = new Dictionary<string, AvailableNetworkSession>();
@@ -115,7 +115,7 @@ namespace Microsoft.Xna.Framework.Net
                     udpClient.Client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
                     udpClient.Client.Bind(new IPEndPoint(IPAddress.Any, BroadcastPort));
 
-                    Debug.WriteLine($"[DISCOVERY] Successfully bound to port {BroadcastPort}");
+                    NetworkLogging.Logger.LogInfo($"[DISCOVERY] Successfully bound to port {BroadcastPort}");
 
                     udpClient.EnableBroadcast = true;
                     // DON'T set ReceiveTimeout - it interferes with ReceiveAsync()
@@ -149,7 +149,7 @@ namespace Microsoft.Xna.Framework.Net
                                 var buffer = result.Buffer;
                                 packetsReceived++;
 
-                                Debug.WriteLine($"[DISCOVERY] Received packet #{packetsReceived} from {result.RemoteEndPoint} ({buffer.Length} bytes)");
+                                NetworkLogging.Logger.LogInfo($"[DISCOVERY] Received packet #{packetsReceived} from {result.RemoteEndPoint} ({buffer.Length} bytes)");
 
                                 // Find the header delimiter (the last colon of the header)
                                 int headerEnd = 0;
@@ -170,7 +170,7 @@ namespace Microsoft.Xna.Framework.Net
                                 if (colonCount == 8)
                                 {
                                     var headerString = Encoding.UTF8.GetString(buffer, 0, headerEnd);
-                                    Debug.WriteLine($"[DISCOVERY] Parsed header: {headerString}");
+                                    NetworkLogging.Logger.LogInfo($"[DISCOVERY] Parsed header: {headerString}");
 
                                     var parts = headerString.Split(':');
                                     var sessionId = parts[1];
@@ -180,7 +180,7 @@ namespace Microsoft.Xna.Framework.Net
                                         || !int.TryParse(parts[7], out var gamePort) || maxGamers < 1 || maxGamers > 1000
                                         || privateSlots < 0 || currentGamers < 0 || gamePort < 1 || gamePort > 65535)
                                     {
-                                        Debug.WriteLine("[DISCOVERY] Ignored an advertisement with bad numbers");
+                                        NetworkLogging.Logger.LogWarning("[DISCOVERY] Ignored an advertisement with bad numbers");
                                         continue;
                                     }
                                     var hostGamertag = parts[6];
@@ -208,29 +208,29 @@ namespace Microsoft.Xna.Framework.Net
                                         hostPeer: UdpTransport.ToPeer(hostEndpoint),
                                         isPasswordProtected: flags == 1);
 
-                                    Debug.WriteLine($"[DISCOVERY] Added session: {hostGamertag} ({sessionId})");
+                                    NetworkLogging.Logger.LogInfo($"[DISCOVERY] Added session: {hostGamertag} ({sessionId})");
                                 }
                                 else
                                 {
-                                    Debug.WriteLine($"[DISCOVERY] Invalid packet - expected 8 colons, found {colonCount}");
+                                    NetworkLogging.Logger.LogWarning($"[DISCOVERY] Invalid packet - expected 8 colons, found {colonCount}");
                                 }
                             }
                             // If timeout occurs, continue listening until endTime
                         }
                         catch (SocketException ex)
                         {
-                            Debug.WriteLine($"[DISCOVERY] SocketException: {ex.Message}");
+                            NetworkLogging.Logger.LogInfo($"[DISCOVERY] SocketException: {ex.Message}");
                             // Socket timeout or other network error - continue listening
                         }
                         catch (ObjectDisposedException)
                         {
-                            Debug.WriteLine("[DISCOVERY] Socket disposed");
+                            NetworkLogging.Logger.LogWarning("[DISCOVERY] Socket disposed");
                             // Socket was disposed (shouldn't happen, but handle gracefully)
                             break;
                         }
                         catch (Exception ex)
                         {
-                            Debug.WriteLine($"[DISCOVERY] Unexpected error: {ex.GetType().Name} - {ex.Message}");
+                            NetworkLogging.Logger.LogError($"[DISCOVERY] Unexpected error: {ex.GetType().Name} - {ex.Message}");
                         }
                     }
 
@@ -238,12 +238,12 @@ namespace Microsoft.Xna.Framework.Net
                     pendingReceive?.ContinueWith(t => _ = t.Exception, TaskContinuationOptions.OnlyOnFaulted);
 
                     var elapsed = DateTime.UtcNow - startTime;
-                    Debug.WriteLine($"[DISCOVERY] Completed after {elapsed.TotalSeconds:F2}s. Attempts: {receiveAttempts}, Packets: {packetsReceived}, Sessions: {sessionsDict.Count}");
+                    NetworkLogging.Logger.LogInfo($"[DISCOVERY] Completed after {elapsed.TotalSeconds:F2}s. Attempts: {receiveAttempts}, Packets: {packetsReceived}, Sessions: {sessionsDict.Count}");
                 }
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"[DISCOVERY] Fatal error: {ex.GetType().Name} - {ex.Message}\n{ex.StackTrace}");
+                NetworkLogging.Logger.LogError($"[DISCOVERY] Fatal error: {ex.GetType().Name} - {ex.Message}\n{ex.StackTrace}");
             }
 
             return sessionsDict.Values;
@@ -260,7 +260,7 @@ namespace Microsoft.Xna.Framework.Net
             const int MAX_RETRIES = 3;
             const int TIMEOUT_MS = 300; // Faster timeout for LAN (reduced from 500ms)
 
-            Debug.WriteLine($"[JOIN] Starting join process for session {availableSession.SessionId}");
+            NetworkLogging.Logger.LogInfo($"[JOIN] Starting join process for session {availableSession.SessionId}");
 
             // Create client session in Joining state
             var session = new NetworkSession(availableSession.SessionType,
@@ -295,14 +295,14 @@ namespace Microsoft.Xna.Framework.Net
             // Send join request with retry logic
             for (int attempt = 0; attempt < MAX_RETRIES; attempt++)
             {
-                Debug.WriteLine($"[JOIN] Sending join request (attempt {attempt + 1}/{MAX_RETRIES})");
+                NetworkLogging.Logger.LogInfo($"[JOIN] Sending join request (attempt {attempt + 1}/{MAX_RETRIES})");
 
                 // Use the session's own local gamer
                 var localGamer = session.LocalGamers.FirstOrDefault();
                 if (localGamer == null)
                     throw new InvalidOperationException("No local gamer found in session");
 
-                Debug.WriteLine($"[JOIN] Sending as gamer: {localGamer.Gamertag} (ID: {localGamer.GamerId})");
+                NetworkLogging.Logger.LogInfo($"[JOIN] Sending as gamer: {localGamer.Gamertag} (ID: {localGamer.GamerId})");
 
                 var joinRequest = new JoinRequestMessage
                 {
@@ -321,7 +321,7 @@ namespace Microsoft.Xna.Framework.Net
                 {
                     if (session.sessionState == NetworkSessionState.Lobby)
                     {
-                        Debug.WriteLine($"[JOIN] Successfully joined session after {attempt + 1} attempt(s)");
+                        NetworkLogging.Logger.LogInfo($"[JOIN] Successfully joined session after {attempt + 1} attempt(s)");
                         // Start connection monitoring for client
                         session.StartConnectionMonitoring();
                         return session;
@@ -333,7 +333,7 @@ namespace Microsoft.Xna.Framework.Net
                     {
                         var error = session.joinRejectedError;
                         var reason = session.joinRejectedReason;
-                        Debug.WriteLine($"[JOIN] Rejected by host: {reason} ({error})");
+                        NetworkLogging.Logger.LogWarning($"[JOIN] Rejected by host: {reason} ({error})");
                         session.Dispose();
                         throw new NetworkSessionJoinException(reason, error);
                     }
@@ -341,11 +341,11 @@ namespace Microsoft.Xna.Framework.Net
                     await Task.Delay(50, cancellationToken).ConfigureAwait(false);
                 }
 
-                Debug.WriteLine($"[JOIN] Attempt {attempt + 1} timed out");
+                NetworkLogging.Logger.LogWarning($"[JOIN] Attempt {attempt + 1} timed out");
             }
 
             // After MAX_RETRIES attempts, give up
-            Debug.WriteLine($"[JOIN] Failed to join session after {MAX_RETRIES} attempts");
+            NetworkLogging.Logger.LogWarning($"[JOIN] Failed to join session after {MAX_RETRIES} attempts");
             session.Dispose();
             throw new NetworkSessionJoinException(
                 $"Failed to join session after {MAX_RETRIES} attempts. Host may be unreachable or session is full.",

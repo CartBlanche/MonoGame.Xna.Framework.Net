@@ -124,7 +124,7 @@ namespace Microsoft.Xna.Framework.Net
 
             // Initialize diagnostics and logging
             diagnostics = new NetworkDiagnostics();
-            logger = new ConsoleNetworkLogger();
+            logger = NetworkLogging.Current;
             connectionMonitor = new ConnectionHealthMonitor();
 
             // Add local gamer

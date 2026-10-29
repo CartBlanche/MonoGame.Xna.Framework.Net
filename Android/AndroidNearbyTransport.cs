@@ -154,7 +154,7 @@ namespace Microsoft.Xna.Framework.Net.Android
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"[Nearby] Requesting a connection to {endpointId} failed: {ex.Message}");
+                NetworkLogging.Logger.LogWarning($"[Nearby] Requesting a connection to {endpointId} failed: {ex.Message}");
                 links.TryRemove(endpointId, out _);
             }
         }
@@ -167,7 +167,7 @@ namespace Microsoft.Xna.Framework.Net.Android
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"[Nearby] Sending to {endpointId} failed: {ex.Message}");
+                NetworkLogging.Logger.LogWarning($"[Nearby] Sending to {endpointId} failed: {ex.Message}");
             }
         }
 

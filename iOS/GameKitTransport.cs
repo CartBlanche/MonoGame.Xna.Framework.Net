@@ -89,7 +89,7 @@ namespace Microsoft.Xna.Framework.Net.iOS
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"[GameKit] Matchmaking failed: {ex.Message}");
+                NetworkLogging.Logger.LogWarning($"[GameKit] Matchmaking failed: {ex.Message}");
                 if (!asHost)
                     throw;
                 return;
@@ -134,7 +134,7 @@ namespace Microsoft.Xna.Framework.Net.iOS
             current.SendData(payload, new[] { player }, GKMatchSendDataMode.Reliable, out var error);
 #pragma warning restore CA1422
             if (error != null)
-                Debug.WriteLine($"[GameKit] SendData failed: {error.LocalizedDescription}");
+                NetworkLogging.Logger.LogWarning($"[GameKit] SendData failed: {error.LocalizedDescription}");
         }
 
         public async Task<(byte[] Data, PeerId Sender)> ReceiveAsync()

@@ -258,8 +258,8 @@ Tasks
 
 ## Phase 8: Modernisation and cleanup
 
-- [ ] 8.1 Replace `Debug.WriteLine` with injectable `ILogger`/`INetworkLogger` adapter
-- [ ] 8.2 Instance-based service container behind the static `NetworkServiceProvider`/registries (statics remain as the facade)
+- [x] 8.1 One framework-wide `NetworkLogging.Logger` (default: debugger output); sessions use it unless given their own, and the LAN code and every back-end log through it. 55 `Debug.WriteLine` calls converted, with a severity each. Still to convert once the owner's uncommitted `EOS/EOSClient.cs` changes are settled: its 34 calls
+- [ ] 8.2 (SKIPPED for now) Instance-based service container behind the static `NetworkServiceProvider`/registries (statics remain as the facade)
 - [x] 8.3 Removed the empty `NetworkMessages.cs` and the empty duplicate `MessageReceivedEventArgs.cs`; `Net.GamerCollection` now derives from `GamerCollection<NetworkGamer>` (the XNA type), so `GamerCollection<NetworkGamer> all = session.AllGamers` compiles
 - [x] 8.4 `PlayerMoveMessage` deleted (nothing used it; wire id 1 is now unassigned)
 - [x] 8.5 "Phase N" comments removed; the legacy `GameStateChangeMessage` broadcast was already gone
@@ -327,6 +327,8 @@ Exit criteria: a containerised server accepts clients from another network and s
 | 2026-10-29 | Without a password the link key travels in the clear: forgery from off the path is stopped, a reader of the LAN is not | A key exchange with no shared secret cannot stop a man in the middle; the password is the opt-in for that. Replays are left to the channel, which discards duplicates |
 | 2026-10-29 | EOS republishes the password flag only when properties change; Steam keeps it in step every second | A password set after creation is rare; the EOS loop only updates the lobby on a property change |
 | 2026-10-29 | Voice (Phase 7) deferred until after Phase 9; work continues with Phase 8 | Optional, and nothing in Phases 8 to 10 depends on it |
+| 2026-10-29 | A session's default logger is now the framework logger (debugger output), no longer the console | Console output is noise in a shipped game; `NetworkLogging.Logger` is the one place a game redirects it |
+| 2026-10-29 | 8.2 (instance-based service container) skipped for now | The statics are the XNA-shaped facade and nothing needs several contexts in one process yet; revisit with Phase 10 |
 | 2026-10-28 | Events move to `Update()` | This matches XNA's behaviour, so it is also a compat fix |
 | 2026-10-28 | Phase 2 shipped as one commit, not the two planned (A and B) | The event queue and the per-session local gamer change the same lines of `NetworkSession.cs` |
 | 2026-10-28 | `SessionEnded` is raised at most once per session | Previously a client whose host left, then disposed in the handler, got it twice (HostEndedSession then ClientSignedOut) |

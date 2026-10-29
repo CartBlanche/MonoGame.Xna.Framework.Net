@@ -305,7 +305,7 @@ namespace Microsoft.Xna.Framework.Net.EOS
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"[EOS] Destroying the lobby failed: {ex.Message}");
+                NetworkLogging.Logger.LogWarning($"[EOS] Destroying the lobby failed: {ex.Message}");
             }
         }
 
@@ -321,7 +321,7 @@ namespace Microsoft.Xna.Framework.Net.EOS
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"[EOS] Leaving the lobby failed: {ex.Message}");
+                NetworkLogging.Logger.LogWarning($"[EOS] Leaving the lobby failed: {ex.Message}");
             }
         }
 
@@ -396,7 +396,7 @@ namespace Microsoft.Xna.Framework.Net.EOS
             var modification = new Lobby.UpdateLobbyModificationOptions { LobbyId = lobbyId, LocalUserId = localUserId };
             if (lobbyInterface.UpdateLobbyModification(ref modification, out var handle) != Result.Success || handle == null)
             {
-                Debug.WriteLine("[EOS] UpdateLobbyModification failed: the lobby's attributes are not set, so searches will not find it.");
+                NetworkLogging.Logger.LogWarning("[EOS] UpdateLobbyModification failed: the lobby's attributes are not set, so searches will not find it.");
                 return previouslyPublished;
             }
 
@@ -436,7 +436,7 @@ namespace Microsoft.Xna.Framework.Net.EOS
                 var result = await EOSClient.WaitForCallbackAsync(done, EOSClient.GetCallbackTimeout(), CancellationToken.None, "Lobby.UpdateLobby").ConfigureAwait(false);
                 if (result.ResultCode != Result.Success)
                 {
-                    Debug.WriteLine($"[EOS] Lobby.UpdateLobby (attributes) failed: {result.ResultCode}");
+                    NetworkLogging.Logger.LogWarning($"[EOS] Lobby.UpdateLobby (attributes) failed: {result.ResultCode}");
                     return previouslyPublished;
                 }
             }
