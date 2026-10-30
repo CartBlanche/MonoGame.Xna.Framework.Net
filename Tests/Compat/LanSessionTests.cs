@@ -140,8 +140,9 @@ namespace Microsoft.Xna.Framework.Net.CompatTests
             Assert.That(await lan.WaitUntilAsync(() => client.SessionState == NetworkSessionState.Playing),
                 "client never saw the game start");
             Assert.That(host.SessionState, Is.EqualTo(NetworkSessionState.Playing));
-            Assert.That(hostStarted, Is.EqualTo(1));
-            Assert.That(clientStarted, Is.EqualTo(1));
+            // the state changes at once but events are raised by the next Update(), so wait for them
+            Assert.That(await lan.WaitUntilAsync(() => hostStarted == 1 && clientStarted == 1),
+                $"GameStarted was raised {hostStarted} times on the host and {clientStarted} on the client");
 
             host.EndGame();
             Assert.That(await lan.WaitUntilAsync(() => client.SessionState == NetworkSessionState.Lobby),
