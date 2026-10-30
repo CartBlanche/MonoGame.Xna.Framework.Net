@@ -18,7 +18,8 @@ namespace Microsoft.Xna.Framework.Net
         public PeerId RemotePeer { get; }
 
         /// <summary>
-        /// Gets the gamer who sent the message.
+        /// Gets the gamer who sent the message: the host for a client, and the client's gamer for the host.
+        /// It is <c>null</c> for the handshake messages that arrive before the sender has joined, such as a join request.
         /// </summary>
         public NetworkGamer? Sender { get; internal set; }
 

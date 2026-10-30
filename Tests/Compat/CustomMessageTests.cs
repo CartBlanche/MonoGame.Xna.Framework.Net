@@ -54,12 +54,15 @@ namespace Microsoft.Xna.Framework.Net.CompatTests
                 Assert.That(await lan.WaitUntilAsync(() => host.AllGamers.Count == 2 && client.AllGamers.Count == 2));
 
                 ScoreMessage received = null;
-                client.MessageReceived += (s, e) => { if (e.Message is ScoreMessage m) received = m; };
+                NetworkGamer sender = null;
+                client.MessageReceived += (s, e) => { if (e.Message is ScoreMessage m) { received = m; sender = e.Sender; } };
 
                 host.SendMessage(new ScoreMessage { Score = 42 }, SendDataOptions.ReliableInOrder);
 
                 Assert.That(await lan.WaitUntilAsync(() => received != null), "MessageReceived never fired for the custom message");
                 Assert.That(received.Score, Is.EqualTo(42));
+                Assert.That(sender, Is.Not.Null, "the message does not say who sent it");
+                Assert.That(sender.IsHost, Is.True);
             }
         }
 
@@ -75,12 +78,14 @@ namespace Microsoft.Xna.Framework.Net.CompatTests
 
                 ScoreMessage atHost = null;
                 ScoreMessage atClient = null;
-                host.MessageReceived += (s, e) => { if (e.Message is ScoreMessage m) atHost = m; };
+                NetworkGamer senderAtHost = null;
+                host.MessageReceived += (s, e) => { if (e.Message is ScoreMessage m) { atHost = m; senderAtHost = e.Sender; } };
                 client.MessageReceived += (s, e) => { if (e.Message is ScoreMessage m) atClient = m; };
 
                 client.SendMessage(new ScoreMessage { Score = 7 }, SendDataOptions.ReliableInOrder, client.AllGamers.Host);
                 Assert.That(await lan.WaitUntilAsync(() => atHost != null), "the host never got the client's message");
                 Assert.That(atHost.Score, Is.EqualTo(7));
+                Assert.That(senderAtHost, Is.SameAs(host.RemoteGamers[0]), "the host cannot tell which client sent it");
 
                 host.SendMessage(new ScoreMessage { Score = 9 }, SendDataOptions.ReliableInOrder, host.RemoteGamers[0]);
                 Assert.That(await lan.WaitUntilAsync(() => atClient != null), "the client never got the host's message");

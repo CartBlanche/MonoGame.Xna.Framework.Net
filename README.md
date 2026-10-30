@@ -103,7 +103,7 @@ session.SendMessage(new ScoreMessage { Score = 42 }, SendDataOptions.ReliableInO
 session.MessageReceived += (s, e) => { if (e.Message is ScoreMessage m) { /* ... */ } };
 ```
 
-`MessageReceived` also fires for the library's own messages, so test the type. Ids below 128 are the library's and cannot be registered. Machines connect through the host, so a client can send a message to the host and the host to anyone, but a client cannot send one to another client. For ordinary game data, `SendData` is still the way.
+`MessageReceived` also fires for the library's own messages, so test the type. `e.Sender` is the gamer who sent it. Ids below 128 are the library's and cannot be registered. Machines connect through the host, so a client can send a message to the host and the host to anyone, but a client cannot send one to another client. For ordinary game data, `SendData` is still the way.
 
 ## Security
 

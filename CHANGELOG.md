@@ -41,6 +41,7 @@ Development builds used protocol numbers 1 to 5 for formats that never shipped; 
 - `NetworkSession.SendMessage` (two overloads) and `NetworkMessageRegistry.FirstCustomId`: games and back-ends can send their own
   `INetworkMessage` types and receive them through `MessageReceived`. Custom ids are 128 to 255; `Register` rejects lower ones with
   `ArgumentOutOfRangeException` (it used to throw `InvalidOperationException` for the framework's own ids).
+  `MessageReceivedEventArgs.Sender` is now set (it was always `null`): the host for a client, the client's gamer for the host.
 - `COMPATIBILITY.md` and `Samples/DataPath`, a data-path acceptance test.
 
 ### Fixed

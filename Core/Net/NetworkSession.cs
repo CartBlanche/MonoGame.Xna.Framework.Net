@@ -923,6 +923,9 @@ namespace Microsoft.Xna.Framework.Net
 
         private void OnMessageReceived(MessageReceivedEventArgs e)
         {
+            // who sent it, as far as the address says: nobody yet for a join request, which comes before the gamer is known
+            e.Sender ??= GamerAt(e.RemotePeer);
+
             if (e.Message is JoinRequestMessage joinRequest)
             {
                 // Anybody can send these, from addresses they made up, and every one costs the host work and
