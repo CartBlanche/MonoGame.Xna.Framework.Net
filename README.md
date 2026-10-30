@@ -93,6 +93,18 @@ Optional and not promised, and none of it is in 1.0. Adding it should not break 
 
 Every game that uses this library announces its sessions on the same UDP ports, so without help one game lists, and can join, another's sessions. Set `NetworkSession.GameId = "MyGame";` once at start-up, to the same text in every build of the game (desktop, Android, iOS). A game then finds only sessions with its own id. It is empty by default, which only finds other sessions with no id. Steam and Epic Online Services keep games apart with the platform's own id.
 
+## Your own messages
+
+The library's own protocol messages are internal to it, but games and back-ends can add theirs. Implement `INetworkMessage` (its `Serialize` writes `MessageType` first), register it with an id from 128 to 255, send it with `NetworkSession.SendMessage`, and receive it through `NetworkSession.MessageReceived`:
+
+```csharp
+NetworkMessageRegistry.Register<ScoreMessage>(200);              // once, on every machine
+session.SendMessage(new ScoreMessage { Score = 42 }, SendDataOptions.ReliableInOrder);
+session.MessageReceived += (s, e) => { if (e.Message is ScoreMessage m) { /* ... */ } };
+```
+
+`MessageReceived` also fires for the library's own messages, so test the type. Ids below 128 are the library's and cannot be registered. Machines connect through the host, so a client can send a message to the host and the host to anyone, but a client cannot send one to another client. For ordinary game data, `SendData` is still the way.
+
 ## Security
 
 - **Session password.** `NetworkSession.CreateAsync(..., password)` makes a session that joiners need a password for; `JoinAsync(session, password)` supplies it. The host challenges the joiner, who proves they know the password; the password never crosses the network. A wrong or missing password is refused with `NetworkSessionJoinError.WrongPassword` or `PasswordRequired`, and the lobby entry says a password is needed (`AvailableNetworkSession.IsPasswordProtected`).

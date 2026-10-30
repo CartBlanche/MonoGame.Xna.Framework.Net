@@ -40,7 +40,8 @@ namespace Microsoft.Xna.Framework.Net.Tests
         [Test]
         public void TheFrameworksOwnIds_CannotBeTakenOver()
         {
-            Assert.Throws<InvalidOperationException>(() => NetworkMessageRegistry.Register<FirstMessage>(2));
+            Assert.Throws<ArgumentOutOfRangeException>(() => NetworkMessageRegistry.Register<FirstMessage>(2));
+            Assert.Throws<ArgumentOutOfRangeException>(() => NetworkMessageRegistry.Register<FirstMessage>(127));
             Assert.That(NetworkMessageRegistry.CreateMessage(2), Is.InstanceOf<JoinRequestMessage>());
         }
 

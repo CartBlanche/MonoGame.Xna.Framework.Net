@@ -38,6 +38,9 @@ Development builds used protocol numbers 1 to 5 for formats that never shipped; 
 - `NetworkSession.GameId` (and `SessionAdvertisement.GameId`): names the game, so that on a LAN a game finds only its own
   sessions. Without it every game that uses the library listed, and could join, every other game's sessions. Empty by default;
   set it to the same text in every build of the game.
+- `NetworkSession.SendMessage` (two overloads) and `NetworkMessageRegistry.FirstCustomId`: games and back-ends can send their own
+  `INetworkMessage` types and receive them through `MessageReceived`. Custom ids are 128 to 255; `Register` rejects lower ones with
+  `ArgumentOutOfRangeException` (it used to throw `InvalidOperationException` for the framework's own ids).
 - `COMPATIBILITY.md` and `Samples/DataPath`, a data-path acceptance test.
 
 ### Fixed

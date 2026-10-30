@@ -14,16 +14,33 @@ namespace Microsoft.Xna.Framework.Net
             public Func<INetworkMessage> Create;
         }
 
+        /// <summary>
+        /// The first message id open to games and third-party backends. Ids below it belong to the framework,
+        /// and ids from here up to 255 are yours; the framework will never use them.
+        /// </summary>
+        public const byte FirstCustomId = 128;
+
         private static readonly ConcurrentDictionary<byte, Entry> registry = new();
 
         /// <summary>
-        /// Registers a network message type with the specified type identifier.
+        /// Registers your own network message type with the specified type identifier, from
+        /// <see cref="FirstCustomId"/> (128) to 255. Send it with <see cref="NetworkSession.SendMessage(INetworkMessage, SendDataOptions)"/>
+        /// and receive it through <see cref="NetworkSession.MessageReceived"/>.
         /// Registering the same type under the same identifier again is harmless.
         /// </summary>
         /// <typeparam name="T">The type of the network message to register. Must implement <see cref="INetworkMessage"/> and have a parameterless constructor.</typeparam>
         /// <param name="typeId">The unique identifier for the message type.</param>
-        /// <exception cref="InvalidOperationException">The identifier already belongs to a different type, which includes the framework's own messages.</exception>
+        /// <exception cref="ArgumentOutOfRangeException">The identifier is below <see cref="FirstCustomId"/>: those belong to the framework.</exception>
+        /// <exception cref="InvalidOperationException">The identifier already belongs to a different type.</exception>
         public static void Register<T>(byte typeId) where T : INetworkMessage, new()
+        {
+            if (typeId < FirstCustomId)
+                throw new ArgumentOutOfRangeException(nameof(typeId), typeId,
+                    $"Message ids below {FirstCustomId} are the framework's own; use {FirstCustomId} to 255.");
+            RegisterCore<T>(typeId);
+        }
+
+        private static void RegisterCore<T>(byte typeId) where T : INetworkMessage, new()
         {
             var entry = new Entry { Type = typeof(T), Create = () => new T() };
             var existing = registry.GetOrAdd(typeId, entry);
@@ -44,17 +61,17 @@ namespace Microsoft.Xna.Framework.Net
 
         static NetworkMessageRegistry()
         {
-            Register<JoinRequestMessage>(2);
-            Register<JoinAcceptedMessage>(3);
-            Register<ReadinessUpdateMessage>(4);
-            Register<JoinRejectedMessage>(6);
-            Register<HeartbeatMessage>(7);
-            Register<HeartbeatReplyMessage>(8);
-            Register<GamerLeavingMessage>(9); // Graceful leave protocol
-            Register<SessionStateMessage>(10); // Session state synchronization
-            Register<GamerJoinedMessage>(11);
-            Register<RemovedFromSessionMessage>(12);
-            Register<PasswordChallengeMessage>(13);
+            RegisterCore<JoinRequestMessage>(2);
+            RegisterCore<JoinAcceptedMessage>(3);
+            RegisterCore<ReadinessUpdateMessage>(4);
+            RegisterCore<JoinRejectedMessage>(6);
+            RegisterCore<HeartbeatMessage>(7);
+            RegisterCore<HeartbeatReplyMessage>(8);
+            RegisterCore<GamerLeavingMessage>(9); // Graceful leave protocol
+            RegisterCore<SessionStateMessage>(10); // Session state synchronization
+            RegisterCore<GamerJoinedMessage>(11);
+            RegisterCore<RemovedFromSessionMessage>(12);
+            RegisterCore<PasswordChallengeMessage>(13);
         }
     }
 }

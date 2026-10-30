@@ -416,6 +416,7 @@ class Net.NetworkMachine
 static class Net.NetworkMessageRegistry
     static CreateMessage(Byte typeId) : Net.INetworkMessage
     static Register<T>(Byte typeId) : Void
+    static const field FirstCustomId : Byte = 128
 static class Net.NetworkServiceProvider
     static ResetToDefault() : Void
     static SetBackend(Net.INetworkBackend newBackend) : Void
@@ -429,6 +430,8 @@ class Net.NetworkSession : IAsyncDisposable, IDisposable, Net.ISessionAdvertiser
     FindGamerById(Byte gamerId) : Net.NetworkGamer
     Leave(String reason = User left session) : Void
     ResetReady() : Void
+    SendMessage(Net.INetworkMessage message, Net.SendDataOptions options) : Void
+    SendMessage(Net.INetworkMessage message, Net.SendDataOptions options, Net.NetworkGamer recipient) : Void
     SendToAll(Net.PacketWriter writer, Net.SendDataOptions options) : Void
     SendToAll(Net.PacketWriter writer, Net.SendDataOptions options, Net.NetworkGamer sender) : Void
     StartGame() : Void

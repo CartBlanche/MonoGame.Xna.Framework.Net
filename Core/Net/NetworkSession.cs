@@ -703,6 +703,64 @@ namespace Microsoft.Xna.Framework.Net
         }
 
         /// <summary>
+        /// Sends your own <see cref="INetworkMessage"/> to every gamer this machine is connected to directly:
+        /// the host reaches every client, and a client reaches the host. The other side receives it through
+        /// <see cref="MessageReceived"/>. Register the type first with <see cref="NetworkMessageRegistry.Register{T}(byte)"/>.
+        /// </summary>
+        /// <param name="message">The message. Its <see cref="INetworkMessage.MessageType"/> must be 128 or more.</param>
+        /// <param name="options">How to deliver it.</param>
+        /// <exception cref="ArgumentException">The message type is below 128, or <see cref="INetworkMessage.Serialize"/> does not write it first.</exception>
+        public void SendMessage(INetworkMessage message, SendDataOptions options)
+        {
+            byte[] data = SerializeCustomMessage(message);
+            NetworkGamer[] recipients;
+            lock (lockObject)
+                recipients = gamers.Where(g => !g.IsLocal && (IsHost || PeerOf(g) != null)).ToArray();
+
+            foreach (NetworkGamer gamer in recipients)
+                SendMessageToGamer(gamer, data, options);
+        }
+
+        /// <summary>
+        /// Sends your own <see cref="INetworkMessage"/> to one gamer. Machines connect through the host, so a
+        /// client can send a message to the host, and the host to anyone; a client cannot send one to another client.
+        /// </summary>
+        /// <param name="message">The message. Its <see cref="INetworkMessage.MessageType"/> must be 128 or more.</param>
+        /// <param name="options">How to deliver it.</param>
+        /// <param name="recipient">The gamer to send it to.</param>
+        /// <exception cref="ArgumentException">The message type is below 128, or <see cref="INetworkMessage.Serialize"/> does not write it first.</exception>
+        /// <exception cref="InvalidOperationException">The recipient is local, or this client has no direct connection to it.</exception>
+        public void SendMessage(INetworkMessage message, SendDataOptions options, NetworkGamer recipient)
+        {
+            ArgumentNullException.ThrowIfNull(recipient);
+            byte[] data = SerializeCustomMessage(message);
+
+            if (recipient.IsLocal)
+                throw new InvalidOperationException("A message cannot be sent to a gamer on this machine.");
+            if (!IsHost && PeerOf(recipient) == null)
+                throw new InvalidOperationException("A client can only send a message to the host, not to another client.");
+
+            SendMessageToGamer(recipient, data, options);
+        }
+
+        private static byte[] SerializeCustomMessage(INetworkMessage message)
+        {
+            ArgumentNullException.ThrowIfNull(message);
+            if (message.MessageType < NetworkMessageRegistry.FirstCustomId)
+                throw new ArgumentException(
+                    $"Message type {message.MessageType} is the framework's own; use {NetworkMessageRegistry.FirstCustomId} to 255.", nameof(message));
+
+            using (var writer = new PacketWriter())
+            {
+                message.Serialize(writer);
+                byte[] data = writer.GetData();
+                if (data.Length == 0 || data[0] != message.MessageType)
+                    throw new ArgumentException("Serialize must write MessageType as its first byte.", nameof(message));
+                return data;
+            }
+        }
+
+        /// <summary>
         /// Sends data to all gamers in the session.
         /// </summary>
         public void SendToAll(PacketWriter writer, SendDataOptions options)
