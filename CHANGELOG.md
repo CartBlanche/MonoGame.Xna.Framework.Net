@@ -10,6 +10,11 @@ Development builds used protocol numbers 1 to 5 for formats that never shipped; 
 
 ### Breaking changes
 
+- The framework's own wire messages (`JoinRequestMessage`, `JoinAcceptedMessage`, `JoinRejectedMessage`, `ReadinessUpdateMessage`,
+  `PasswordChallengeMessage`, `GamerJoinedMessage`, `RemovedFromSessionMessage`, `HeartbeatMessage`, `HeartbeatReplyMessage`), the LAN
+  discovery types (`DiscoveryPacket`, `DiscoveryPayload`) and `ConnectionHealthMonitor` are internal. Games and back-ends add their own
+  messages with `INetworkMessage`, `NetworkMessageRegistry` and `NetworkSession.SendMessage` (ids 128 to 255).
+
 - `NetworkGamer.Id` is XNA's `byte`. The string that used to be `Id` is `GamerId`. Code that passed `gamer.Id` to something taking
   any object (`Array.IndexOf`, `Contains`, `Equals`, string concatenation) still compiles but no longer matches.
 - `NetworkGamer` derives from `Gamer`; its `Gamertag` is read-only.

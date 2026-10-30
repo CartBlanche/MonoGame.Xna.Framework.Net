@@ -5,7 +5,7 @@ namespace Microsoft.Xna.Framework.Net
     /// <summary>
     /// Message sent by the host to reject a join request.
     /// </summary>
-    public class JoinRejectedMessage : INetworkMessage
+    internal class JoinRejectedMessage : INetworkMessage
     {
         public byte MessageType => 6;
         

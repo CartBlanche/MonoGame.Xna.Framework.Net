@@ -4,7 +4,7 @@ using Microsoft.Xna.Framework.Net;
 
 namespace Microsoft.Xna.Framework.Net
 {
-    public class JoinAcceptedMessage : INetworkMessage
+    internal class JoinAcceptedMessage : INetworkMessage
     {
         /// <summary>A gamer already in the session, as the joiner needs to know them.</summary>
         public struct RosterEntry

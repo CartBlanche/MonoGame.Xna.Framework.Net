@@ -5,7 +5,7 @@ namespace Microsoft.Xna.Framework.Net
     /// <summary>
     /// Network message indicating a gamer's readiness state changed.
     /// </summary>
-    public class ReadinessUpdateMessage : INetworkMessage
+    internal class ReadinessUpdateMessage : INetworkMessage
     {
         // Reserve message id 4
         public byte MessageType => 4;

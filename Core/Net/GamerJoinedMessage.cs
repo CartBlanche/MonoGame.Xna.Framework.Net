@@ -4,7 +4,7 @@ namespace Microsoft.Xna.Framework.Net
     /// Sent by the host to the gamers already in the session when another gamer joins, so that every
     /// machine knows every gamer, not only the host.
     /// </summary>
-    public class GamerJoinedMessage : INetworkMessage
+    internal class GamerJoinedMessage : INetworkMessage
     {
         public byte MessageType => 11;
 

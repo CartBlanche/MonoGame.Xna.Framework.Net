@@ -10,7 +10,7 @@ namespace Microsoft.Xna.Framework.Net
     /// Immutable discovery packet with length-prefixed binary format.
     /// Format: [Magic(4)][Version(1)][Type(1)][PayloadLength(2)][Payload][CRC32(4)]
     /// </summary>
-    public class DiscoveryPacket
+    internal class DiscoveryPacket
     {
         public const uint MAGIC = 0x4D6F6E6F; // "Mono" in hex
         public const byte PROTOCOL_VERSION = 1;
@@ -110,7 +110,7 @@ namespace Microsoft.Xna.Framework.Net
     /// <summary>
     /// Payload containing session information.
     /// </summary>
-    public class DiscoveryPayload
+    internal class DiscoveryPayload
     {
         public string SessionId { get; }
         public int MaxGamers { get; }

@@ -3,7 +3,7 @@ namespace Microsoft.Xna.Framework.Net
     /// <summary>
     /// Heartbeat message sent periodically to monitor connection health.
     /// </summary>
-    public class HeartbeatMessage : INetworkMessage
+    internal class HeartbeatMessage : INetworkMessage
     {
         public byte MessageType => 7;
         

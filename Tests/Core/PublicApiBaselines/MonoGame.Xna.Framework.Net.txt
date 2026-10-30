@@ -199,15 +199,6 @@ class Net.AvailableNetworkSession
 class Net.AvailableNetworkSessionCollection : Collections.ObjectModel.ReadOnlyCollection<Net.AvailableNetworkSession>, IDisposable
     Dispose() : Void
     protected virtual Dispose(Boolean disposing) : Void
-class Net.ConnectionHealthMonitor
-    OnGamerJoined(Net.NetworkGamer gamer) : Void
-    OnGamerLeft(Net.NetworkGamer gamer) : Void
-    OnHeartbeatReceived(String gamerId, Net.HeartbeatMessage heartbeat) : Void
-    OnHeartbeatReplyReceived(String gamerId, Net.HeartbeatReplyMessage reply) : Void
-    OnPeerActivity(String gamerId) : Void
-    StartMonitoring(Net.NetworkSession session) : Void
-    StopMonitoring() : Void
-    ctor()
 class Net.ConsoleNetworkLogger : Net.INetworkLogger
     LogError(String message, Exception ex = null) : Void
     LogInfo(String message) : Void
@@ -218,28 +209,6 @@ class Net.DebugNetworkLogger : Net.INetworkLogger
     LogInfo(String message) : Void
     LogWarning(String message) : Void
     ctor()
-class Net.DiscoveryPacket
-    ToByteArray() : Byte[]
-    ctor(Byte type, Net.DiscoveryPayload payload)
-    prop Magic : UInt32 { get }
-    prop Payload : Net.DiscoveryPayload { get }
-    prop Type : Byte { get }
-    prop Version : Byte { get }
-    static TryParse(Byte[] data, out Net.DiscoveryPacket packet) : Boolean
-    static const field MAGIC : UInt32 = 1299148399
-    static const field PROTOCOL_VERSION : Byte = 1
-    static const field TYPE_DISCOVERY : Byte = 1
-    static const field TYPE_RESPONSE : Byte = 2
-class Net.DiscoveryPayload
-    ToByteArray() : Byte[]
-    ctor(String sessionId, Int32 maxGamers, Int32 privateSlots, String hostGamertag, Int32 gamePort, Byte[] properties)
-    prop GamePort : Int32 { get }
-    prop HostGamertag : String { get }
-    prop MaxGamers : Int32 { get }
-    prop PrivateGamerSlots : Int32 { get }
-    prop SessionId : String { get }
-    prop SessionProperties : Byte[] { get }
-    static TryParse(Byte[] data, out Net.DiscoveryPayload payload) : Boolean
 enum Net.EventDispatchMode
     Immediate = 1
     OnUpdate = 0
@@ -250,14 +219,6 @@ class Net.GamerCollection : GamerServices.GamerCollection<Net.NetworkGamer>
     prop Host : Net.NetworkGamer { get }
 class Net.GamerJoinedEventArgs : EventArgs
     prop Gamer : Net.NetworkGamer { get }
-class Net.GamerJoinedMessage : Net.INetworkMessage
-    Deserialize(Net.PacketReader reader) : Void
-    Serialize(Net.PacketWriter writer) : Void
-    ctor()
-    prop GamerId : String { get; set }
-    prop Gamertag : String { get; set }
-    prop Id : Byte { get; set }
-    prop MessageType : Byte { get }
 class Net.GamerLeavingMessage : Net.INetworkMessage
     Deserialize(Net.PacketReader reader) : Void
     Serialize(Net.PacketWriter writer) : Void
@@ -270,23 +231,6 @@ class Net.GamerLeftEventArgs : EventArgs
 enum Net.GamerType
     Local = 0
     Remote = 1
-class Net.HeartbeatMessage : Net.INetworkMessage
-    Deserialize(Net.PacketReader reader) : Void
-    Serialize(Net.PacketWriter writer) : Void
-    ctor()
-    prop GamerCount : Int32 { get; set }
-    prop GamerId : String { get; set }
-    prop MessageType : Byte { get }
-    prop SequenceNumber : UInt32 { get; set }
-    prop Timestamp : Int64 { get; set }
-class Net.HeartbeatReplyMessage : Net.INetworkMessage
-    Deserialize(Net.PacketReader reader) : Void
-    Serialize(Net.PacketWriter writer) : Void
-    ctor()
-    prop GamerId : String { get; set }
-    prop MessageType : Byte { get }
-    prop ReplyTimestamp : Int64 { get; set }
-    prop RequestTimestamp : Int64 { get; set }
 class Net.HostChangedEventArgs : EventArgs
     ctor(Net.NetworkGamer newHost, Net.NetworkGamer oldHost)
     prop NewHost : Net.NetworkGamer { get }
@@ -318,40 +262,6 @@ interface Net.ISessionAdvertiser
 class Net.InviteReceivedEventArgs : EventArgs
     ctor(Net.AvailableNetworkSession session)
     prop Session : Net.AvailableNetworkSession { get }
-class Net.JoinAcceptedMessage : Net.INetworkMessage
-    Deserialize(Net.PacketReader reader) : Void
-    Serialize(Net.PacketWriter writer) : Void
-    ctor()
-    prop HostGamerId : String { get; set }
-    prop HostGamertag : String { get; set }
-    prop HostId : Byte { get; set }
-    prop KeyIsSealed : Boolean { get; set }
-    prop LinkKey : Byte[] { get; set }
-    prop MessageType : Byte { get }
-    prop Others : Collections.Generic.List<Net.JoinAcceptedMessage.RosterEntry> { get; set }
-    prop SessionId : String { get; set }
-    prop YourId : Byte { get; set }
-struct Net.JoinAcceptedMessage.RosterEntry
-    prop GamerId : String { get; set }
-    prop Gamertag : String { get; set }
-    prop Id : Byte { get; set }
-class Net.JoinRejectedMessage : Net.INetworkMessage
-    Deserialize(Net.PacketReader reader) : Void
-    Serialize(Net.PacketWriter writer) : Void
-    ctor()
-    prop ErrorCode : Net.NetworkSessionJoinError { get; set }
-    prop MessageType : Byte { get }
-    prop Reason : String { get; set }
-class Net.JoinRequestMessage : Net.INetworkMessage
-    Deserialize(Net.PacketReader reader) : Void
-    Serialize(Net.PacketWriter writer) : Void
-    ctor()
-    prop GamerId : String { get; set }
-    prop Gamertag : String { get; set }
-    prop MessageType : Byte { get }
-    prop Proof : Byte[] { get; set }
-    prop ProtocolVersion : Byte { get; set }
-    static const field CURRENT_PROTOCOL_VERSION : Byte = 1
 class Net.LocalGamerCollection : Collections.ObjectModel.ReadOnlyCollection<Net.LocalNetworkGamer>
     FindGamerById(Byte id) : Net.LocalNetworkGamer
     prop Host : Net.LocalNetworkGamer { get }
@@ -599,13 +509,6 @@ class Net.PacketWriter : IDisposable
     ctor()
     prop Length : Int32 { get }
     prop Position : Int32 { get; set }
-class Net.PasswordChallengeMessage : Net.INetworkMessage
-    Deserialize(Net.PacketReader reader) : Void
-    Serialize(Net.PacketWriter writer) : Void
-    ctor()
-    prop MessageType : Byte { get }
-    prop Nonce : Byte[] { get; set }
-    prop Salt : Byte[] { get; set }
 struct Net.PeerId : IEquatable<Net.PeerId>
     Equals(Net.PeerId other) : Boolean
     ctor(String value)
@@ -625,19 +528,6 @@ class Net.QualityOfService
     prop IsAvailable : Boolean { get }
     prop MaximumRoundtripTime : TimeSpan { get }
     prop MinimumRoundtripTime : TimeSpan { get }
-class Net.ReadinessUpdateMessage : Net.INetworkMessage
-    Deserialize(Net.PacketReader reader) : Void
-    Serialize(Net.PacketWriter writer) : Void
-    ctor()
-    prop GamerId : String { get; set }
-    prop IsReady : Boolean { get; set }
-    prop MessageType : Byte { get }
-class Net.RemovedFromSessionMessage : Net.INetworkMessage
-    Deserialize(Net.PacketReader reader) : Void
-    Serialize(Net.PacketWriter writer) : Void
-    ctor()
-    prop MessageType : Byte { get }
-    prop Reason : String { get; set }
 [Flags] enum Net.SendDataOptions
     Chat = 4
     InOrder = 2

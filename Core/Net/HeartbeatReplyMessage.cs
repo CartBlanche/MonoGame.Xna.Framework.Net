@@ -5,7 +5,7 @@ namespace Microsoft.Xna.Framework.Net
     /// <summary>
     /// Reply message sent in response to a heartbeat, used for RTT calculation.
     /// </summary>
-    public class HeartbeatReplyMessage : INetworkMessage
+    internal class HeartbeatReplyMessage : INetworkMessage
     {
         public byte MessageType => 8;
         

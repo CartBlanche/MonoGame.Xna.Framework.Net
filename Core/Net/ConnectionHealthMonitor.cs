@@ -8,7 +8,7 @@ namespace Microsoft.Xna.Framework.Net
     /// <summary>
     /// Monitors connection health using heartbeats and detects disconnections.
     /// </summary>
-    public class ConnectionHealthMonitor
+    internal class ConnectionHealthMonitor
     {
         private const int HEARTBEAT_INTERVAL_MS = 3000;  // Every 3 seconds (LAN)
         private const int HEARTBEAT_TIMEOUT_MS = 9000;   // 3 missed = disconnect (fast for LAN)
