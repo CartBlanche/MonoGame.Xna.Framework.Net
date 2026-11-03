@@ -251,6 +251,28 @@ namespace Microsoft.Xna.Framework.Net.Tests
         }
 
         [Test]
+        public async Task SendData_EmptiesThePacketWriter_SoAShorterPacketIsNotSentWithTheTailOfALongerOne()
+        {
+            var host = await NetworkSession.CreateAsync(NetworkSessionType.Local, 1, 4, 0, new Dictionary<string, object>());
+            var local = host.LocalGamers[0];
+            var writer = new PacketWriter();
+            var buffer = new byte[64];
+
+            writer.Write(new byte[] { 0x50, 1, 2, 3, 4, 5, 6, 7, 8 });
+            local.SendData(writer, SendDataOptions.None, local);
+            Assert.That(writer.Length, Is.Zero, "sending empties the writer, as in XNA");
+            Assert.That(writer.Position, Is.Zero);
+            Assert.That(local.ReceiveData(buffer, out _), Is.EqualTo(9));
+
+            writer.Write(new byte[] { 0x50, 9 });
+            local.SendData(writer, SendDataOptions.None, local);
+
+            Assert.That(local.ReceiveData(buffer, out _), Is.EqualTo(2), "only the new bytes, not the tail of the longer packet");
+            Assert.That(buffer.Take(2), Is.EqualTo(new byte[] { 0x50, 9 }));
+            await host.DisposeAsync();
+        }
+
+        [Test]
         public async Task UnreliableData_IsSentOnTheUnreliableChannel()
         {
             var (host, transport, gamer, _) = await HostWithGamer();
@@ -599,6 +621,30 @@ namespace Microsoft.Xna.Framework.Net.Tests
             Assert.That(transport.SentPackets.Count, Is.EqualTo(1));
             Assert.That(transport.SentPackets[0].length, Is.GreaterThan(0));
 
+            await session.DisposeAsync();
+        }
+
+        [Test]
+        public async Task SendToAll_EmptiesThePacketWriter_SoAShorterPacketIsNotSentWithTheTailOfALongerOne()
+        {
+            var session = await NetworkSession.CreateAsync(NetworkSessionType.Local, 1, 4, 0, new Dictionary<string, object>());
+            var transport = new FakeNetworkTransport();
+            session.NetworkTransport = transport;
+            session.ProtectLinks = false;
+            var remote = new NetworkGamer(session, "remote-1", false, false, "RemoteOne");
+            session.AcceptGamer(remote);
+            session.RegisterGamerEndpoint(remote, Peer(54321));
+            var writer = new PacketWriter();
+
+            writer.Write(new byte[] { 0x50, 1, 2, 3, 4, 5, 6, 7, 8 });
+            session.SendToAll(writer, SendDataOptions.None);
+            Assert.That(writer.Length, Is.Zero, "sending empties the writer, as in XNA");
+            transport.SentPackets.Clear();
+
+            writer.Write(new byte[] { 0x50, 9 });
+            session.SendToAll(writer, SendDataOptions.None);
+
+            Assert.That(transport.SentPackets.Single().data, Is.EqualTo(new byte[] { ReliableChannel.ChannelUnreliable, PayloadKind.Application, 0x50, 9 }));
             await session.DisposeAsync();
         }
 

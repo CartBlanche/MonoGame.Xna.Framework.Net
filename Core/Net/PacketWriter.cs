@@ -271,6 +271,18 @@ namespace Microsoft.Xna.Framework.Net
         }
 
         /// <summary>
+        /// Empties the writer so it can be written again from the start. Sending a packet does this,
+        /// as in XNA: moving only the position back would leave the tail of a longer earlier packet
+        /// in the data, and a shorter packet would be sent with that stale tail after it.
+        /// </summary>
+        internal void Clear()
+        {
+            writer.Flush();
+            stream.SetLength(0);
+            stream.Position = 0;
+        }
+
+        /// <summary>
         /// Gets the packet data as a byte array.
         /// </summary>
         internal byte[] GetData()

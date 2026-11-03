@@ -794,6 +794,8 @@ namespace Microsoft.Xna.Framework.Net
             {
                 PacketWriter.ReturnRentedData(payload);
             }
+
+            writer.Clear(); // empty the writer after sending, as NetworkGamer.SendData does, so it can be reused for a shorter packet
         }
 
         /// <summary>

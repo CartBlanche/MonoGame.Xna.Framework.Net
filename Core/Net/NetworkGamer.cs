@@ -265,7 +265,7 @@ namespace Microsoft.Xna.Framework.Net
                 PacketWriter.ReturnRentedData(serializedData);
             }
 
-            data.Position = 0; // Reset position after sending
+            data.Clear(); // empty the writer after sending, as XNA does, so it can be reused for a shorter packet
         }
 
         /// <summary>

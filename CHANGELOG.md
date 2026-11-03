@@ -8,6 +8,12 @@ Wire protocol **1**. Nothing has been published before this, so the breaking cha
 playground games were written against (labelled 0.3.1 in the project files), and matter to those games, not to anyone else.
 Development builds used protocol numbers 1 to 5 for formats that never shipped; do not mix them with this release.
 
+### Fixed
+
+- `NetworkGamer.SendData(PacketWriter, ...)` empties the writer after sending, as XNA does. It used to move only the position back, so a
+  writer reused for a shorter packet sent the new bytes followed by the stale tail of the longest packet written before. `NetworkSession.SendToAll(PacketWriter, ...)`
+  did not rewind or empty the writer at all, and now empties it too.
+
 ### Breaking changes
 
 - The framework's own wire messages (`JoinRequestMessage`, `JoinAcceptedMessage`, `JoinRejectedMessage`, `ReadinessUpdateMessage`,
