@@ -313,6 +313,56 @@ Exit criteria: a containerised server accepts clients from another network and s
 
 ---
 
+## Phase 11: PlayFab back-end (optional, after the first preview; researched 2026-11-11, nothing built)
+DECIDED 2026-11-11: build nothing until after the first preview. This phase records what a PlayFab back-end needs, so the work can be picked up later without redoing the research. The owner opened microsoft/XBOX-MonoGame-NetRumble issue 26 on 2026-11-11 (when will gdk-dotnet be on nuget.org, then which platforms, non-GDK use, redistribution, and how it is versioned against GDK editions); check for a reply before starting.
+
+### 11.A What PlayFab offers (read from Microsoft's pages, 2026-11-11)
+- **Lobby** (PlayFab Multiplayer): create, find, join, update, invite, leave; "Find Lobbies" and "Find Friend Lobbies"; "Join Arranged Lobby"; lobby change notifications can be subscribed to. Meant to sit next to matchmaking and Party.
+- **Party** (the network): a `PartyNetwork` that devices connect to; users are PlayFab entities; an endpoint per device sends messages to other endpoints or all of them. Route is either a cloud relay (DTLS, "transparent, low-latency") or direct peer to peer; the Unity quickstart says the default is peer to peer. 2 to 128 devices per network. Large messages are fragmented and reassembled by Party. Voice, text chat and speech-to-text are Party features (Phase 7).
+- **Authentication:** an entity ID and entity token (from `LoginWithCustomID` or a platform login) create the Party local user; the title ID goes to `PartyManager.Initialize`. Party does not need an Xbox identity (the Xbox Live helper library is "highly recommended" on Xbox and PC, "not required"). You need a PlayFab account and must enable Party in Game Manager. Lobby operations need a `title_player_account` entity token (create, find, join).
+- **Delivery options** (`PartySendMessageOptions`): `GuaranteedDelivery` or `BestEffortDelivery` (default), `SequentialDelivery` or `NonsequentialDelivery` (default), and coalescing flags. Receiving is a polling loop each frame: `StartProcessingStateChanges`, handle each `PartyStateChange`, `FinishProcessingStateChanges`.
+- **Cost:** Party Connectivity is metered per player-minute connected, Party Voice per minute speaking, plus egress for data sent from PlayFab's relay and voice servers. Peer-to-peer data does not pass through the relay. Party is "included at no extra cost in Foundation Mode for eligible Xbox ecosystem developers"; otherwise see PlayFab pricing (rates not read).
+
+### 11.B Platforms and how the native code reaches C# (the question that shaped the structure)
+- **Party C/C++ SDK:** Windows 10 (NuGet `Microsoft.PlayFab.PlayFabParty.Cpp.Windows`), Android (GitHub releases, and NuGet), iOS, macOS and Linux (GitHub releases, `github.com/PlayFab/PlayFabParty/releases`), PC and Xbox GDK (bundled with the GDK), Switch and PlayStation (platform-holder access). Native names found: iOS framework `PlayFabParty`, macOS framework `PlayFabPartyMac`, header `Party.h`; the GDK modules are `Party.dll` and `PartyXboxLive.dll`. The Unified SDK (v2, "preview") table lists only GDK platforms (Windows, Xbox, Steam Deck, consoles) and is not the route for macOS, Linux, Android or iOS; the v1 standalone SDKs "remain supported".
+- **Lobby and Matchmaking C/C++ SDK:** Win32 PC, GDK PC and Xbox, Android, iOS, macOS, Linux and WSL, Switch, PS4, PS5 (`github.com/PlayFab/PlayFabMultiplayer`); the GDK module is `PlayFabMultiplayer.dll`, which also needs `PlayFabCore.dll`. No C# or NuGet package for Lobby was found.
+- **Party has a flat C interface** next to the recommended C++ one ("handle values"), which is what P/Invoke needs. The C function names were not read.
+- **No C# binding is published.** The PlayFab C# SDK is the REST SDK for the core services, not Party or Lobby. The Unity plugin has a C# interop layer, not documented as a reusable one.
+- **`GDK.Net` (microsoft/XBOX-GDK-dotnet, also `aka.ms/XBOXGDKDOTNET`):** MIT; the .NET projection of the GDK flat C API, generated from GDK edition 260404 headers; targets `net8.0`, `net10.0` and `netstandard2.0` ("for MonoGame/Mono reach"); has `GDK.Net.PlayFab`, `GDK.Net.PlayFab.Multiplayer` (lobbies and matchmaking) and `GDK.Net.PlayFab.Party` (voice, text, network transport), each opt-in by an MSBuild property (`GdkNetIncludePlayFabParty` and so on); ships no native code of its own and binds to DLLs the GDK installs; **Windows only (win-x64, win-arm64), pinned to one GDK edition, "source, not a product", not on NuGet**, no update cadence, no Linux, macOS, Android or iOS. Needs an installed GDK, a dev-unlocked machine and a signed-in account to run. So it cannot be a dependency of a package we publish today, but it is MIT source we could read, or adapt with its licence notice, as a map of the Party and Multiplayer C APIs.
+- **Consequence:** a back-end that works off Windows needs our own P/Invoke over the flat C APIs of Party and PlayFabMultiplayer, against the native libraries from the GitHub releases. On Windows with GDK, GDK.Net would do, if it ever reaches NuGet.
+
+### 11.C Not found, and where to look (the research stopped here)
+The fetch tool could not read GitHub release or licence pages, so these are open and need someone to open the page:
+- **Licence and redistribution of the native binaries** (the question that decided Epic's SDK in 9.5): `github.com/PlayFab/PlayFabParty` and `github.com/PlayFab/PlayFabMultiplayer` (LICENSE files and release notes), and the two NuGet package pages. The NetRumble sample keeps the vendored Party binaries outside its MIT licence, "under Microsoft terms". Until read, assume we may not bundle them and the user supplies them.
+- **Lobby details:** the C API names (`PFMultiplayer*`, `PFLobby*` are unconfirmed), how it is driven, lobby and member property limits, search filter syntax and rate limits, max members, whether ownership can migrate (nothing says so), and how a lobby carries a Party network descriptor (storing the serialised descriptor in a lobby property is the obvious route, size limit unknown). Start at `PlayFab/PlayFabMultiplayer` releases, then the Lobby pages under `learn.microsoft.com/en-us/gaming/playfab/multiplayer/lobby/`.
+- **Party details:** native file names for Android and Linux, the maximum message size, the region list, the thread-safety rules of `PartyManager` (assume one thread owns it), the exact C function names, and the `enable-party`, invitation-security and `party-reference` pages.
+- **Whether a plain `net10.0` desktop game can use Party and Lobby off GDK.** The Windows Party NuGet package suggests yes, but the GDK page says online services need a Partner Center product and a sandbox "before they resolve against a real title"; check whether that only applies to the Xbox identity path.
+- **Pricing rates** (`playfab.com/pricing`, `playfab.com/party-calculator`), and the answer to issue 26.
+
+### 11.D Requirements
+- R1 A PlayFab title id and entity credentials come from the game, never from the library. `PlayFabBackend` takes a title id and an identity provider (an interface returning an entity id and token); the default provider logs in with a custom id over HTTPS.
+- R2 `INetworkBackend` mapping: `AdvertiseAsync` creates a lobby carrying the session id, `GameId`, type, gamer counts, the password flag and the session's properties, plus the Party network descriptor; `FindAsync` is Find Lobbies filtered by `GameId` and session type; `PrepareJoinAsync` joins the lobby and connects to its Party network; `SupportsSessionType` is true for `PlayerMatch` and `Ranked` (and `SystemLink` stays on the UDP back-end).
+- R3 `IPeerTransport` over a `PartyNetwork`: `Send` is `SendMessage` to one endpoint (an endpoint's 16-bit id is the `PeerId`); `ReceiveAsync` is fed by a pump that owns `PartyManager` (one dedicated thread running the state-change loop). Use `BestEffortDelivery | NonsequentialDelivery` and keep our `ReliableChannel` on top, so delivery is the same as on every other back-end. Check our fragmentation does not fight Party's.
+- R4 The session id, `GameId` and gamer counts in a lobby stay in step with the session (`SessionAdvertisement` changes), and a closed or full session is hidden from searches.
+- R5 No owner migration: if the lobby owner (our host) leaves, the session ends, as on the other back-ends (see 10.9).
+- R6 Relay or peer to peer is a setting on `PlayFabBackend` (default: relay, for NAT reliability; peer to peer saves the relay bill).
+- R7 Tests: the conformance suite against a fake native layer (as for Steam and EOS) and live tests skipped without a title id and credentials.
+- R8 Docs: README status row ("written, not run against PlayFab" until it is), a setup guide (create a title, enable Party, get a title id), the cost note from 11.A, and the licence position.
+
+### 11.E Structure (decided direction, not built)
+- Services are split by service, not by operating system, as for Steam and EOS: one package, `MonoGame.Xna.Framework.Net.PlayFab`, `net8.0;net10.0`, lock-step version, `PlayFabBackend`, `PlayFabPartyTransport`, `PlayFabPlatformBootstrap.Configure`, native libraries (if we may ship them) under `runtimes/<rid>/native` (win-x64, osx-arm64, linux-x64, android-arm64, ios-arm64 as found).
+- Android and iOS get add-on packages only if the native SDK needs a binding project there (an AAR or a framework), as Nearby and Game Center do. Plain P/Invoke on a `.so` or `.dylib` needs none.
+- No separate "PlayFab.Core" layer and no `PlayFabAllSDK` unless login needs it: our `Core` is the abstract layer, and a custom-id login is one HTTPS call.
+- Xbox Series X|S is out of scope: the console build needs private repositories, an authorized dev kit and a GDK agreement, so it cannot live in a public package.
+
+### 11.F Work items (in this order, all after the first preview)
+- [ ] 11.0 Close 11.C: read the licences and the Lobby and Party native APIs, decide whether the package may bundle the binaries, and read the answer to issue 26. Needs the owner (GitHub pages)
+- [ ] 11.1 A PlayFab title with Party enabled and a test account, and a decision on which OSes the first version covers (the answer to 11.B decides; Windows and macOS first is a guess)
+- [ ] 11.2 P/Invoke bindings for the flat C APIs of Party and PlayFabMultiplayer (only the calls R2 and R3 need), or adopt GDK.Net on Windows if it is on NuGet by then
+- [ ] 11.3 `PlayFabBackend`, the transport and the pump (R2 to R6), with the fake-native conformance tests (R7)
+- [ ] 11.4 Live test of two machines through a real PlayFab title, then the README and setup guide (R8)
+- [ ] 11.5 Voice: Party voice and speech-to-text become the provider for Phase 7 (7.2 to 7.4); done there, not here
+
 ## Decision log
 
 | Date | Decision | Reason |
@@ -361,3 +411,4 @@ Exit criteria: a containerised server accepts clients from another network and s
 4. ~~Voice in scope?~~ Yes. Design in Phase 7
 5. Minimum target: any need to support TFMs below `net10.0`?
 6. **NEEDS ATTENTION once everything else is done (parked 2026-10-29 at the owner's request):** the iOS test app (`Tests/iOS`) runs in the simulator but NUnitLite finds 0 tests, although its fixtures and `[Test]` methods are present at runtime (the same runner finds all 14 on Android). Not found yet: whether it is the interpreter, the trimmer or NUnitLite's discovery on the iOS runtime. Until fixed, `GameKitTransport`/`IOSBackend` have no on-platform test at all. Needs a Mac with Xcode (simulators for iOS 18.x are installed)
+7. PlayFab (Phase 11): can the Party and Lobby native libraries be redistributed, can a plain `net10.0` game use them off GDK, and is there a PlayFab title to test with? Answer 11.0 first
